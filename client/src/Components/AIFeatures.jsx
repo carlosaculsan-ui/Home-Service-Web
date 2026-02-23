@@ -23,7 +23,7 @@ function AIFeatures() {
     setAnalyzing(true)
     setDamageResult(null)
 
-    // Simulated AI analysis delay
+
     setTimeout(() => {
       setAnalyzing(false)
       setDamageResult({
@@ -40,7 +40,7 @@ function AIFeatures() {
   return (
     <div className="py-16 px-8 bg-white">
 
-      {/* Section Title */}
+   
       <h2 className="text-3xl font-bold text-center text-gray-800 mb-4">
         Powered by AI
       </h2>
@@ -48,7 +48,7 @@ function AIFeatures() {
         Smart tools to make home service easier than ever
       </p>
 
-      {/* Tabs */}
+    
       <div className="flex justify-center gap-4 mb-10">
         <button
           onClick={() => setActiveTab('chatbot')}
@@ -72,10 +72,10 @@ function AIFeatures() {
         </button>
       </div>
 
-      {/* Tab Content */}
+  
       <div className="max-w-2xl mx-auto">
 
-        {/* Chatbot Tab */}
+
         {activeTab === 'chatbot' && (
           <div className="bg-gray-50 rounded-2xl p-8 text-center border border-gray-200">
             <div className="text-6xl mb-4">🤖</div>
@@ -99,7 +99,7 @@ function AIFeatures() {
           </div>
         )}
 
-        {/* Damage Detector Tab */}
+ 
         {activeTab === 'damage' && (
           <div className="bg-gray-50 rounded-2xl p-8 border border-gray-200">
             <div className="text-center mb-6">
@@ -110,7 +110,7 @@ function AIFeatures() {
               </p>
             </div>
 
-            {/* Upload Area */}
+   
             <label className="block cursor-pointer">
               <div className={`border-2 border-dashed rounded-xl p-8 text-center transition-all ${
                 imagePreview ? 'border-blue-400 bg-blue-50' : 'border-gray-300 hover:border-blue-400'
@@ -128,7 +128,7 @@ function AIFeatures() {
               <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
             </label>
 
-            {/* Analyze Button */}
+          
             {imagePreview && !damageResult && (
               <button
                 onClick={handleAnalyze}
@@ -139,7 +139,7 @@ function AIFeatures() {
               </button>
             )}
 
-            {/* Loading */}
+         
             {analyzing && (
               <div className="mt-4 text-center">
                 <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
@@ -147,7 +147,7 @@ function AIFeatures() {
               </div>
             )}
 
-            {/* Results */}
+          
             {damageResult && (
               <div className="mt-6 bg-white rounded-xl border border-gray-200 p-6 space-y-3">
                 <h4 className="font-bold text-gray-800 text-lg">📊 Analysis Results</h4>
