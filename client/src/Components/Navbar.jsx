@@ -1,14 +1,17 @@
-function Navbar() {
+
+function Navbar()
+
+ {
   return (
-    <nav className="bg-white shadow-md px-8 py-4 flex items-center justify-between">
+    <nav className="bg-white shadow-md px-20 py-4 flex items-center justify-between">
       
       {/* Logo */}
-      <div className="text-3xl font-extrabold text-blue-600">
-        Vortex Elite
+      <div className="text-3xl font-extrabold text-[rgb(0,81,255)]">
+        HUD
       </div>
 
       {/* Nav Links */}
-      <div className="flex gap-8 text-gray-600 font-medium">
+      <div className="absolute left-1/2 transform -translate-x-1/2 flex gap-10 text-gray-600 font-medium">
         <a href="#" className="hover:text-blue-600">Home</a>
         <a href="#" className="hover:text-blue-600">Services</a>
         <a href="#" className="hover:text-blue-600">How It Works</a>
@@ -16,7 +19,7 @@ function Navbar() {
       </div>
 
       {/* Buttons */}
-      <div className="flex gap-3 items-center">
+      <div className="ml-auto flex gap-3 items-center">
         <a href="#" className="text-blue-600 font-semibold hover:underline">
           Become a Tasker
         </a>
