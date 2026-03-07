@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Login() {
@@ -7,35 +7,21 @@ function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    if (error) {
-      setError(error.message)
-    } else {
-      navigate('/')
-    }
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) setError(error.message)
     setLoading(false)
   }
 
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setError('Please enter your email first')
-      return
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
-    if (error) {
-      setError(error.message)
-    } else {
-      alert('Password reset email sent')
-    }
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    })
+    if (error) setError(error.message)
   }
 
   return (
@@ -77,7 +63,7 @@ function Login() {
               <input type="checkbox" className="accent-orange-500" />
               Remember me
             </label>
-            <button onClick={handleForgotPassword} className="text-orange-500 hover:underline">Forgot password?</button>
+            <a href="#" className="text-orange-500 hover:underline">Forgot password?</a>
           </div>
 
           <button
@@ -88,6 +74,8 @@ function Login() {
             {loading ? 'Logging in...' : 'Log In'}
           </button>
 
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t border-gray-200"></div>
@@ -97,13 +85,14 @@ function Login() {
             </div>
           </div>
 
-          <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-3">
+          <button
+            onClick={handleGoogleLogin}
+            className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-3"
+          >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
             Continue with Google
           </button>
         </div>
-
-        {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
 
         {/* Sign Up Link */}
         <p className="text-center text-gray-500 text-sm mt-6">
