@@ -37,7 +37,7 @@ function Reviews() {
   return (
     <div className="py-16 px-8 bg-gray-50">
 
-      {/* Section Title */}
+      
       <h2 className="text-3xl font-bold text-center text-gray-800 mb-4">
         What Our Customers Say
       </h2>
@@ -45,29 +45,28 @@ function Reviews() {
         Trusted by thousands of happy homeowners
       </p>
 
-      {/* Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
         {reviews.map((review, index) => (
           <div key={index} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow">
             
-            {/* Stars */}
+       
             <div className="flex gap-1 mb-3">
               {[...Array(review.rating)].map((_, i) => (
                 <span key={i} className="text-yellow-400 text-lg">★</span>
               ))}
             </div>
 
-            {/* Comment */}
+         
             <p className="text-gray-600 text-sm mb-4">"{review.comment}"</p>
 
-            {/* Service Tag */}
-            <span className="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full font-medium">
+      
+            <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
               {review.service}
             </span>
 
-            {/* Reviewer */}
+           
             <div className="flex items-center gap-3 mt-4">
-              <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
+              <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
                 {review.avatar}
               </div>
               <div>

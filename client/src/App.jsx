@@ -2,6 +2,10 @@ import { Routes, Route } from 'react-router-dom'
 import Navbar from './Components/Navbar'
 import Hero from './Components/Hero'
 import Services from './Components/Services'
+import TaskerShowcase from './Components/TaskerShowcase'
+import WhyChooseUs from './Components/WhyChooseUs'
+import VideoSection from './Components/VideoSection'
+import Pricing from './Components/Pricing'
 import HowItWorks from './Components/HowItWorks'
 import AIFeatures from './Components/AIFeatures'
 import Reviews from './Components/Reviews'
@@ -15,6 +19,10 @@ function Home() {
       <Navbar />
       <Hero />
       <Services />
+      <TaskerShowcase />
+      <WhyChooseUs />
+      <VideoSection />
+      <Pricing />
       <HowItWorks />
       <AIFeatures />
       <Reviews />

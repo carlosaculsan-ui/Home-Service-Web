@@ -23,7 +23,7 @@ function HowItWorks() {
   return (
     <div className="py-16 px-8 bg-white">
 
-      {/* Section Title */}
+   
       <h2 className="text-3xl font-bold text-center text-gray-800 mb-4">
         How It Works
       </h2>
@@ -31,11 +31,11 @@ function HowItWorks() {
         Get your home services done in 3 easy steps
       </p>
 
-      {/* Steps */}
+
       <div className="flex flex-col md:flex-row justify-center gap-8 max-w-5xl mx-auto">
         {steps.map((item, index) => (
           <div key={index} className="flex-1 text-center p-8 rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-            <div className="text-blue-600 font-extrabold text-lg mb-2">{item.step}</div>
+            <div className="text-orange-500 font-extrabold text-lg mb-2">{item.step}</div>
             <div className="text-5xl mb-4">{item.icon}</div>
             <h3 className="text-xl font-bold text-gray-800 mb-2">{item.title}</h3>
             <p className="text-gray-500">{item.description}</p>

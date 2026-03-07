@@ -5,65 +5,56 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <nav className="bg-white shadow-md px-8 py-4">
-      
-      <div className="flex items-center justify-between">
-    
-        <div className="text-3xl font-extrabold text-blue-600">
-          Vortex Elite
+    <nav className="relative shadow-md w-full flex">
+      {/* left white section - 30% width, logo placeholder */}
+      <div className="w-[30%] bg-white"></div>
+
+      {/* right orange section - 70% width with arrow shape */}
+      <div
+        className="w-[70%] bg-orange-500 flex items-center justify-between px-10"
+        style={{ clipPath: 'polygon(40px 0%, 100% 0%, 100% 100%, 40px 100%, 0% 50%)' }}
+      >
+        {/* desktop nav links distributed evenly */}
+        <div className="hidden md:flex justify-evenly flex-1 text-white font-medium">
+          <a href="#" className="hover:text-orange-200">Home</a>
+          <a href="#" className="hover:text-orange-200">Services</a>
+          <a href="#" className="hover:text-orange-200">How It Works</a>
+          <a href="#" className="hover:text-orange-200">About</a>
+          <a href="#" className="hover:text-orange-200">Contact Us Now</a>
         </div>
 
-    
-        <div className="hidden md:flex gap-8 text-gray-600 font-medium">
-          <a href="#" className="hover:text-blue-600">Home</a>
-          <a href="#" className="hover:text-blue-600">Services</a>
-          <a href="#" className="hover:text-blue-600">How It Works</a>
-          <a href="#" className="hover:text-blue-600">About</a>
-        </div>
-
-    
-        <div className="hidden md:flex gap-3 items-center">
-          <a href="#" className="text-blue-600 font-semibold hover:underline">
-            Become a Tasker
-          </a>
+        {/* login button pinned to far right */}
+        <div className="flex-shrink-0">
           <Link to="/login">
-            <button className="px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50">
-              Log In
+            <button className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold border border-white flex items-center gap-2">
+              Log In <span>→</span>
             </button>
           </Link>
-          <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Sign Up
-          </button>
         </div>
 
-   
+        {/* mobile toggle */}
         <button
-          className="md:hidden text-gray-600 focus:outline-none"
+          className="md:hidden text-white focus:outline-none"
           onClick={() => setMenuOpen(!menuOpen)}
         >
           {menuOpen ? '✕' : '☰'}
         </button>
       </div>
 
-   
       {menuOpen && (
-        <div className="md:hidden mt-4 flex flex-col gap-4 text-gray-600 font-medium border-t pt-4">
-          <a href="#" className="hover:text-blue-600">Home</a>
-          <a href="#" className="hover:text-blue-600">Services</a>
-          <a href="#" className="hover:text-blue-600">How It Works</a>
-          <a href="#" className="hover:text-blue-600">About</a>
-          <a href="#" className="text-blue-600 font-semibold">Become a Tasker</a>
+        <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 pb-4 bg-orange-500">
+          <a href="#" className="hover:text-orange-200">Home</a>
+          <a href="#" className="hover:text-orange-200">Services</a>
+          <a href="#" className="hover:text-orange-200">How It Works</a>
+          <a href="#" className="hover:text-orange-200">About</a>
+          <a href="#" className="hover:text-orange-200">Contact Us Now</a>
           <Link to="/login">
-            <button className="w-full px-4 py-2 border border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50">
-              Log In
+            <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
+              Log In →
             </button>
           </Link>
-          <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-            Sign Up
-          </button>
         </div>
       )}
-
     </nav>
   )
 }
