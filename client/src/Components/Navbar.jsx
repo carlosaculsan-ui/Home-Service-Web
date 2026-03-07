@@ -16,10 +16,10 @@ function Navbar() {
       >
         {/* desktop nav links distributed evenly */}
         <div className="hidden md:flex justify-evenly flex-1 text-white font-medium">
-          <a href="#" className="hover:text-orange-200">Home</a>
-          <a href="#" className="hover:text-orange-200">Services</a>
-          <a href="#" className="hover:text-orange-200">How It Works</a>
-          <a href="#" className="hover:text-orange-200">About</a>
+          <a href="#home" className="hover:text-orange-200">Home</a>
+          <a href="#services" className="hover:text-orange-200">Services</a>
+          <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
+          <a href="#about" className="hover:text-orange-200">About</a>
           <a href="#" className="hover:text-orange-200">Contact Us Now</a>
         </div>
 
@@ -43,10 +43,10 @@ function Navbar() {
 
       {menuOpen && (
         <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 pb-4 bg-orange-500">
-          <a href="#" className="hover:text-orange-200">Home</a>
-          <a href="#" className="hover:text-orange-200">Services</a>
-          <a href="#" className="hover:text-orange-200">How It Works</a>
-          <a href="#" className="hover:text-orange-200">About</a>
+          <a href="#home" className="hover:text-orange-200">Home</a>
+          <a href="#services" className="hover:text-orange-200">Services</a>
+          <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
+          <a href="#about" className="hover:text-orange-200">About</a>
           <a href="#" className="hover:text-orange-200">Contact Us Now</a>
           <Link to="/login">
             <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">

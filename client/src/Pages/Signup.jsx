@@ -2,40 +2,33 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
-function Login() {
+function Signup() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
+    if (password !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
     setLoading(true)
     setError('')
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
     })
     if (error) {
       setError(error.message)
     } else {
-      navigate('/')
+      alert('Check your email for confirmation')
+      navigate('/login')
     }
     setLoading(false)
-  }
-
-  const handleForgotPassword = async () => {
-    if (!email) {
-      setError('Please enter your email first')
-      return
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
-    if (error) {
-      setError(error.message)
-    } else {
-      alert('Password reset email sent')
-    }
   }
 
   return (
@@ -45,7 +38,7 @@ function Login() {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-orange-500">Vortex Elite</h1>
-          <p className="text-gray-500 mt-2">Welcome back! Please log in.</p>
+          <p className="text-gray-500 mt-2">Create your account</p>
         </div>
 
         {/* Form */}
@@ -72,12 +65,15 @@ function Login() {
             />
           </div>
 
-          <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-gray-600">
-              <input type="checkbox" className="accent-orange-500" />
-              Remember me
-            </label>
-            <button onClick={handleForgotPassword} className="text-orange-500 hover:underline">Forgot password?</button>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
+            />
           </div>
 
           <button
@@ -85,30 +81,16 @@ function Login() {
             disabled={loading}
             className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50"
           >
-            {loading ? 'Logging in...' : 'Log In'}
-          </button>
-
-          <div className="relative my-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-3 text-gray-400">or</span>
-            </div>
-          </div>
-
-          <button className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-3">
-            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
-            Continue with Google
+            {loading ? 'Signing up...' : 'Sign Up'}
           </button>
         </div>
 
         {error && <p className="text-red-500 text-sm mt-4">{error}</p>}
 
-        {/* Sign Up Link */}
+        {/* Log In Link */}
         <p className="text-center text-gray-500 text-sm mt-6">
-          Don't have an account?{' '}
-          <Link to="/signup" className="text-orange-500 font-semibold hover:underline">Sign Up</Link>
+          Already have an account?{' '}
+          <Link to="/login" className="text-orange-500 font-semibold hover:underline">Log In</Link>
         </p>
 
       </div>
@@ -116,4 +98,4 @@ function Login() {
   )
 }
 
-export default Login
+export default Signup

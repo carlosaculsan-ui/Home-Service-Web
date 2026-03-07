@@ -11,24 +11,25 @@ import AIFeatures from './Components/AIFeatures'
 import Reviews from './Components/Reviews'
 import Footer from './Components/Footer'
 import Chatbot from './Components/Chatbot'
-import Login from './Pages/Login'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
 
 function Home() {
   return (
-    <div>
+    <>
       <Navbar />
-      <Hero />
-      <Services />
+      <div id="home"><Hero /></div>
+      <div id="services"><Services /></div>
       <TaskerShowcase />
-      <WhyChooseUs />
+      <div id="about"><WhyChooseUs /></div>
       <VideoSection />
       <Pricing />
-      <HowItWorks />
+      <div id="how-it-works"><HowItWorks /></div>
       <AIFeatures />
       <Reviews />
       <Footer />
       <Chatbot />
-    </div>
+    </>
   )
 }
 
@@ -37,6 +38,7 @@ function App() {
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/signup" element={<Signup />} />
     </Routes>
   )
 }
