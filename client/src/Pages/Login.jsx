@@ -7,6 +7,7 @@ function Login() {
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -49,13 +50,22 @@ function Login() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between text-sm">
@@ -63,13 +73,13 @@ function Login() {
               <input type="checkbox" className="accent-orange-500" />
               Remember me
             </label>
-            <a href="#" className="text-orange-500 hover:underline">Forgot password?</a>
+            <Link to="/forgot-password" className="text-orange-500 hover:underline">Forgot password?</Link>
           </div>
 
           <button
             onClick={handleSubmit}
             disabled={loading}
-            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50"
+            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
           >
             {loading ? 'Logging in...' : 'Log In'}
           </button>
@@ -87,7 +97,7 @@ function Login() {
 
           <button
             onClick={handleGoogleLogin}
-            className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-50 font-medium flex items-center justify-center gap-3"
+            className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-100 hover:border-gray-400 hover:text-gray-900 transition-colors font-medium flex items-center justify-center gap-3"
           >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
             Continue with Google
