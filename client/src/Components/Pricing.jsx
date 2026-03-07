@@ -44,6 +44,7 @@ function Pricing() {
   return (
     <div className="bg-gray-50 py-16 px-6 md:px-8">
       <div className="max-w-6xl mx-auto">
+
         {/* Section Tagline */}
         <h2 className="text-4xl font-bold text-center mb-12">
           <span className="text-gray-900">Affordable Care For Every </span>
@@ -51,11 +52,11 @@ function Pricing() {
         </h2>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-stretch">
           {plans.map((plan, index) => (
             <div
               key={index}
-              className="bg-white border border-gray-200 rounded-xl shadow-md p-8 hover:shadow-lg transition-shadow"
+              className="bg-white border border-gray-200 rounded-xl shadow-md p-8 hover:shadow-lg transition-shadow flex flex-col h-full"
             >
               {/* Plan Name */}
               <h3 className="text-2xl font-bold mb-2">
@@ -64,17 +65,14 @@ function Pricing() {
               </h3>
 
               {/* Subtitle */}
-              <p className="text-gray-600 text-sm mb-6">
-                {plan.subtitle}
-              </p>
-
+             <p className="text-gray-600 text-sm font-medium mb-6 min-h-[40px]">
+  {plan.subtitle}
+</p>
               {/* Price */}
               <div className="mb-6">
-                <p className="text-3xl font-bold text-gray-900">
+                <p className="text-4xl font-extrabold text-gray-900">
                   {plan.price}
-                </p>
-                <p className="text-gray-600 text-sm">
-                  per {plan.period}
+                  <span className="text-xl font-bold text-gray-600">/{plan.period}</span>
                 </p>
               </div>
 
@@ -84,18 +82,20 @@ function Pricing() {
               </button>
 
               {/* Features List */}
-              <div className="space-y-3">
-                <p className="text-gray-900 font-semibold text-sm">What's Included:</p>
+              <div className="space-y-3 flex-1">
+                <p className="text-gray-900 font-bold text-sm">What's Included:</p>
                 {plan.features.map((feature, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <span className="text-orange-500 font-bold">•</span>
-                    <span className="text-gray-600 text-sm">{feature}</span>
+                    <span className="text-gray-700 text-sm font-medium">{feature}</span>
                   </div>
                 ))}
               </div>
+
             </div>
           ))}
         </div>
+
       </div>
     </div>
   )

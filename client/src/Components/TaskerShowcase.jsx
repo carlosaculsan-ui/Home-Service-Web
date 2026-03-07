@@ -1,103 +1,126 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const taskers = [
-  {
-    name: "Mark C. Quite",
-    title: "Appliance Repair Professional",
-    rating: 4.9,
-    reviews: 128
-  },
-  {
-    name: "Lee B. Maborrang",
-    title: "Pest Control Professional",
-    rating: 5.0,
-    reviews: 95
-  },
-  {
-    name: "Joan M. Batungbakal",
-    title: "Cleaning Specialist",
-    rating: 4.8,
-    reviews: 156
-  }
+  { name: "Mark C. Quite", role: "Appliance Repair Professional", rating: 4.3, reviews: 240 },
+  { name: "Lee B. Maborrang", role: "Pest Control Professional", rating: 4.9, reviews: 316 },
+  { name: "Joan M. Batungbakal", role: "Cleaning Specialist", rating: 4.9, reviews: 0 },
+  { name: "Ahron Gainsan", role: "Electrical Professional", rating: 5.0, reviews: 1000000 },
+  { name: "Danica Flores", role: "Plumbing Specialist", rating: 5.0, reviews: 1 },
+  { name: "Manny John Paul Vargas", role: "Carpentry Professional", rating: 4.6, reviews: 1000000000 },
 ]
 
 function TaskerShowcase() {
-  const [currentIndex, setCurrentIndex] = useState(1)
+  const [index, setIndex] = useState(1)
+  const [sliding, setSliding] = useState(null)
+
+  const slide = (direction) => {
+    setSliding(direction)
+    setTimeout(() => {
+      setIndex((prev) =>
+        direction === 'left'
+          ? prev === 0 ? taskers.length - 1 : prev - 1
+          : prev === taskers.length - 1 ? 0 : prev + 1
+      )
+      setSliding(null)
+    }, 300)
+  }
+
+  const getVisible = () => {
+    const left = (index - 1 + taskers.length) % taskers.length
+    const center = index
+    const right = (index + 1) % taskers.length
+    return [
+      { tasker: taskers[left], position: 'left' },
+      { tasker: taskers[center], position: 'center' },
+      { tasker: taskers[right], position: 'right' },
+    ]
+  }
+
+  const getSlideStyle = (position) => {
+    if (!sliding) return 'translateX(0)'
+    if (sliding === 'right') {
+      if (position === 'left') return 'translateX(-120%)'
+      if (position === 'center') return 'translateX(-40%)'
+      if (position === 'right') return 'translateX(-40%)'
+    }
+    if (sliding === 'left') {
+      if (position === 'right') return 'translateX(120%)'
+      if (position === 'center') return 'translateX(40%)'
+      if (position === 'left') return 'translateX(40%)'
+    }
+    return 'translateX(0)'
+  }
 
   return (
-    <div className="bg-gray-900 py-16 px-6 md:px-8">
-      <h2 className="text-4xl font-bold text-white text-center mb-12">
-        Vortex Elite
-      </h2>
+    <div className="bg-gray-900 py-16 px-8 text-white text-center overflow-hidden">
 
-      {/* Tasker Cards */}
-      <div className="max-w-6xl mx-auto flex items-center justify-center gap-6 mb-12">
-        {taskers.map((tasker, index) => {
-          const isCenter = index === currentIndex
-          return (
+      <h2 className="text-3xl font-bold mb-10">Vortex Elite Taskers</h2>
+
+      <div className="flex items-center justify-center gap-6">
+
+        <button
+          onClick={() => slide('left')}
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl flex-shrink-0 z-10"
+        >
+          ←
+        </button>
+
+        <div className="flex items-center justify-center gap-8 w-full max-w-4xl overflow-hidden">
+          {getVisible().map(({ tasker, position }, i) => (
             <div
-              key={index}
-              className={`transition-all ${
-                isCenter
-                  ? 'w-full md:w-80 scale-100'
-                  : 'w-full md:w-64 scale-75 md:scale-100 opacity-60'
-              }`}
+              key={i}
+              className="bg-gray-800 rounded-xl overflow-hidden shadow-lg flex-shrink-0"
+              style={{
+                width: position === 'center' ? '32%' : '27%',
+                opacity: position === 'center' ? 1 : 0.6,
+                transform: `${position === 'center' ? 'scale(1.05)' : 'scale(0.93)'} ${getSlideStyle(position)}`,
+                transition: 'transform 0.3s ease, opacity 0.3s ease',
+              }}
             >
-              <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                {/* Photo Placeholder */}
-                <div className="bg-gray-300 h-48 w-full"></div>
-
-                {/* Content */}
-                <div className="p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-2">
-                    {tasker.name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    {tasker.title}
-                  </p>
-
-                  {/* Rating */}
-                  <div className="flex items-center gap-2 mb-6">
-                    <div className="flex gap-1">
-                      {[...Array(5)].map((_, i) => (
-                        <span key={i} className="text-orange-500">★</span>
-                      ))}
-                    </div>
-                    <span className="text-sm text-gray-600">
-                      {tasker.rating} ({tasker.reviews} reviews)
-                    </span>
-                  </div>
-
-                  {/* View Profile Button */}
-                  <button className="w-full px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors">
-                    View Profile
-                  </button>
-                </div>
+              <div
+                className="bg-gray-600 w-full"
+                style={{ height: position === 'center' ? '200px' : '165px' }}
+              ></div>
+              <div className="p-4 text-left">
+                <h3 className="font-bold text-base">{tasker.name}</h3>
+                <p className="text-orange-400 text-sm mb-2">{tasker.role}</p>
+                <p className="text-yellow-400 text-sm mb-3">
+                  ★ {tasker.rating} ({tasker.reviews.toLocaleString()} reviews)
+                </p>
+                <button className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold text-sm">
+                  View Profile
+                </button>
               </div>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
 
-      {/* Become a Tasker Button */}
-      <div className="flex justify-center mb-8">
-        <button className="px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg text-lg transition-colors">
-          Become a Tasker
+        <button
+          onClick={() => slide('right')}
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl flex-shrink-0 z-10"
+        >
+          →
         </button>
+
       </div>
 
       {/* Pagination Dots */}
-      <div className="flex justify-center gap-2">
-        {taskers.map((_, index) => (
+      <div className="flex justify-center gap-2 mt-8">
+        {taskers.map((_, i) => (
           <button
-            key={index}
-            onClick={() => setCurrentIndex(index)}
-            className={`w-3 h-3 rounded-full transition-colors ${
-              index === currentIndex ? 'bg-orange-500' : 'bg-gray-600'
+            key={i}
+            onClick={() => setIndex(i)}
+            className={`h-3 rounded-full transition-all duration-300 ${
+              i === index ? 'bg-orange-500 w-6' : 'bg-gray-500 w-3'
             }`}
-          ></button>
+          />
         ))}
       </div>
+
+      <button className="mt-8 bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-semibold">
+        Become a Tasker
+      </button>
+
     </div>
   )
 }

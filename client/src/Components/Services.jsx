@@ -73,7 +73,7 @@ function Services() {
               <div className="text-4xl">{service.icon}</div>
               <div className="flex gap-1">
                 {[...Array(5)].map((_, i) => (
-                  <span key={i} className="text-orange-500">★</span>
+                  <span key={i} className="text-yellow-500">★</span>
                 ))}
               </div>
             </div>
