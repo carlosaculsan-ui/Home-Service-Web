@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import backgroundImg from '../Assets/Background.jpg'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -28,7 +29,13 @@ function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
+    <div className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
       <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md">
 
         {/* Logo and Title */}

@@ -7,15 +7,15 @@ function Navbar() {
   return (
     <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh]">
       {/* left white section - 30% width, logo placeholder */}
-      <div className="w-[30%] bg-white"></div>
+      <div className="w-[30%] bg-white min-h-[70px]"></div>
 
       {/* right orange section - 70% width with arrow shape */}
       <div
-        className="w-[70%] bg-orange-500 flex items-center justify-between px-10"
+        className="w-[70%] bg-orange-500 flex items-center justify-between px-10 py-5 min-h-[70px]"
         style={{ clipPath: 'polygon(40px 0%, 100% 0%, 100% 100%, 40px 100%, 0% 50%)' }}
       >
         {/* desktop nav links distributed evenly */}
-        <div className="hidden md:flex justify-evenly flex-1 text-white font-medium">
+        <div className="hidden md:flex justify-evenly flex-1 text-white font-medium text-base">
           <a href="#home" className="hover:text-orange-200">Home</a>
           <a href="#services" className="hover:text-orange-200">Services</a>
           <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>

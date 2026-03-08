@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import backgroundImg from '../Assets/Background.jpg'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -23,25 +24,40 @@ function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
 
-        {/* Logo and Title */}
+      {/* Glass Card */}
+      <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
+        style={{
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
+        }}
+      >
+        {/* Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-orange-500">Vortex Elite</h1>
-          <p className="text-gray-500 mt-2">Forgot your password? No worries!</p>
+          <h1 className="text-3xl font-extrabold text-white">Forgot Password</h1>
+          <p className="text-gray-300 mt-2 text-sm">Enter your email and we'll send you a reset link.</p>
         </div>
 
         {/* Form */}
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@email.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
+              placeholder="Email"
+              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
             />
           </div>
 
@@ -53,13 +69,14 @@ function ForgotPassword() {
             {loading ? 'Sending...' : 'Send Reset Email'}
           </button>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
-          {success && <p className="text-green-500 text-sm">{success}</p>}
-
-          <div className="text-center mt-4">
-            <Link to="/login" className="text-orange-500 hover:underline text-sm">Back to Login</Link>
-          </div>
+          {error && <p className="text-red-300 text-sm">{error}</p>}
+          {success && <p className="text-green-300 text-sm">{success}</p>}
         </div>
+
+        <p className="text-center text-gray-300 text-sm mt-6">
+          Remember your password?{' '}
+          <Link to="/login" className="text-orange-300 font-semibold hover:text-orange-200">Back to Login</Link>
+        </p>
 
       </div>
     </div>

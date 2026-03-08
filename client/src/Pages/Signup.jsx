@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import signupImage from '../Assets/SignupImage.jpg'
+import backgroundImg from '../Assets/Background.jpg'
 
 function Signup() {
   const [email, setEmail] = useState('')
@@ -41,16 +42,11 @@ function Signup() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4"
       style={{
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #ea580c 70%, #f97316 100%)'
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
       }}
     >
-      {/* Decorative blobs */}
-      <div className="absolute w-72 h-72 rounded-full opacity-30 blur-3xl"
-        style={{ background: '#f97316', top: '10%', left: '15%' }}
-      ></div>
-      <div className="absolute w-96 h-96 rounded-full opacity-20 blur-3xl"
-        style={{ background: '#4f46e5', bottom: '10%', right: '10%' }}
-      ></div>
 
       {/* Glass Card */}
       <div className="relative z-10 w-full max-w-4xl rounded-2xl overflow-hidden flex"
