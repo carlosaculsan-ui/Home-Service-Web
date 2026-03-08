@@ -7,12 +7,27 @@ function BecomeATasker() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
     firstName: '',
+    middleName: '',
     lastName: '',
+    suffix: '',
     phone: '',
+    email: '',
+    serviceArea: '',
     address: '',
-    birthday: '',
+    age: '',
     gender: '',
+    postalCode: '',
+    birthday: '',
     category: '',
+    availWeekdays: false,
+    availWeekends: false,
+    availAnytime: false,
+    workMorning: false,
+    workAfternoon: false,
+    workEvening: false,
+    travelDistance: '',
+    serviceRole: '',
+    experience: '',
     idType: '',
     frontImage: null,
     backImage: null,
@@ -25,9 +40,6 @@ function BecomeATasker() {
     optional1: null,
     optional2: null,
     optional3: null,
-    optional4: null,
-    optional5: null,
-    optional6: null,
   })
 
   const handleChange = (e) => {
@@ -76,138 +88,283 @@ function BecomeATasker() {
       {/* Panels Container */}
       <div className="relative z-10 flex gap-6 w-full max-w-6xl items-stretch">
         {/* Left Sidebar Panel */}
-        <div className="w-1/3 bg-white rounded-2xl shadow-lg p-8 min-h-[600px]">
-          <div className="absolute left-4 top-12 bottom-12 w-px bg-gray-300"></div>
-          <div className="flex flex-col h-full justify-between">
+        <div className="w-1/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px]">
+          <div className="flex flex-col h-full">
             {steps.map((s, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div
-                  className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${{
-                    true: 'bg-blue-800 text-white',
-                    false: 'border-2 border-gray-300 text-gray-400',
-                  }[step === i + 1]}`}
-                >
-                  {s.icon}
+              <div key={i} className={`flex flex-col ${i < steps.length - 1 ? 'flex-1' : ''}`}>
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${{
+                      true: 'bg-blue-800 text-white',
+                      false: 'border-2 border-gray-300 text-gray-400',
+                    }[step === i + 1]}`}
+                  >
+                    {s.icon}
+                  </div>
+                  <span
+                    className={`${
+                      step === i + 1
+                        ? 'font-bold text-gray-900'
+                        : 'text-gray-400'
+                    }`}
+                  >
+                    {s.label}
+                  </span>
                 </div>
-                <span
-                  className={`${
-                    step === i + 1
-                      ? 'font-bold text-gray-900'
-                      : 'text-gray-400'
-                  }`}
-                >
-                  {s.label}
-                </span>
+                {i < steps.length - 1 && (
+                  <div className="ml-[15px] flex-1">
+                    <div
+                      className={`w-0.5 h-full transition-colors ${
+                        step > i + 1 ? 'bg-[#312e81]' : 'bg-gray-300'
+                      }`}
+                    />
+                  </div>
+                )}
               </div>
             ))}
           </div>
         </div>
 
         {/* Right Content Panel */}
-        <div className="w-2/3 bg-white rounded-2xl shadow-lg p-8 min-h-[600px] overflow-y-auto">
+        <div className="w-2/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px] overflow-y-auto">
           {step === 1 && (
             <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                Personal Information
-              </h2>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    First Name
-                  </label>
+              {/* Brand header */}
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-base">🏠</span>
+                <span className="text-sm font-bold text-orange-500 tracking-wide">Vortex Elite</span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
+
+              {/* Row 1: Name fields */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  name="firstName"
+                  value={formData.firstName}
+                  onChange={handleChange}
+                  placeholder="Firstname"
+                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                />
+                <input
+                  type="text"
+                  name="middleName"
+                  value={formData.middleName}
+                  onChange={handleChange}
+                  placeholder="Middle"
+                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                />
+                <input
+                  type="text"
+                  name="lastName"
+                  value={formData.lastName}
+                  onChange={handleChange}
+                  placeholder="Lastname"
+                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                />
+                <input
+                  type="text"
+                  name="suffix"
+                  value={formData.suffix}
+                  onChange={handleChange}
+                  placeholder="Jr."
+                  className="w-14 border border-gray-300 rounded-md p-2 text-sm"
+                />
+              </div>
+
+              {/* Row 2: Phone + Service Area */}
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="tel"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={(e) => {
+                    if (/^\d*$/.test(e.target.value)) handleChange(e)
+                  }}
+                  placeholder="Phone"
+                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                />
+                <div className="flex-1 relative">
                   <input
                     type="text"
-                    name="firstName"
-                    value={formData.firstName}
+                    name="serviceArea"
+                    value={formData.serviceArea}
                     onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    placeholder="Select Your Home Or Main Service Area..."
+                    className="w-full border border-gray-300 rounded-md p-2 pr-8 text-sm"
                   />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Last Name
-                  </label>
+              </div>
+
+              {/* Row 3: Email + Map side by side */}
+              <div className="flex gap-2 mb-3">
+                {/* Left column: Email, Age, Gender, Postal Code */}
+                <div className="flex-1 flex flex-col gap-2">
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Email"
+                    className="border border-gray-300 rounded-md p-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    name="age"
+                    value={formData.age}
+                    onChange={handleChange}
+                    placeholder="Age"
+                    className="w-24 border border-gray-300 rounded-md p-2 text-sm"
+                  />
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.gender === 'Male'}
+                        onChange={() => setFormData(prev => ({ ...prev, gender: prev.gender === 'Male' ? '' : 'Male' }))}
+                        className="accent-orange-500"
+                      />
+                      Male
+                    </label>
+                    <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={formData.gender === 'Female'}
+                        onChange={() => setFormData(prev => ({ ...prev, gender: prev.gender === 'Female' ? '' : 'Female' }))}
+                        className="accent-orange-500"
+                      />
+                      Female
+                    </label>
+                  </div>
                   <input
                     type="text"
-                    name="lastName"
-                    value={formData.lastName}
+                    name="postalCode"
+                    value={formData.postalCode}
                     onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    placeholder="Postal Code"
+                    className="border border-gray-300 rounded-md p-2 text-sm"
                   />
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Phone Number
-                  </label>
-                  <input
-                    type="text"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                  />
+                {/* Right column: Map placeholder */}
+                <div className="flex-1 bg-gray-200 rounded-md flex items-center justify-center min-h-[130px]">
+                  <span className="text-gray-500 text-sm">Map Placeholder</span>
                 </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Address
+              </div>
+
+              {/* Availability Section */}
+              <div className="mb-3">
+                <p className="font-bold text-gray-800 text-sm mb-2">Availability Section</p>
+                <div className="flex gap-4 mb-2">
+                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.availWeekdays}
+                      onChange={() => setFormData(prev => ({ ...prev, availWeekdays: !prev.availWeekdays }))}
+                      className="accent-orange-500"
+                    />
+                    Weekdays
                   </label>
-                  <input
-                    type="text"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                  />
+                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.availWeekends}
+                      onChange={() => setFormData(prev => ({ ...prev, availWeekends: !prev.availWeekends }))}
+                      className="accent-orange-500"
+                    />
+                    Weekends
+                  </label>
+                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.availAnytime}
+                      onChange={() => setFormData(prev => ({ ...prev, availAnytime: !prev.availAnytime }))}
+                      className="accent-orange-500"
+                    />
+                    Anytime
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Birthday
+                <p className="font-bold text-gray-800 text-sm text-center mb-1">Working Hours</p>
+                <div className="flex flex-col gap-1 mb-2">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.workMorning}
+                      onChange={() => setFormData(prev => ({ ...prev, workMorning: !prev.workMorning }))}
+                      className="accent-orange-500"
+                    />
+                    Morning (6:00 AM – 12:00 PM)
                   </label>
-                  <input
-                    type="date"
-                    name="birthday"
-                    value={formData.birthday}
-                    onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                  />
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.workAfternoon}
+                      onChange={() => setFormData(prev => ({ ...prev, workAfternoon: !prev.workAfternoon }))}
+                      className="accent-orange-500"
+                    />
+                    Afternoon (12:00 PM – 6:00 PM)
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.workEvening}
+                      onChange={() => setFormData(prev => ({ ...prev, workEvening: !prev.workEvening }))}
+                      className="accent-orange-500"
+                    />
+                    Evening (6:00 PM – 10:00 PM)
+                  </label>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">
-                    Gender
-                  </label>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Travel Distance:</label>
                   <select
-                    name="gender"
-                    value={formData.gender}
+                    name="travelDistance"
+                    value={formData.travelDistance}
                     onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
+                    className="border border-gray-300 rounded-md p-1.5 text-sm"
                   >
                     <option value="">Select...</option>
-                    <option>Male</option>
-                    <option>Female</option>
-                    <option>Prefer not to say</option>
-                  </select>
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">
-                    Service Category
-                  </label>
-                  <select
-                    name="category"
-                    value={formData.category}
-                    onChange={handleChange}
-                    className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                  >
-                    <option value="">Select...</option>
-                    <option>Cleaning</option>
-                    <option>Plumbing</option>
-                    <option>Electrical</option>
-                    <option>Carpentry</option>
-                    <option>Painting</option>
-                    <option>Aircon Cleaning</option>
+                    <option>1km</option>
+                    <option>5km</option>
+                    <option>10km</option>
+                    <option>20km</option>
+                    <option>50km+</option>
                   </select>
                 </div>
               </div>
-              <div className="mt-8 flex justify-between">
+
+              {/* Service Role */}
+              <div className="mb-3">
+                <p className="font-bold text-gray-800 text-sm mb-2">Select Your Service Role</p>
+                <select
+                  name="serviceRole"
+                  value={formData.serviceRole}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                >
+                  <option value="">Select...</option>
+                  <option>Cleaning</option>
+                  <option>Plumbing</option>
+                  <option>Electrical</option>
+                  <option>Carpentry</option>
+                  <option>Painting</option>
+                  <option>Aircon Cleaning</option>
+                </select>
+              </div>
+
+              {/* Experience */}
+              <div className="mb-4">
+                <p className="font-bold text-gray-800 text-sm mb-2">Any Experience</p>
+                <textarea
+                  name="experience"
+                  value={formData.experience}
+                  onChange={handleChange}
+                  placeholder="Any 5 Years Or Experience..."
+                  rows={3}
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm resize-none"
+                />
+              </div>
+
+              <div className="flex justify-between">
                 <button
                   onClick={handleBack}
                   disabled={step === 1}
@@ -256,7 +413,7 @@ function BecomeATasker() {
                     Front
                   </label>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 p-8 text-center cursor-pointer"
                     onClick={() => document.getElementById('front-upload').click()}
                   >
                     {formData.frontImage ? (
@@ -267,8 +424,7 @@ function BecomeATasker() {
                       />
                     ) : (
                       <>
-                        <span className="text-4xl">📸</span>
-                        <p className="mt-2 text-gray-500">Upload Front</p>
+<p className="mt-2 text-gray-500">Upload Front</p>
                       </>
                     )}
                   </div>
@@ -290,7 +446,7 @@ function BecomeATasker() {
                     Back
                   </label>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 p-8 text-center cursor-pointer"
                     onClick={() => document.getElementById('back-upload').click()}
                   >
                     {formData.backImage ? (
@@ -301,8 +457,7 @@ function BecomeATasker() {
                       />
                     ) : (
                       <>
-                        <span className="text-4xl">📸</span>
-                        <p className="mt-2 text-gray-500">Upload Back</p>
+<p className="mt-2 text-gray-500">Upload Back</p>
                       </>
                     )}
                   </div>
@@ -342,10 +497,10 @@ function BecomeATasker() {
               <h2 className="text-2xl font-bold text-gray-800 mb-6">
                 Background Verification
               </h2>
-              <div className="flex flex-col space-y-4 mb-8">
+              <div className="flex flex-col space-y-3 mb-4">
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('nbi-upload').click()}
                   >
                     {formData.nbiClearance ? (
@@ -356,8 +511,7 @@ function BecomeATasker() {
                       />
                     ) : (
                       <>
-                        <span className="text-3xl">📸</span>
-                        <p className="mt-2 text-gray-500 text-sm">Upload Here</p>
+<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">NBI Clearance</p>
                       </>
                     )}
@@ -377,7 +531,7 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('police-upload').click()}
                   >
                     {formData.policeClearance ? (
@@ -388,8 +542,7 @@ function BecomeATasker() {
                       />
                     ) : (
                       <>
-                        <span className="text-3xl">📸</span>
-                        <p className="mt-2 text-gray-500 text-sm">Upload Here</p>
+<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Police Clearance</p>
                       </>
                     )}
@@ -409,7 +562,7 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-6 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('barangay-upload').click()}
                   >
                     {formData.barangayClearance ? (
@@ -420,8 +573,7 @@ function BecomeATasker() {
                       />
                     ) : (
                       <>
-                        <span className="text-3xl">📸</span>
-                        <p className="mt-2 text-gray-500 text-sm">Upload Here</p>
+<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Barangay Clearance</p>
                       </>
                     )}
@@ -465,19 +617,18 @@ function BecomeATasker() {
               <div className="grid grid-cols-3 gap-4 mb-8">
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('cert-training-upload').click()}
                   >
                     {formData.certificateTraining ? (
                       <img
                         src={URL.createObjectURL(formData.certificateTraining)}
                         alt="Certificate of Training"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Certificate of Training</p>
                       </>
                     )}
@@ -497,19 +648,18 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('skill-assessment-upload').click()}
                   >
                     {formData.skillAssessment ? (
                       <img
                         src={URL.createObjectURL(formData.skillAssessment)}
                         alt="Skill Assessment"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Skill Assessment</p>
                       </>
                     )}
@@ -529,19 +679,18 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('work-experience-upload').click()}
                   >
                     {formData.workExperience ? (
                       <img
                         src={URL.createObjectURL(formData.workExperience)}
                         alt="Work Experience"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Work Experience</p>
                       </>
                     )}
@@ -561,19 +710,18 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('optional1-upload').click()}
                   >
                     {formData.optional1 ? (
                       <img
                         src={URL.createObjectURL(formData.optional1)}
                         alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Optional</p>
                       </>
                     )}
@@ -593,19 +741,18 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('optional2-upload').click()}
                   >
                     {formData.optional2 ? (
                       <img
                         src={URL.createObjectURL(formData.optional2)}
                         alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Optional</p>
                       </>
                     )}
@@ -625,19 +772,18 @@ function BecomeATasker() {
                 </div>
                 <div>
                   <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
+                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
                     onClick={() => document.getElementById('optional3-upload').click()}
                   >
                     {formData.optional3 ? (
                       <img
                         src={URL.createObjectURL(formData.optional3)}
                         alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
+                        className="max-w-full max-h-24 mx-auto"
                       />
                     ) : (
                       <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
+  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
                         <p className="text-xs text-gray-400">Optional</p>
                       </>
                     )}
@@ -651,102 +797,6 @@ function BecomeATasker() {
                       setFormData((prev) => ({
                         ...prev,
                         optional3: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional4-upload').click()}
-                  >
-                    {formData.optional4 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional4)}
-                        alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
-                      />
-                    ) : (
-                      <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional4-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional4: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional5-upload').click()}
-                  >
-                    {formData.optional5 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional5)}
-                        alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
-                      />
-                    ) : (
-                      <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional5-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional5: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-4 text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional6-upload').click()}
-                  >
-                    {formData.optional6 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional6)}
-                        alt="Optional"
-                        className="max-w-full max-h-20 mx-auto"
-                      />
-                    ) : (
-                      <>
-                        <span className="text-2xl">📸</span>
-                        <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional6-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional6: e.target.files[0],
                       }))
                     }
                   />
@@ -966,39 +1016,6 @@ function BecomeATasker() {
                         {formData.optional3 ? (
                           <img
                             src={URL.createObjectURL(formData.optional3)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional4 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional4)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional5 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional5)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional6 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional6)}
                             alt="Optional"
                             className="w-20 h-20 object-cover border rounded"
                           />
