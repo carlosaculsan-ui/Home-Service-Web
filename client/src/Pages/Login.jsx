@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Login() {
@@ -8,13 +8,18 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const navigate = useNavigate()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError('')
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setError(error.message)
+    if (error) {
+      setError(error.message)
+    } else {
+      navigate('/')
+    }
     setLoading(false)
   }
 
@@ -26,54 +31,71 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-lg p-10 w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-4"
+      style={{
+        background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 30%, #ea580c 70%, #f97316 100%)'
+      }}
+    >
+      {/* Decorative blobs */}
+      <div className="absolute w-72 h-72 rounded-full opacity-30 blur-3xl"
+        style={{ background: '#f97316', top: '10%', left: '15%' }}
+      ></div>
+      <div className="absolute w-96 h-96 rounded-full opacity-20 blur-3xl"
+        style={{ background: '#4f46e5', bottom: '10%', right: '10%' }}
+      ></div>
 
-        {/* Logo and Title */}
+      {/* Glass Card */}
+      <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
+        style={{
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
+        }}
+      >
+        {/* Title */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-orange-500">Vortex Elite</h1>
-          <p className="text-gray-500 mt-2">Welcome back! Please log in.</p>
+          <h1 className="text-3xl font-extrabold text-white">Login</h1>
         </div>
 
         {/* Form */}
         <div className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@email.com"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
+              placeholder="Email"
+              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-500 text-gray-800"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm"
-              >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
-            </div>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Password"
+              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white text-sm"
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
           </div>
 
           <div className="flex items-center justify-between text-sm">
-            <label className="flex items-center gap-2 text-gray-600">
+            <label className="flex items-center gap-2 text-gray-300">
               <input type="checkbox" className="accent-orange-500" />
               Remember me
             </label>
-            <Link to="/forgot-password" className="text-orange-500 hover:underline">Forgot password?</Link>
+            <Link to="/forgot-password" className="text-orange-300 hover:text-orange-200">Forgot password?</Link>
           </div>
 
           <button
@@ -84,30 +106,30 @@ function Login() {
             {loading ? 'Logging in...' : 'Log In'}
           </button>
 
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && <p className="text-red-300 text-sm">{error}</p>}
 
           <div className="relative my-2">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full border-t border-white/20"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="bg-white px-3 text-gray-400">or</span>
+              <span className="px-3 text-gray-300" style={{ background: 'transparent' }}>or</span>
             </div>
           </div>
 
           <button
             onClick={handleGoogleLogin}
-            className="w-full border border-gray-300 text-gray-700 py-3 rounded-lg hover:bg-gray-100 hover:border-gray-400 hover:text-gray-900 transition-colors font-medium flex items-center justify-center gap-3"
+            className="w-full py-3 rounded-lg font-medium flex items-center justify-center gap-3 transition-colors text-white hover:bg-white/20"
+            style={{ border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.1)' }}
           >
             <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
             Continue with Google
           </button>
         </div>
 
-        {/* Sign Up Link */}
-        <p className="text-center text-gray-500 text-sm mt-6">
+        <p className="text-center text-gray-300 text-sm mt-6">
           Don't have an account?{' '}
-          <Link to="/signup" className="text-orange-500 font-semibold hover:underline">Sign Up</Link>
+          <Link to="/signup" className="text-orange-300 font-semibold hover:text-orange-200">Sign Up</Link>
         </p>
 
       </div>

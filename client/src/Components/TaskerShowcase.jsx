@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 
 const taskers = [
   { name: "Mark C. Quite", role: "Appliance Repair Professional", rating: 4.3, reviews: 240 },
@@ -117,9 +118,11 @@ function TaskerShowcase() {
         ))}
       </div>
 
-      <button className="mt-8 bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-semibold">
-        Become a Tasker
-      </button>
+      <Link to="/become-a-tasker" className="mt-8 inline-block">
+        <button className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-semibold">
+          Become a Tasker
+        </button>
+      </Link>
 
     </div>
   )

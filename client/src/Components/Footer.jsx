@@ -1,8 +1,8 @@
 function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 py-12 px-6 md:px-8">
+    <footer id="contact" className="bg-gray-900 text-gray-400 py-12 px-6 md:px-8">
       
-      <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-8">
+      <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-2 md:grid-cols-5 gap-8">
         
         {/* Brand */}
         <div className="col-span-2 sm:col-span-2 md:col-span-1">
@@ -43,9 +43,32 @@ function Footer() {
           </ul>
         </div>
 
+        {/* Contact */}
+        <div>
+          <h3 className="text-white font-semibold mb-4">Contact Us</h3>
+          <ul className="space-y-3 text-sm">
+            <li className="flex items-start gap-2">
+              <span>📞</span>
+              <span>09500435479</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>📧</span>
+              <span>VortexElite@gmail.com</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>📍</span>
+              <span>Unit 6, Bisakol Street, Vortex Elite Bldg. Quezon City</span>
+            </li>
+            <li className="flex items-center gap-3 mt-4">
+              <a href="#" className="hover:text-white text-xl">📘</a>
+              <a href="#" className="hover:text-white text-xl">📸</a>
+              <a href="#" className="hover:text-white text-xl">🐦</a>
+            </li>
+          </ul>
+        </div>
+
       </div>
 
-      {/* Bottom Bar */}
       <div className="border-t border-gray-700 mt-10 pt-6 text-center text-sm">
         © 2025 Vortex Elite. All rights reserved.
       </div>

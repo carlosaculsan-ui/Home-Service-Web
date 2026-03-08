@@ -5,7 +5,7 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <nav className="relative shadow-md w-full flex">
+    <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh]">
       {/* left white section - 30% width, logo placeholder */}
       <div className="w-[30%] bg-white"></div>
 
@@ -20,7 +20,7 @@ function Navbar() {
           <a href="#services" className="hover:text-orange-200">Services</a>
           <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
           <a href="#about" className="hover:text-orange-200">About</a>
-          <a href="#" className="hover:text-orange-200">Contact Us Now</a>
+          <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
         </div>
 
         {/* login button pinned to far right */}
@@ -42,17 +42,12 @@ function Navbar() {
       </div>
 
       {menuOpen && (
-        <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 pb-4 bg-orange-500">
+        <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 py-6 bg-orange-500">
           <a href="#home" className="hover:text-orange-200">Home</a>
           <a href="#services" className="hover:text-orange-200">Services</a>
           <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
           <a href="#about" className="hover:text-orange-200">About</a>
-          <a href="#" className="hover:text-orange-200">Contact Us Now</a>
-          <Link to="/login">
-            <button className="w-full px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold">
-              Log In →
-            </button>
-          </Link>
+          <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
         </div>
       )}
     </nav>
