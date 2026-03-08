@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import supabase from '../supabase'
+import { supabase } from '../supabase'
 
 const FALLBACK_REVIEWS = [
   {
@@ -61,10 +61,10 @@ function Reviews() {
         .from('reviews')
         .select('*, profiles(full_name), taskers(name, role)')
         .order('created_at', { ascending: false })
-        .limit(4)
+        .limit(8)
 
-      if (!error && data && data.length > 0) {
-        setReviews(data.map((r) => {
+      if (!error && data) {
+        const fetchedReviews = data.map((r) => {
           const fullName = r.profiles?.full_name || 'Anonymous'
           const initials = fullName
             .split(' ')
@@ -80,7 +80,9 @@ function Reviews() {
             avatar: initials,
             time: relativeTime(r.created_at),
           }
-        }))
+        })
+        const combined = [...fetchedReviews, ...FALLBACK_REVIEWS]
+        setReviews(combined.slice(0, 8))
       }
       setLoading(false)
     }
@@ -100,7 +102,7 @@ function Reviews() {
       {loading ? (
         <p className="text-center text-gray-400">Loading reviews...</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {reviews.map((review, index) => (
             <div key={index} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow">
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
-import supabase from '../supabase'
+import { supabase } from '../supabase'
 
 const STEPS = [
   { label: 'Describe your task' },
@@ -200,7 +200,8 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
 
 function TaskerCard({ tasker, onSelect }) {
   const [expanded, setExpanded] = useState(false)
-  const shortBio = tasker.bio.slice(0, 90) + '...'
+  const bio = tasker.bio ?? ''
+  const shortBio = bio.length > 90 ? bio.slice(0, 90) + '...' : bio
 
   return (
     <div className="border border-gray-200 rounded-xl p-5 space-y-3">
@@ -219,16 +220,16 @@ function TaskerCard({ tasker, onSelect }) {
           </span>
           <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
             <span className="text-yellow-500">★</span>
-            <span className="font-semibold">{tasker.rating.toFixed(1)}</span>
-            <span className="text-gray-400">({formatReviews(tasker.reviews)} reviews)</span>
+            <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
+            <span className="text-gray-400">({formatReviews(tasker.reviews ?? 0)} reviews)</span>
             <span className="text-gray-300">•</span>
-            <span>{tasker.tasks.toLocaleString()} tasks</span>
+            <span>{(tasker.tasks ?? 0).toLocaleString()} tasks</span>
           </div>
         </div>
       </div>
 
       <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-        {expanded ? tasker.bio : shortBio}
+        {expanded ? bio : shortBio}
         <button
           onClick={() => setExpanded(!expanded)}
           className="ml-1 text-orange-500 font-medium hover:underline"
@@ -362,7 +363,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <p className="text-sm text-orange-500 font-medium">{tasker?.role}</p>
             <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
-              <span className="font-semibold">{tasker?.rating.toFixed(1)}</span>
+              <span className="font-semibold">{(tasker?.rating ?? 0).toFixed(1)}</span>
               <span className="text-gray-400">({formatReviews(tasker?.reviews ?? 0)} reviews)</span>
             </div>
           </div>
@@ -861,24 +862,32 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
           onClick={async () => {
             setSaving(true)
             setSaveError('')
+            const { data: { session } } = await supabase.auth.getSession()
+            // TODO: re-enable auth check before production
+            // if (!session) {
+            //   setSaveError('You must be logged in to book a service. Please log in first.')
+            //   setSaving(false)
+            //   return
+            // }
+            const client_id = session?.user?.id ?? null
             const ref = 'VE-' + Date.now()
-            const { data: { user } } = await supabase.auth.getUser()
             const { data: bookingData, error } = await supabase.from('bookings').insert({
-              client_id: user?.id,
+              client_id,
               tasker_id: tasker?.id,
               service,
               task_size: taskSize,
               task_description: taskDetails,
               address: taskAddress,
-              scheduled_date: date,
+              scheduled_date: date ? date.toISOString().split('T')[0] : null,
               scheduled_time: time,
               payment_method: paymentMethod,
-              estimated_total: estTotal,
+              estimated_total: rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2),
               status: 'pending',
               reference_number: ref,
             }).select('id').single()
             if (error) {
-              setSaveError('Failed to confirm booking. Please try again.')
+              console.error('Booking insert error:', error)
+              setSaveError(`Error: ${error.message}`)
               setSaving(false)
             } else {
               setBookingRef(ref)
