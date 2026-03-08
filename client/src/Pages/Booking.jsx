@@ -1,0 +1,1031 @@
+import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
+import backgroundImg from '../Assets/Background.jpg'
+import supabase from '../supabase'
+
+const STEPS = [
+  { label: 'Describe your task' },
+  { label: 'Choose a Tasker' },
+  { label: 'Schedule' },
+  { label: 'Confirm' },
+]
+
+
+const MONTH_NAMES = [
+  'January','February','March','April','May','June',
+  'July','August','September','October','November','December',
+]
+const SHORT_MONTHS = [
+  'Jan','Feb','Mar','Apr','May','Jun',
+  'Jul','Aug','Sep','Oct','Nov','Dec',
+]
+
+function formatReviews(n) {
+  if (n >= 1000000000) return (n / 1000000000).toFixed(0) + 'B'
+  if (n >= 1000000) return (n / 1000000).toFixed(0) + 'M'
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'k'
+  return n.toString()
+}
+
+function generateTimeOptions() {
+  const options = []
+  for (let h = 6; h <= 21; h++) {
+    const suffix = h < 12 ? 'AM' : 'PM'
+    const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
+    options.push(`${hour}:00 ${suffix}`)
+  }
+  return options
+}
+
+function getDefaultTime() {
+  const now = new Date()
+  let h = now.getHours() + 1
+  if (h > 21) h = 21
+  if (h < 6) h = 6
+  const suffix = h < 12 ? 'AM' : 'PM'
+  const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
+  return `${hour}:00 ${suffix}`
+}
+
+function ScheduleModal({ tasker, onClose, onConfirm }) {
+  const now = new Date()
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const [viewMonth, setViewMonth] = useState(now.getMonth())
+  const [viewYear, setViewYear] = useState(now.getFullYear())
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedTime, setSelectedTime] = useState(getDefaultTime())
+
+  const timeOptions = generateTimeOptions()
+
+  const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay()
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
+
+  const cells = []
+  for (let i = 0; i < firstDayOfMonth; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const getDateObj = (d) => new Date(viewYear, viewMonth, d)
+  const isPast = (d) => getDateObj(d) < todayStart
+  const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
+  const isSelected = (d) =>
+    selectedDate &&
+    selectedDate.getDate() === d &&
+    selectedDate.getMonth() === viewMonth &&
+    selectedDate.getFullYear() === viewYear
+
+  const canGoPrev =
+    viewYear > now.getFullYear() ||
+    (viewYear === now.getFullYear() && viewMonth > now.getMonth())
+
+  const goToPrevMonth = () => {
+    if (!canGoPrev) return
+    if (viewMonth === 0) { setViewMonth(11); setViewYear((y) => y - 1) }
+    else setViewMonth((m) => m - 1)
+  }
+
+  const goToNextMonth = () => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear((y) => y + 1) }
+    else setViewMonth((m) => m + 1)
+  }
+
+  const handleDayClick = (d) => {
+    if (!d || isPast(d)) return
+    setSelectedDate(getDateObj(d))
+  }
+
+  const formatSummaryDate = () => {
+    if (!selectedDate) return '—'
+    return `${SHORT_MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${selectedTime.toLowerCase()}`
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-auto p-6 max-h-[90vh] overflow-y-auto">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none font-bold"
+        >
+          ✕
+        </button>
+
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-xl text-gray-400">
+            👤
+          </div>
+          <h2 className="text-base font-bold text-gray-800">{tasker.name}'s Availability</h2>
+        </div>
+
+        <div className="flex items-center justify-between mb-3">
+          <button
+            onClick={goToPrevMonth}
+            disabled={!canGoPrev}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-30 text-lg"
+          >
+            ‹
+          </button>
+          <span className="font-bold text-gray-800">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+          <button
+            onClick={goToNextMonth}
+            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+          >
+            ›
+          </button>
+        </div>
+
+        <div className="grid grid-cols-7 mb-1">
+          {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((d) => (
+            <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-y-1 mb-4">
+          {cells.map((d, i) => (
+            <div key={i} className="flex items-center justify-center">
+              {d ? (
+                <button
+                  onClick={() => handleDayClick(d)}
+                  disabled={isPast(d)}
+                  className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
+                    ${isSelected(d)
+                      ? 'bg-orange-500 text-white font-bold'
+                      : isToday(d)
+                      ? 'bg-orange-500 text-white font-bold'
+                      : isPast(d)
+                      ? 'text-gray-300 cursor-not-allowed'
+                      : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
+                    }`}
+                >
+                  {d}
+                </button>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        <select
+          value={selectedTime}
+          onChange={(e) => setSelectedTime(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 outline-none mb-3 focus:border-orange-400"
+        >
+          {timeOptions.map((t) => (
+            <option key={t} value={t}>{t}</option>
+          ))}
+        </select>
+
+        <p className="text-xs text-gray-400 mb-4">
+          Choose your task date and start time. You can chat to adjust task details or change start time after confirming.
+        </p>
+
+        <div className="border-t border-gray-100 mb-3" />
+
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-sm text-gray-500">Request for:</span>
+          <span className="text-sm font-semibold text-gray-700">{formatSummaryDate()}</span>
+        </div>
+        <p className="text-right text-sm font-bold text-gray-800 mb-5">This Tasker requires 2 hour min</p>
+
+        <button
+          onClick={() => { if (selectedDate) onConfirm(tasker, selectedDate, selectedTime) }}
+          disabled={!selectedDate}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+        >
+          Select &amp; Continue
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function TaskerCard({ tasker, onSelect }) {
+  const [expanded, setExpanded] = useState(false)
+  const shortBio = tasker.bio.slice(0, 90) + '...'
+
+  return (
+    <div className="border border-gray-200 rounded-xl p-5 space-y-3">
+      <div className="flex gap-4">
+        <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-2xl text-gray-400">
+          👤
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <p className="font-bold text-gray-800 text-base leading-tight">{tasker.name}</p>
+            <span className="text-orange-500 font-bold text-sm whitespace-nowrap">{tasker.price}</span>
+          </div>
+          <p className="text-sm text-gray-500 mb-1">{tasker.role}</p>
+          <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
+            2 HOUR MINIMUM
+          </span>
+          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+            <span className="text-yellow-500">★</span>
+            <span className="font-semibold">{tasker.rating.toFixed(1)}</span>
+            <span className="text-gray-400">({formatReviews(tasker.reviews)} reviews)</span>
+            <span className="text-gray-300">•</span>
+            <span>{tasker.tasks.toLocaleString()} tasks</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+        {expanded ? tasker.bio : shortBio}
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="ml-1 text-orange-500 font-medium hover:underline"
+        >
+          {expanded ? 'Read Less' : 'Read More'}
+        </button>
+      </div>
+
+      <button
+        onClick={() => onSelect(tasker)}
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+      >
+        Select &amp; Continue
+      </button>
+
+      <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+        <span className="text-base mt-0.5">📋</span>
+        <p className="text-xs text-gray-500">
+          Next, confirm your details to get connected with your Tasker.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError }) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
+        <span className="text-2xl">👥</span>
+        <p className="text-sm text-gray-600">
+          Filter and sort to find your Tasker. Then view their availability to request your date and time.
+        </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {['Date: Within A Week', 'Time: I\'m Flexible', '₱150 - ₱500/hr'].map((label) => (
+          <button
+            key={label}
+            className="px-4 py-2 border border-gray-300 rounded-full text-sm text-gray-700 hover:border-orange-400 hover:text-orange-500 transition-colors"
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-2 text-sm text-gray-600">
+        <span className="font-medium">Sorted by:</span>
+        <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 outline-none">
+          <option>Recommended</option>
+          <option>Highest Rated</option>
+          <option>Most Reviews</option>
+          <option>Price: Low to High</option>
+          <option>Price: High to Low</option>
+        </select>
+      </div>
+
+      <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
+        {loadingTaskers && (
+          <p className="text-sm text-gray-400 text-center py-8">Loading taskers...</p>
+        )}
+        {taskersError && (
+          <p className="text-sm text-red-400 text-center py-8">Failed to load taskers. Please try again.</p>
+        )}
+        {!loadingTaskers && !taskersError && taskers.map((tasker) => (
+          <TaskerCard key={tasker.name} tasker={tasker} onSelect={onSelect} />
+        ))}
+      </div>
+
+      <button
+        onClick={onBack}
+        className="text-sm text-gray-400 hover:text-gray-600 underline"
+      >
+        ← Back
+      </button>
+    </div>
+  )
+}
+
+function DetailRow({ label, value, valueClass = '' }) {
+  return (
+    <div className="flex gap-3 py-2.5 border-b border-gray-100 last:border-0">
+      <span className="text-sm text-gray-400 w-36 flex-shrink-0">{label}</span>
+      <span className={`text-sm text-gray-800 flex-1 ${valueClass}`}>{value}</span>
+    </div>
+  )
+}
+
+function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack, onContinue }) {
+  const formattedDate = date
+    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
+    : ''
+  const summaryDate = date
+    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${time?.toLowerCase()}`
+    : ''
+
+  return (
+    <div className="space-y-5">
+      {/* Section 1 – Booking Summary banner */}
+      <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
+        <span className="text-2xl">📅</span>
+        <div className="flex-1">
+          <p className="text-sm font-bold text-gray-800">Booking Summary</p>
+          <p className="text-sm text-gray-600 mt-0.5">
+            <span className="font-medium">{tasker?.name}</span> · {summaryDate}
+          </p>
+        </div>
+        <span className="text-xs text-gray-400 capitalize whitespace-nowrap">{service}</span>
+      </div>
+
+      {/* Section 2 – Booking Details */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 text-base mb-3">Booking Details</p>
+        <DetailRow label="Service" value={service} valueClass="capitalize" />
+        <DetailRow label="Tasker" value={tasker?.name} />
+        <DetailRow label="Date &amp; Time" value={formattedDate} />
+        <DetailRow label="Task Size" value={taskSize} />
+        <DetailRow label="Address" value={taskAddress} />
+        <DetailRow label="Task Description" value={taskDetails} />
+      </div>
+
+      {/* Section 3 – Tasker Information */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 text-base mb-4">Your Tasker</p>
+        <div className="flex gap-4 mb-4">
+          <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-2xl text-gray-400">
+            👤
+          </div>
+          <div>
+            <p className="font-bold text-gray-800 text-base leading-tight">{tasker?.name}</p>
+            <p className="text-sm text-orange-500 font-medium">{tasker?.role}</p>
+            <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600">
+              <span className="text-yellow-500">★</span>
+              <span className="font-semibold">{tasker?.rating.toFixed(1)}</span>
+              <span className="text-gray-400">({formatReviews(tasker?.reviews ?? 0)} reviews)</span>
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>📞</span>
+            <span className="text-gray-400">Phone:</span>
+            <span>09500435479</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>📧</span>
+            <span className="text-gray-400">Email:</span>
+            <span>VortexElite@gmail.com</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Section 4 – Your Information */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 text-base mb-4">Your Information</p>
+        <div className="space-y-2">
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>👤</span>
+            <span className="text-gray-400">Name:</span>
+            <span className="italic text-gray-400">Logged in user</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>📞</span>
+            <span className="text-gray-400">Phone:</span>
+            <span className="italic text-gray-400">—</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>📧</span>
+            <span className="text-gray-400">Email:</span>
+            <span className="italic text-gray-400">—</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <span>📍</span>
+            <span className="text-gray-400">Address:</span>
+            <span>{taskAddress}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Note box */}
+      <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
+        <span className="text-lg">ℹ️</span>
+        <p className="text-sm text-gray-600">
+          Your contact information will be shared with your Tasker once payment is confirmed. Please proceed to payment to finalize your booking.
+        </p>
+      </div>
+
+      {/* Buttons */}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          onClick={onBack}
+          className="text-sm text-gray-400 hover:text-gray-600 underline"
+        >
+          ← Back
+        </button>
+        <button
+          onClick={onContinue}
+          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
+        >
+          Proceed to Payment
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function ProgressTracker({ step }) {
+  return (
+    <div className="w-full px-1 mb-2">
+      <div className="relative flex items-center w-full">
+        <div className="absolute left-0 right-0 h-[2px] bg-gray-300" />
+        <div
+          className="absolute left-0 h-[2px] bg-orange-500 transition-all"
+          style={{ width: step === 0 ? '0%' : `${(step / (STEPS.length - 1)) * 100}%` }}
+        />
+        <div className="relative flex justify-between w-full">
+          {STEPS.map((s, i) => (
+            <div key={i} className="flex flex-col items-center">
+              {i < step ? (
+                <div className="w-3 h-3 rounded-full bg-orange-500 border-2 border-orange-500" />
+              ) : i === step ? (
+                <div className="w-5 h-5 rounded-full border-2 border-orange-500 bg-white" />
+              ) : (
+                <div className="w-3 h-3 rounded-full bg-gray-300" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="relative flex justify-between w-full mt-2">
+        {STEPS.map((s, i) => (
+          <div key={i} className="flex flex-col items-center" style={{ width: `${100 / STEPS.length}%` }}>
+            {i === step && (
+              <span className="text-xs font-bold text-gray-700 whitespace-nowrap">
+                {i + 1}: {s.label}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function Step1({ onContinue }) {
+  const [address, setAddress] = useState('')
+  const [size, setSize] = useState('Medium')
+  const [details, setDetails] = useState('')
+  const [error, setError] = useState('')
+
+  const handleContinue = () => {
+    if (!address.trim() || !details.trim()) {
+      setError('Please fill in all required fields')
+      return
+    }
+    setError('')
+    onContinue(address.trim(), size, details.trim())
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="border border-gray-200 rounded-xl p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-bold text-gray-800 text-base">Your task location</span>
+          <span className="text-gray-400 cursor-pointer text-lg">✏️</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xl">📍</span>
+          <input
+            type="text"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            placeholder="Enter your address"
+            className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
+          />
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 mb-2 text-base">Task options</p>
+        <p className="font-semibold text-gray-700 text-base mb-3">How big is your task?</p>
+        <div className="space-y-3">
+          {[
+            { value: 'Small', label: 'Small', sub: 'Est. 1 hr' },
+            { value: 'Medium', label: 'Medium', sub: 'Est. 2-3 hrs' },
+            { value: 'Large', label: 'Large', sub: 'Est. 4+ hrs' },
+          ].map((opt) => (
+            <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="radio"
+                name="size"
+                value={opt.value}
+                checked={size === opt.value}
+                onChange={() => setSize(opt.value)}
+                className="accent-orange-500 w-5 h-5"
+              />
+              <span className="text-base text-gray-700">
+                <span className="font-medium">{opt.label}</span>
+                <span className="text-gray-400 ml-1">- {opt.sub}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 mb-2 text-base">Tell us the details of your task</p>
+        <p className="text-sm text-gray-400 italic mb-3">
+          Start the conversation and tell your Tasker what you need done. This helps us show you only qualified and available Taskers for the job.
+        </p>
+        <textarea
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          placeholder="Describe your task..."
+          className="w-full border border-gray-200 rounded-lg p-3 text-base text-gray-700 resize-none outline-none focus:border-orange-400"
+          style={{ minHeight: '140px' }}
+        />
+      </div>
+
+      {error && <p className="text-red-500 text-base">{error}</p>}
+
+      <button
+        onClick={handleContinue}
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 text-base rounded-xl transition-colors"
+      >
+        Continue
+      </button>
+    </div>
+  )
+}
+
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack }) {
+  const navigate = useNavigate()
+  const [paymentMethod, setPaymentMethod] = useState('gcash')
+  const [gcashNumber, setGcashNumber] = useState('')
+  const [cardNumber, setCardNumber] = useState('')
+  const [cardExpiry, setCardExpiry] = useState('')
+  const [cardCvv, setCardCvv] = useState('')
+  const [promoCode, setPromoCode] = useState('')
+  const [confirmed, setConfirmed] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [bookingRef, setBookingRef] = useState('')
+  const [bookingId, setBookingId] = useState(null)
+
+  // Review state
+  const [reviewRating, setReviewRating] = useState(0)
+  const [hoveredRating, setHoveredRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState('')
+  const [reviewStatus, setReviewStatus] = useState('idle') // 'idle' | 'submitting' | 'success' | 'skipped' | 'error'
+
+  const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
+  const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
+  const estTotal =
+    taskSize === 'Small'
+      ? `₱${rate.toLocaleString()}`
+      : taskSize === 'Large'
+      ? `₱${(rate * 4).toLocaleString()}+`
+      : `₱${(rate * 2).toLocaleString()} – ₱${(rate * 3).toLocaleString()}`
+
+  const formattedDate = date
+    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
+    : ''
+
+  if (confirmed) {
+    return (
+      <div className="flex flex-col items-center text-center py-8 space-y-5">
+        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center text-4xl">
+          ✅
+        </div>
+        <div>
+          <p className="text-2xl font-bold text-gray-800">Booking Confirmed!</p>
+          <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
+            Thank you for booking with Vortex Elite! Your tasker has been notified and will contact you shortly.
+          </p>
+        </div>
+        <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-3">
+          <p className="text-xs text-gray-400 mb-1">Booking Reference</p>
+          <p className="text-lg font-bold text-orange-500 tracking-widest">{bookingRef}</p>
+        </div>
+        <div className="w-full border border-gray-100 rounded-xl p-5 text-left space-y-2">
+          <p className="font-semibold text-gray-700 text-sm mb-3">Booking Summary</p>
+          {[
+            ['Service', service],
+            ['Tasker', tasker?.name],
+            ['Date & Time', formattedDate],
+            ['Task Size', taskSize],
+            ['Address', taskAddress],
+          ].map(([label, val]) => (
+            <div key={label} className="flex gap-3 text-sm">
+              <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
+              <span className="text-gray-800 capitalize">{val}</span>
+            </div>
+          ))}
+        </div>
+        {/* Review section */}
+        {reviewStatus === 'success' && (
+          <div className="w-full bg-green-50 border border-green-100 rounded-xl p-4 text-center">
+            <p className="text-sm font-semibold text-green-700">Thank you for your review! ⭐</p>
+          </div>
+        )}
+        {reviewStatus === 'skipped' && (
+          <div className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+            <p className="text-sm text-gray-400">You can always leave a review later.</p>
+          </div>
+        )}
+        {(reviewStatus === 'idle' || reviewStatus === 'submitting' || reviewStatus === 'error') && (
+          <div className="w-full border border-gray-200 rounded-xl p-5 text-left space-y-3">
+            <p className="font-bold text-gray-800 text-sm">Rate your experience</p>
+            <p className="text-xs text-gray-400">How was your booking experience with {tasker?.name}?</p>
+
+            {/* Stars */}
+            <div className="flex gap-1">
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setReviewRating(star)}
+                  onMouseEnter={() => setHoveredRating(star)}
+                  onMouseLeave={() => setHoveredRating(0)}
+                  className="text-3xl transition-colors leading-none"
+                >
+                  <span className={(hoveredRating || reviewRating) >= star ? 'text-orange-500' : 'text-gray-300'}>
+                    ★
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {/* Comment */}
+            <textarea
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="Share your experience... (optional)"
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400"
+            />
+
+            {reviewStatus === 'error' && (
+              <p className="text-xs text-red-500">Failed to submit review. Please try again.</p>
+            )}
+
+            <div className="flex items-center gap-4">
+              <button
+                disabled={reviewStatus === 'submitting' || reviewRating === 0}
+                onClick={async () => {
+                  setReviewStatus('submitting')
+                  const { data: { user } } = await supabase.auth.getUser()
+                  const { error } = await supabase.from('reviews').insert({
+                    client_id: user?.id,
+                    tasker_id: tasker?.id,
+                    booking_id: bookingId,
+                    rating: reviewRating,
+                    comment: reviewComment,
+                    service,
+                  })
+                  setReviewStatus(error ? 'error' : 'success')
+                }}
+                className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors text-sm"
+              >
+                {reviewStatus === 'submitting' ? 'Submitting...' : 'Submit Review'}
+              </button>
+              <button
+                onClick={() => setReviewStatus('skipped')}
+                className="text-sm text-gray-400 hover:text-gray-600 underline"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => navigate('/')}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+        >
+          Back to Home
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Section 1 – Order Summary */}
+      <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 space-y-3">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-xl">📋</span>
+          <p className="font-bold text-gray-800 text-base">Order Summary</p>
+        </div>
+        <div className="space-y-1 text-sm text-gray-700">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Service</span>
+            <span className="capitalize">{service}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Tasker</span>
+            <span>{tasker?.name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Date &amp; Time</span>
+            <span>{formattedDate}</span>
+          </div>
+        </div>
+        <div className="border-t border-orange-200 pt-3 space-y-1 text-sm text-gray-700">
+          <div className="flex justify-between">
+            <span className="text-gray-500">Hourly Rate</span>
+            <span>{tasker?.price}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-gray-500">Estimated Hours</span>
+            <span>{estHours}</span>
+          </div>
+          <div className="flex justify-between font-bold text-gray-800 text-base pt-1">
+            <span>Estimated Total</span>
+            <span className="text-orange-500">{estTotal}</span>
+          </div>
+        </div>
+        <p className="text-xs text-gray-400">Final price may vary based on actual hours worked.</p>
+      </div>
+
+      {/* Section 2 – Payment Method */}
+      <div className="border border-gray-200 rounded-xl p-5 space-y-3">
+        <p className="font-bold text-gray-800 text-base">Select Payment Method</p>
+
+        {/* GCash option */}
+        <label className={`flex items-start gap-3 border rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'gcash' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+          <input
+            type="radio"
+            name="payment"
+            value="gcash"
+            checked={paymentMethod === 'gcash'}
+            onChange={() => setPaymentMethod('gcash')}
+            className="accent-orange-500 mt-0.5 w-4 h-4"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💙</span>
+              <span className="font-semibold text-gray-800">GCash</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">Pay via GCash (API integration coming soon)</p>
+            {paymentMethod === 'gcash' && (
+              <input
+                type="text"
+                value={gcashNumber}
+                onChange={(e) => setGcashNumber(e.target.value)}
+                placeholder="Enter GCash number"
+                className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+              />
+            )}
+          </div>
+        </label>
+
+        {/* Credit/Debit Card option */}
+        <label className={`flex items-start gap-3 border rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'card' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+          <input
+            type="radio"
+            name="payment"
+            value="card"
+            checked={paymentMethod === 'card'}
+            onChange={() => setPaymentMethod('card')}
+            className="accent-orange-500 mt-0.5 w-4 h-4"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-lg">💳</span>
+              <span className="font-semibold text-gray-800">Credit / Debit Card</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">Visa, Mastercard accepted</p>
+            {paymentMethod === 'card' && (
+              <div className="mt-3 space-y-2">
+                <input
+                  type="text"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  placeholder="Card Number"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={cardExpiry}
+                    onChange={(e) => setCardExpiry(e.target.value)}
+                    placeholder="Expiry Date (MM/YY)"
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                  />
+                  <input
+                    type="text"
+                    value={cardCvv}
+                    onChange={(e) => setCardCvv(e.target.value)}
+                    placeholder="CVV"
+                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </label>
+      </div>
+
+      {/* Section 3 – Promo Code */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 text-base mb-3">Promo Code</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Enter promo code"
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400"
+          />
+          <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm">
+            Apply
+          </button>
+        </div>
+      </div>
+
+      {/* Buttons */}
+      {saveError && (
+        <p className="text-sm text-red-500 text-center">{saveError}</p>
+      )}
+      <div className="flex items-center justify-between pt-1">
+        <button
+          onClick={onBack}
+          disabled={saving}
+          className="text-sm text-gray-400 hover:text-gray-600 underline disabled:opacity-50"
+        >
+          ← Back
+        </button>
+        <button
+          onClick={async () => {
+            setSaving(true)
+            setSaveError('')
+            const ref = 'VE-' + Date.now()
+            const { data: { user } } = await supabase.auth.getUser()
+            const { data: bookingData, error } = await supabase.from('bookings').insert({
+              client_id: user?.id,
+              tasker_id: tasker?.id,
+              service,
+              task_size: taskSize,
+              task_description: taskDetails,
+              address: taskAddress,
+              scheduled_date: date,
+              scheduled_time: time,
+              payment_method: paymentMethod,
+              estimated_total: estTotal,
+              status: 'pending',
+              reference_number: ref,
+            }).select('id').single()
+            if (error) {
+              setSaveError('Failed to confirm booking. Please try again.')
+              setSaving(false)
+            } else {
+              setBookingRef(ref)
+              setBookingId(bookingData?.id ?? null)
+              setConfirmed(true)
+              setSaving(false)
+            }
+          }}
+          disabled={saving}
+          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
+        >
+          {saving ? 'Processing...' : 'Confirm & Book'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function Booking() {
+  const { service } = useParams()
+  const [step, setStep] = useState(0)
+
+  // Step 1 data
+  const [taskAddress, setTaskAddress] = useState('')
+  const [taskSize, setTaskSize] = useState('Medium')
+  const [taskDetails, setTaskDetails] = useState('')
+
+  // Tasker list (fetched from Supabase)
+  const [taskers, setTaskers] = useState([])
+  const [loadingTaskers, setLoadingTaskers] = useState(true)
+  const [taskersError, setTaskersError] = useState(false)
+
+  useEffect(() => {
+    async function fetchTaskers() {
+      const { data, error } = await supabase.from('taskers').select('*')
+      if (error) {
+        setTaskersError(true)
+      } else {
+        setTaskers(data.map((t) => ({
+          id: t.id,
+          name: t.name,
+          role: t.role,
+          rating: t.rating,
+          reviews: t.reviews_count,
+          price: `₱${t.hourly_rate}/hr`,
+          bio: t.bio,
+        })))
+      }
+      setLoadingTaskers(false)
+    }
+    fetchTaskers()
+  }, [])
+
+  // Step 2 modal + tasker selection
+  const [modalTasker, setModalTasker] = useState(null)
+  const [selectedTasker, setSelectedTasker] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedTime, setSelectedTime] = useState(null)
+
+  const handleStep1Continue = (address, size, details) => {
+    setTaskAddress(address)
+    setTaskSize(size)
+    setTaskDetails(details)
+    setStep(1)
+  }
+
+  const handleOpenModal = (tasker) => setModalTasker(tasker)
+  const handleCloseModal = () => setModalTasker(null)
+
+  const handleScheduleConfirm = (tasker, date, time) => {
+    setSelectedTasker(tasker)
+    setSelectedDate(date)
+    setSelectedTime(time)
+    setModalTasker(null)
+    setStep(2)
+  }
+
+  return (
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-10 relative"
+      style={{
+        backgroundImage: `url(${backgroundImg})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+    >
+      {/* Schedule modal */}
+      {modalTasker && (
+        <ScheduleModal
+          tasker={modalTasker}
+          onClose={handleCloseModal}
+          onConfirm={handleScheduleConfirm}
+        />
+      )}
+
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-[830px] bg-white rounded-2xl shadow-2xl p-10">
+        {/* Card header */}
+        <div className="mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-base font-bold text-orange-500 tracking-wide">🏠 Vortex Elite</span>
+            <p className="text-sm text-gray-400 capitalize">{service}</p>
+          </div>
+          <ProgressTracker step={step} />
+        </div>
+
+        {step === 0 && <Step1 onContinue={handleStep1Continue} />}
+
+        {step === 1 && (
+          <Step2
+            onSelect={handleOpenModal}
+            onBack={() => setStep(0)}
+            taskers={taskers}
+            loadingTaskers={loadingTaskers}
+            taskersError={taskersError}
+          />
+        )}
+
+        {step === 2 && (
+          <Step3
+            service={service}
+            tasker={selectedTasker}
+            date={selectedDate}
+            time={selectedTime}
+            taskSize={taskSize}
+            taskAddress={taskAddress}
+            taskDetails={taskDetails}
+            onBack={() => setStep(1)}
+            onContinue={() => setStep(3)}
+          />
+        )}
+
+        {step === 3 && (
+          <Step4
+            service={service}
+            tasker={selectedTasker}
+            date={selectedDate}
+            time={selectedTime}
+            taskSize={taskSize}
+            taskAddress={taskAddress}
+            taskDetails={taskDetails}
+            onBack={() => setStep(2)}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default Booking

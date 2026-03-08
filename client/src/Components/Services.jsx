@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import cleaningImg from '../Assets/Cleaning.png'
 import plumbingImg from '../Assets/Plumbing.png'
 import electricianImg from '../Assets/Electrician.png'
@@ -111,9 +112,9 @@ function Services() {
 
             {/* Circular orange arrow button */}
             <div className="flex justify-end">
-              <button className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors font-bold text-lg">
+              <Link to={`/booking/${service.title}`} className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors font-bold text-lg">
                 →
-              </button>
+              </Link>
             </div>
           </div>
         ))}

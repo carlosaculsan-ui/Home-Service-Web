@@ -16,6 +16,7 @@ import Signup from './pages/Signup'
 import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import BecomeATasker from './pages/BecomeATasker'
+import Booking from './pages/Booking'
 
 function Home() {
   return (
@@ -45,6 +46,7 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/become-a-tasker" element={<BecomeATasker />} />
+      <Route path="/booking/:service" element={<Booking />} />
     </Routes>
   )
 }

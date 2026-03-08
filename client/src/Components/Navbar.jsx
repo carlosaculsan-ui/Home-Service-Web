@@ -5,7 +5,7 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
 
   return (
-    <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh]">
+    <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh] bg-white">
       {/* left white section - 30% width, logo placeholder */}
       <div className="w-[30%] bg-white min-h-[70px]"></div>
 

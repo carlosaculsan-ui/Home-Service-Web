@@ -96,9 +96,9 @@ function Chatbot() {
   
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-16 h-16 flex items-center justify-center shadow-lg text-3xl"
+        className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 py-3 flex items-center justify-center shadow-lg font-semibold"
       >
-        {isOpen ? '✕' : '🤖'}
+        {isOpen ? '✕' : 'Need Help?'}
       </button>
 
     </div>

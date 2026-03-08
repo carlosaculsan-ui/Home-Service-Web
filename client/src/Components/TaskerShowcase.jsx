@@ -1,18 +1,31 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-
-const taskers = [
-  { name: "Mark C. Quite", role: "Appliance Repair Professional", rating: 4.3, reviews: 240 },
-  { name: "Lee B. Maborrang", role: "Pest Control Professional", rating: 4.9, reviews: 316 },
-  { name: "Joan M. Batungbakal", role: "Cleaning Specialist", rating: 4.9, reviews: 0 },
-  { name: "Ahron Gainsan", role: "Electrical Professional", rating: 5.0, reviews: 1000000 },
-  { name: "Danica Flores", role: "Plumbing Specialist", rating: 5.0, reviews: 1 },
-  { name: "Manny John Paul Vargas", role: "Carpentry Professional", rating: 4.6, reviews: 1000000000 },
-]
+import supabase from '../supabase'
 
 function TaskerShowcase() {
+  const [taskers, setTaskers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [fetchError, setFetchError] = useState(false)
   const [index, setIndex] = useState(1)
   const [sliding, setSliding] = useState(null)
+
+  useEffect(() => {
+    async function fetchTaskers() {
+      const { data, error } = await supabase.from('taskers').select('*')
+      if (error) {
+        setFetchError(true)
+      } else {
+        setTaskers(data.map((t) => ({
+          name: t.name,
+          role: t.role,
+          rating: t.rating,
+          reviews: t.reviews_count,
+        })))
+      }
+      setLoading(false)
+    }
+    fetchTaskers()
+  }, [])
 
   const slide = (direction) => {
     setSliding(direction)
@@ -50,6 +63,22 @@ function TaskerShowcase() {
       if (position === 'left') return 'translateX(40%)'
     }
     return 'translateX(0)'
+  }
+
+  if (loading) {
+    return (
+      <div className="bg-gray-900 py-16 px-8 text-white text-center">
+        <p className="text-gray-400">Loading...</p>
+      </div>
+    )
+  }
+
+  if (fetchError) {
+    return (
+      <div className="bg-gray-900 py-16 px-8 text-white text-center">
+        <p className="text-red-400">Failed to load taskers</p>
+      </div>
+    )
   }
 
   return (
