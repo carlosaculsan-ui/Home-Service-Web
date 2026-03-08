@@ -870,6 +870,9 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             //   return
             // }
             const client_id = session?.user?.id ?? null
+            console.log('client_id:', client_id)
+            console.log('tasker id:', tasker?.id)
+            console.log('tasker object:', tasker)
             const ref = 'VE-' + Date.now()
             const { data: bookingData, error } = await supabase.from('bookings').insert({
               client_id,
@@ -886,7 +889,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
               reference_number: ref,
             }).select('id').single()
             if (error) {
-              console.error('Booking insert error:', error)
+              console.error('Booking insert error:', error.message, error.details, error.hint)
               setSaveError(`Error: ${error.message}`)
               setSaving(false)
             } else {
