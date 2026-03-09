@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
@@ -11,6 +11,21 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const navigate = useNavigate()
 
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        const redirect = sessionStorage.getItem('redirectAfterLogin')
+        if (redirect) {
+          sessionStorage.removeItem('redirectAfterLogin')
+          navigate(redirect)
+        } else {
+          navigate('/')
+        }
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
@@ -18,9 +33,8 @@ function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
-    } else {
-      navigate('/')
     }
+    // navigation handled by onAuthStateChange
     setLoading(false)
   }
 

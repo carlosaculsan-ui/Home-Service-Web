@@ -17,6 +17,8 @@ import ForgotPassword from './pages/ForgotPassword'
 import ResetPassword from './pages/ResetPassword'
 import BecomeATasker from './pages/BecomeATasker'
 import Booking from './pages/Booking'
+import Dashboard from './pages/Dashboard'
+import ProtectedRoute from './Components/ProtectedRoute'
 
 function Home() {
   return (
@@ -45,8 +47,9 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/become-a-tasker" element={<BecomeATasker />} />
+      <Route path="/become-a-tasker" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
       <Route path="/booking/:service" element={<Booking />} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     </Routes>
   )
 }

@@ -319,6 +319,17 @@ function DetailRow({ label, value, valueClass = '' }) {
 }
 
 function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack, onContinue }) {
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) {
+        sessionStorage.setItem('redirectAfterLogin', window.location.pathname)
+        navigate('/login')
+      }
+    })
+  }, [])
+
   const formattedDate = date
     ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
     : ''
@@ -575,13 +586,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [bookingRef, setBookingRef] = useState('')
   const [bookingId, setBookingId] = useState(null)
 
-  // Review state
-  const [reviewRating, setReviewRating] = useState(0)
-  const [hoveredRating, setHoveredRating] = useState(0)
-  const [reviewComment, setReviewComment] = useState('')
-  const [reviewStatus, setReviewStatus] = useState('idle') // 'idle' | 'submitting' | 'success' | 'skipped' | 'error'
-
-  const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
+const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
   const estTotal =
     taskSize === 'Small'
@@ -625,82 +630,6 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             </div>
           ))}
         </div>
-        {/* Review section */}
-        {reviewStatus === 'success' && (
-          <div className="w-full bg-green-50 border border-green-100 rounded-xl p-4 text-center">
-            <p className="text-sm font-semibold text-green-700">Thank you for your review! ⭐</p>
-          </div>
-        )}
-        {reviewStatus === 'skipped' && (
-          <div className="w-full bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-            <p className="text-sm text-gray-400">You can always leave a review later.</p>
-          </div>
-        )}
-        {(reviewStatus === 'idle' || reviewStatus === 'submitting' || reviewStatus === 'error') && (
-          <div className="w-full border border-gray-200 rounded-xl p-5 text-left space-y-3">
-            <p className="font-bold text-gray-800 text-sm">Rate your experience</p>
-            <p className="text-xs text-gray-400">How was your booking experience with {tasker?.name}?</p>
-
-            {/* Stars */}
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  onClick={() => setReviewRating(star)}
-                  onMouseEnter={() => setHoveredRating(star)}
-                  onMouseLeave={() => setHoveredRating(0)}
-                  className="text-3xl transition-colors leading-none"
-                >
-                  <span className={(hoveredRating || reviewRating) >= star ? 'text-orange-500' : 'text-gray-300'}>
-                    ★
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {/* Comment */}
-            <textarea
-              value={reviewComment}
-              onChange={(e) => setReviewComment(e.target.value)}
-              placeholder="Share your experience... (optional)"
-              rows={3}
-              className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400"
-            />
-
-            {reviewStatus === 'error' && (
-              <p className="text-xs text-red-500">Failed to submit review. Please try again.</p>
-            )}
-
-            <div className="flex items-center gap-4">
-              <button
-                disabled={reviewStatus === 'submitting' || reviewRating === 0}
-                onClick={async () => {
-                  setReviewStatus('submitting')
-                  const { data: { user } } = await supabase.auth.getUser()
-                  const { error } = await supabase.from('reviews').insert({
-                    client_id: user?.id,
-                    tasker_id: tasker?.id,
-                    booking_id: bookingId,
-                    rating: reviewRating,
-                    comment: reviewComment,
-                    service,
-                  })
-                  setReviewStatus(error ? 'error' : 'success')
-                }}
-                className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors text-sm"
-              >
-                {reviewStatus === 'submitting' ? 'Submitting...' : 'Submit Review'}
-              </button>
-              <button
-                onClick={() => setReviewStatus('skipped')}
-                className="text-sm text-gray-400 hover:text-gray-600 underline"
-              >
-                Skip
-              </button>
-            </div>
-          </div>
-        )}
-
         <button
           onClick={() => navigate('/')}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
