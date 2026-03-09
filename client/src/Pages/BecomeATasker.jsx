@@ -1,11 +1,33 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 
 function BecomeATasker() {
   const [step, setStep] = useState(1)
   const [submitted, setSubmitted] = useState(false)
   const navigate = useNavigate()
+
+  const [checkingApplication, setCheckingApplication] = useState(true)
+  const [existingApplication, setExistingApplication] = useState(null)
+
+  useEffect(() => {
+    async function checkExisting() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setCheckingApplication(false)
+        return
+      }
+      const { data } = await supabase
+        .from('taskers')
+        .select('status')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      setExistingApplication(data ?? null)
+      setCheckingApplication(false)
+    }
+    checkExisting()
+  }, [])
   const [formData, setFormData] = useState({
     firstName: '',
     middleName: '',
@@ -56,8 +78,33 @@ function BecomeATasker() {
     setStep((prev) => Math.max(prev - 1, 1))
   }
 
-  const handleSubmit = () => {
-    setSubmitted(true)
+  const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
+
+  const handleSubmit = async () => {
+    setSubmitting(true)
+    setSubmitError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase.from('taskers').insert({
+      user_id: user.id,
+      name: `${formData.firstName} ${formData.lastName}`,
+      email: formData.email,
+      phone: formData.phone,
+      role: formData.serviceRole,
+      bio: formData.experience,
+      service_area: formData.serviceArea,
+      status: 'pending',
+      is_available: false,
+      rating: 0,
+      reviews_count: 0,
+      hourly_rate: 0,
+    })
+    setSubmitting(false)
+    if (error) {
+      setSubmitError(error.message)
+    } else {
+      setSubmitted(true)
+    }
   }
 
   const steps = [
@@ -67,6 +114,59 @@ function BecomeATasker() {
     { label: 'Certifications & Training', icon: '🎓' },
     { label: 'Review & Submit', icon: '🔍' },
   ]
+
+  const statusScreens = {
+    pending: {
+      icon: '⏳',
+      heading: 'Application Under Review',
+      message: 'Your application has been submitted. We will review it and contact you within 3-5 business days.',
+    },
+    approved: {
+      icon: '✅',
+      heading: 'Application Approved!',
+      message: 'Welcome to Vortex Elite! You can now access your Tasker Dashboard.',
+    },
+    rejected: {
+      icon: '❌',
+      heading: 'Application Not Approved',
+      message: 'Unfortunately your application was not approved. Please contact us for more information.',
+    },
+  }
+
+  if (checkingApplication) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (existingApplication) {
+    const screen = statusScreens[existingApplication.status] ?? statusScreens.pending
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
+          <span className="text-6xl mb-4 block">{screen.icon}</span>
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">{screen.heading}</h2>
+          <p className="text-gray-500 text-sm mb-6">{screen.message}</p>
+          {existingApplication.status === 'approved' && (
+            <Link
+              to="/tasker-dashboard"
+              className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+            >
+              Go to Tasker Dashboard
+            </Link>
+          )}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
@@ -1026,11 +1126,15 @@ function BecomeATasker() {
                   >
                     Back
                   </button>
+                  {submitError && (
+                    <p className="text-sm text-red-500 self-center">{submitError}</p>
+                  )}
                   <button
                     onClick={handleSubmit}
-                    className="px-4 py-2 bg-orange-500 text-white rounded-md"
+                    disabled={submitting}
+                    className="px-4 py-2 bg-orange-500 text-white rounded-md disabled:opacity-50"
                   >
-                    Submit Application
+                    {submitting ? 'Submitting...' : 'Submit Application'}
                   </button>
                 </div>
               </>

@@ -18,7 +18,9 @@ import ResetPassword from './pages/ResetPassword'
 import BecomeATasker from './pages/BecomeATasker'
 import Booking from './pages/Booking'
 import Dashboard from './pages/Dashboard'
+import Admin from './pages/Admin'
 import ProtectedRoute from './Components/ProtectedRoute'
+import AdminRoute from './Components/AdminRoute'
 
 function Home() {
   return (
@@ -50,6 +52,7 @@ function App() {
       <Route path="/become-a-tasker" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
       <Route path="/booking/:service" element={<Booking />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+      <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
     </Routes>
   )
 }
