@@ -77,7 +77,10 @@ function Pricing() {
               </div>
 
               {/* Get Started Button */}
-              <button className="w-full px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-colors mb-8">
+              <button
+                onClick={() => { window.location.href = '/#services' }}
+                className="w-full px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg transition-colors mb-8"
+              >
                 Get Started
               </button>
 
