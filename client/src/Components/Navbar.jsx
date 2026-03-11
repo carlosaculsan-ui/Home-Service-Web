@@ -1,14 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef(null)
-  const navigate = useNavigate()
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -21,35 +18,28 @@ function Navbar() {
     return () => subscription.unsubscribe()
   }, [])
 
-  useEffect(() => {
-    function handleClickOutside(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
-
   async function handleLogout() {
-    await supabase.auth.signOut()
     setDropdownOpen(false)
-    navigate('/')
+    try {
+      await supabase.auth.signOut()
+    } catch (err) {
+      console.error('Sign out error:', err)
+    }
+    window.location.href = '/'
   }
 
   const avatarLabel = session?.user?.email?.slice(0, 2).toUpperCase() ?? ''
 
   return (
     <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh] bg-white">
-      {/* left white section - 30% width, logo placeholder */}
+      {/* left white section */}
       <div className="w-[30%] bg-white min-h-[70px]"></div>
 
-      {/* right orange section - 70% width with arrow shape */}
+      {/* right orange section */}
       <div
         className="w-[70%] bg-orange-500 flex items-center justify-between px-10 py-5 min-h-[70px]"
         style={{ clipPath: 'polygon(40px 0%, 100% 0%, 100% 100%, 40px 100%, 0% 50%)' }}
       >
-        {/* desktop nav links distributed evenly */}
         <div className="hidden md:flex justify-evenly flex-1 pr-36 text-white font-medium text-base">
           <a href="#home" className="hover:text-orange-200">Home</a>
           <a href="#services" className="hover:text-orange-200">Services</a>
@@ -58,7 +48,6 @@ function Navbar() {
           <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
         </div>
 
-        {/* mobile toggle */}
         <button
           className="md:hidden text-white focus:outline-none"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -67,19 +56,28 @@ function Navbar() {
         </button>
       </div>
 
-      {/* login button / avatar — absolute on nav to avoid clip-path cutoff */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-50 flex-shrink-0" ref={dropdownRef}>
+      {/* avatar / login — absolute to avoid clip-path cutoff */}
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-[10000] flex-shrink-0">
         {session ? (
           <>
+            {/* backdrop — closes dropdown when clicking outside */}
+            {dropdownOpen && (
+              <div
+                className="fixed inset-0 z-[9998]"
+                onClick={() => setDropdownOpen(false)}
+              />
+            )}
+
             <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="w-10 h-10 rounded-full bg-white text-orange-500 font-bold text-sm flex items-center justify-center hover:bg-orange-100 transition-colors"
+              type="button"
+              onClick={() => setDropdownOpen(prev => !prev)}
+              className="relative z-[10001] w-10 h-10 rounded-full bg-white text-orange-500 font-bold text-sm flex items-center justify-center hover:bg-orange-100 transition-colors"
             >
               {avatarLabel}
             </button>
 
             {dropdownOpen && (
-              <div className="fixed w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[9999]" style={{ top: '70px', right: '16px' }}>
+              <div className="fixed w-52 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-[10001]" style={{ top: '70px', right: '16px' }}>
                 <div className="px-4 py-3 border-b border-gray-100">
                   <p className="text-xs text-gray-400 truncate">{session.user.email}</p>
                 </div>
@@ -98,6 +96,7 @@ function Navbar() {
                   My Bookings
                 </Link>
                 <button
+                  type="button"
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-3 text-sm text-red-500 hover:bg-red-50 transition-colors"
                 >
@@ -124,6 +123,7 @@ function Navbar() {
           <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
           {session && (
             <button
+              type="button"
               onClick={handleLogout}
               className="text-left text-red-200 hover:text-red-100"
             >
