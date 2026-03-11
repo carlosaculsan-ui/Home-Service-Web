@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
+import LocationMap from '../Components/LocationMap'
 
 const STEPS = [
   { label: 'Describe your task' },
@@ -517,6 +518,11 @@ function Step1({ onContinue }) {
             className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
           />
         </div>
+        {address.length > 5 && (
+          <div className="mt-3">
+            <LocationMap address={address} />
+          </div>
+        )}
       </div>
 
       <div className="border border-gray-200 rounded-xl p-5">

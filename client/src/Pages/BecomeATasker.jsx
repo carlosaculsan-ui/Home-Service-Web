@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
+import LocationMap from '../Components/LocationMap'
 
 function BecomeATasker() {
   const [step, setStep] = useState(1)
@@ -351,9 +352,12 @@ function BecomeATasker() {
                     className="border border-gray-300 rounded-md p-2 text-sm"
                   />
                 </div>
-                {/* Right column: Map placeholder */}
-                <div className="flex-1 bg-gray-200 rounded-md flex items-center justify-center min-h-[130px]">
-                  <span className="text-gray-500 text-sm">Map Placeholder</span>
+                {/* Right column: Map */}
+                <div className="flex-1 min-h-[130px]">
+                  {formData.serviceArea.length > 5
+                    ? <LocationMap address={formData.serviceArea} />
+                    : <div className="bg-gray-200 rounded-md flex items-center justify-center h-full min-h-[130px]"><span className="text-gray-500 text-sm">Map Placeholder</span></div>
+                  }
                 </div>
               </div>
 

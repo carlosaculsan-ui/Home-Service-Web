@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import backgroundImg from '../Assets/Background.jpg'
+import LocationMap from '../Components/LocationMap'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
@@ -57,6 +58,10 @@ function TaskCard({ booking, onStatusChange }) {
           </div>
         ))}
       </div>
+
+      {booking.address && (
+        <LocationMap address={booking.address} />
+      )}
 
       {nextStatuses.length > 0 && (
         <div className="pt-1">
