@@ -7,7 +7,6 @@ import WhyChooseUs from './Components/WhyChooseUs'
 import VideoSection from './Components/VideoSection'
 import Pricing from './Components/Pricing'
 import HowItWorks from './Components/HowItWorks'
-import AIFeatures from './Components/AIFeatures'
 import Reviews from './Components/Reviews'
 import Footer from './Components/Footer'
 import Chatbot from './Components/Chatbot'
@@ -35,7 +34,6 @@ function Home() {
       <VideoSection />
       <Pricing />
       <div id="how-it-works"><HowItWorks /></div>
-      <AIFeatures />
       <Reviews />
       <Footer />
       <Chatbot />

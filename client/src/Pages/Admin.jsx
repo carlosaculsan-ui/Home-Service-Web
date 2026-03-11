@@ -203,6 +203,11 @@ function BookingsPanel() {
               </select>
             </div>
           </div>
+          {b.ai_image_analysis && (
+            <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
+              <span className="font-semibold">🤖 AI Analysis: </span>{b.ai_image_analysis}
+            </div>
+          )}
         </div>
       ))}
     </div>

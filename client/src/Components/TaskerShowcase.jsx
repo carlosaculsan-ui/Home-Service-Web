@@ -84,7 +84,26 @@ function TaskerShowcase() {
   return (
     <div className="bg-gray-900 py-16 px-8 text-white text-center overflow-hidden">
 
-      <h2 className="text-3xl font-bold mb-10">Vortex Elite Taskers</h2>
+      <div className="flex items-center justify-center gap-1 mb-10">
+        <div className="relative w-16 h-16 flex items-center justify-center">
+          <svg
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{ top: 0 }}
+            width="52"
+            height="26"
+            viewBox="0 0 40 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <line x1="20" y1="2" x2="1" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="20" y1="2" x2="39" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+            <rect x="26" y="4" width="4" height="7" fill="#6b7280" rx="0.5" />
+          </svg>
+          <span className="text-orange-500 font-black text-5xl leading-none">h</span>
+        </div>
+        <span style={{ color: '#6b7280' }} className="font-bold text-lg leading-none">anap.ph</span>
+      </div>
+      <p className="text-white font-semibold text-xl mb-10 -mt-6">Taskers</p>
 
       <div className="flex items-center justify-center gap-6">
 

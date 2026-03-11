@@ -3,6 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
+import Groq from 'groq-sdk'
+
+const groq = new Groq({
+  apiKey: import.meta.env.VITE_GROQ_API_KEY,
+  dangerouslyAllowBrowser: true
+})
 
 const STEPS = [
   { label: 'Describe your task' },
@@ -491,6 +497,55 @@ function Step1({ onContinue }) {
   const [size, setSize] = useState('Medium')
   const [details, setDetails] = useState('')
   const [error, setError] = useState('')
+  const [imagePreview, setImagePreview] = useState(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [aiResult, setAiResult] = useState('')
+  const [fileInputKey, setFileInputKey] = useState(0)
+
+  const handleRemoveImage = () => {
+    setImagePreview(null)
+    setAiResult('')
+    setFileInputKey((k) => k + 1)
+  }
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result
+      setImagePreview(base64)
+      setAiResult('')
+      setAnalyzing(true)
+      try {
+        const response = await groq.chat.completions.create({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: base64 }
+                },
+                {
+                  type: 'text',
+                  text: 'You are a home damage assessment AI for hanap.ph, a Philippine home services platform. Analyze this image and identify any home damage or issues. Respond in this exact format with no numbering or bullet points:\n\nDetected Issue: [brief issue name]\nRecommended Service: [one of: Cleaning, Plumbing, Electrical, Carpentry, Painting, or Aircon Cleaning]\nDescription: [1-2 sentence practical description for a booking form]\n\nKeep it short and practical.'
+                }
+              ]
+            }
+          ]
+        })
+        const result = response.choices[0].message.content
+        setAiResult(result)
+      } catch {
+        setAiResult('error')
+      } finally {
+        setAnalyzing(false)
+      }
+    }
+    reader.readAsDataURL(file)
+  }
 
   const handleContinue = () => {
     if (!address.trim() || !details.trim()) {
@@ -498,7 +553,7 @@ function Step1({ onContinue }) {
       return
     }
     setError('')
-    onContinue(address.trim(), size, details.trim())
+    onContinue(address.trim(), size, details.trim(), aiResult && aiResult !== 'error' ? aiResult : null)
   }
 
   return (
@@ -564,6 +619,56 @@ function Step1({ onContinue }) {
           className="w-full border border-gray-200 rounded-lg p-3 text-base text-gray-700 resize-none outline-none focus:border-orange-400"
           style={{ minHeight: '140px' }}
         />
+
+        <div className="mt-4">
+          <p className="text-sm font-medium text-gray-600 mb-2">Optional: Upload a photo of the damage</p>
+          <p className="text-sm italic text-gray-400 mt-1 mb-3">Let Hanap AI detect and analyze your home issue automatically!</p>
+          <input
+            key={fileInputKey}
+            type="file"
+            accept="image/*"
+            onChange={handleImageUpload}
+            className="block w-full text-sm text-gray-500 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-600 hover:file:bg-orange-100 cursor-pointer"
+          />
+
+          {imagePreview && (
+            <div className="mt-3 relative">
+              <img
+                src={imagePreview}
+                alt="Uploaded preview"
+                className="w-full max-h-48 object-cover rounded-lg border border-gray-200"
+              />
+              <button
+                onClick={handleRemoveImage}
+                className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold leading-none"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {analyzing && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+              <svg className="animate-spin w-4 h-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Hanap AI is analyzing your image...
+            </div>
+          )}
+
+          {aiResult && !analyzing && aiResult !== 'error' && (
+            <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
+              <span className="font-semibold">AI Suggestion: </span>{aiResult}
+            </div>
+          )}
+
+          {aiResult === 'error' && !analyzing && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              Could not analyze image. Please describe your task manually.
+            </div>
+          )}
+        </div>
       </div>
 
       {error && <p className="text-red-500 text-base">{error}</p>}
@@ -578,7 +683,7 @@ function Step1({ onContinue }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('gcash')
   const [gcashNumber, setGcashNumber] = useState('')
@@ -822,6 +927,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               estimated_total: rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2),
               status: 'pending',
               reference_number: ref,
+              ai_image_analysis: aiImageAnalysis ?? null,
             }).select('id').single()
             if (error) {
               console.error('Booking insert error:', error.message, error.details, error.hint)
@@ -852,6 +958,7 @@ function Booking() {
   const [taskAddress, setTaskAddress] = useState('')
   const [taskSize, setTaskSize] = useState('Medium')
   const [taskDetails, setTaskDetails] = useState('')
+  const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
 
   // Tasker list (fetched from Supabase)
   const [taskers, setTaskers] = useState([])
@@ -885,10 +992,11 @@ function Booking() {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
 
-  const handleStep1Continue = (address, size, details) => {
+  const handleStep1Continue = (address, size, details, aiResult) => {
     setTaskAddress(address)
     setTaskSize(size)
     setTaskDetails(details)
+    setAiImageAnalysis(aiResult)
     setStep(1)
   }
 
@@ -967,6 +1075,7 @@ function Booking() {
             taskSize={taskSize}
             taskAddress={taskAddress}
             taskDetails={taskDetails}
+            aiImageAnalysis={aiImageAnalysis}
             onBack={() => setStep(2)}
           />
         )}
