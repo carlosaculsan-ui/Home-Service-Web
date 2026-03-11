@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 
 function Navbar() {
@@ -7,6 +7,26 @@ function Navbar() {
   const [session, setSession] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isApprovedTasker, setIsApprovedTasker] = useState(false)
+  const navigate = useNavigate()
+  const location = useLocation()
+
+  function handleNavClick(e, sectionId) {
+    e.preventDefault()
+    setMenuOpen(false)
+    if (!sectionId) {
+      navigate('/')
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (location.pathname === '/') {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })
+    } else {
+      navigate('/')
+      setTimeout(() => {
+        document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+  }
 
   async function checkTaskerStatus(userId) {
     const { data } = await supabase
@@ -53,7 +73,28 @@ function Navbar() {
   return (
     <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh] bg-white">
       {/* left white section */}
-      <div className="w-[30%] bg-white min-h-[70px]"></div>
+      <div className="w-[30%] bg-white min-h-[70px] flex items-center pl-4">
+        <div className="relative w-16 h-16 flex items-center justify-center">
+          {/* Roof SVG: two lines meeting at peak + chimney */}
+          <svg
+            className="absolute left-1/2 -translate-x-1/2"
+            style={{ top: 0 }}
+            width="52"
+            height="26"
+            viewBox="0 0 40 20"
+            fill="none"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            {/* Left slope */}
+            <line x1="20" y1="2" x2="1" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Right slope */}
+            <line x1="20" y1="2" x2="39" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+            {/* Chimney */}
+            <rect x="26" y="4" width="4" height="7" fill="#6b7280" rx="0.5" />
+          </svg>
+          <span className="text-orange-500 font-black text-5xl leading-none">h</span>
+        </div>
+      </div>
 
       {/* right orange section */}
       <div
@@ -61,11 +102,11 @@ function Navbar() {
         style={{ clipPath: 'polygon(40px 0%, 100% 0%, 100% 100%, 40px 100%, 0% 50%)' }}
       >
         <div className="hidden md:flex justify-evenly flex-1 pr-36 text-white font-medium text-base">
-          <a href="#home" className="hover:text-orange-200">Home</a>
-          <a href="#services" className="hover:text-orange-200">Services</a>
-          <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
-          <a href="#about" className="hover:text-orange-200">About</a>
-          <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
+          <a href="/" onClick={(e) => handleNavClick(e, null)} className="hover:text-orange-200 cursor-pointer">Home</a>
+          <a href="/#services" onClick={(e) => handleNavClick(e, 'services')} className="hover:text-orange-200 cursor-pointer">Services</a>
+          <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="hover:text-orange-200 cursor-pointer">How It Works</a>
+          <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="hover:text-orange-200 cursor-pointer">About</a>
+          <a href="/#contact" onClick={(e) => handleNavClick(e, 'contact')} className="hover:text-orange-200 cursor-pointer">Contact Us Now</a>
         </div>
 
         <button
@@ -145,11 +186,11 @@ function Navbar() {
 
       {menuOpen && (
         <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 py-6 bg-orange-500">
-          <a href="#home" className="hover:text-orange-200">Home</a>
-          <a href="#services" className="hover:text-orange-200">Services</a>
-          <a href="#how-it-works" className="hover:text-orange-200">How It Works</a>
-          <a href="#about" className="hover:text-orange-200">About</a>
-          <a href="#contact" className="hover:text-orange-200">Contact Us Now</a>
+          <a href="/" onClick={(e) => handleNavClick(e, null)} className="hover:text-orange-200 cursor-pointer">Home</a>
+          <a href="/#services" onClick={(e) => handleNavClick(e, 'services')} className="hover:text-orange-200 cursor-pointer">Services</a>
+          <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="hover:text-orange-200 cursor-pointer">How It Works</a>
+          <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="hover:text-orange-200 cursor-pointer">About</a>
+          <a href="/#contact" onClick={(e) => handleNavClick(e, 'contact')} className="hover:text-orange-200 cursor-pointer">Contact Us Now</a>
           {session && (
             <button
               type="button"

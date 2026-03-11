@@ -118,21 +118,19 @@ function Login() {
 
           {error && <p className="text-red-300 text-sm">{error}</p>}
 
-          <div className="relative my-2">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/20"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-3 text-gray-300" style={{ background: 'transparent' }}>or</span>
-            </div>
+          <div className="flex items-center gap-3 my-2">
+            <div className="flex-1 border-t border-white/20"></div>
+            <span className="text-gray-300 text-sm">or</span>
+            <div className="flex-1 border-t border-white/20"></div>
           </div>
 
           <button
+            type="button"
             onClick={handleGoogleLogin}
-            className="w-full py-3 rounded-lg font-medium flex items-center justify-center gap-3 transition-colors text-white hover:bg-white/20"
-            style={{ border: '1px solid rgba(255,255,255,0.25)', background: 'rgba(255,255,255,0.1)' }}
+            className="relative z-10 w-full py-3 rounded-lg font-medium flex items-center justify-center gap-3 transition-colors text-white bg-white/10 hover:bg-white/20 cursor-pointer"
+            style={{ border: '1px solid rgba(255,255,255,0.25)' }}
           >
-            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
+            <img src="https://www.google.com/favicon.ico" className="w-5 h-5 pointer-events-none" />
             Continue with Google
           </button>
         </div>

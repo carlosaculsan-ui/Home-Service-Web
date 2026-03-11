@@ -85,6 +85,18 @@ function BecomeATasker() {
     setSubmitting(true)
     setSubmitError('')
     const { data: { user } } = await supabase.auth.getUser()
+
+    const { data: existing } = await supabase
+      .from('taskers')
+      .select('id')
+      .eq('email', formData.email)
+      .maybeSingle()
+    if (existing) {
+      setSubmitError('An application with this email already exists. Please contact us if you need help.')
+      setSubmitting(false)
+      return
+    }
+
     const { error } = await supabase.from('taskers').insert({
       user_id: user.id,
       name: `${formData.firstName} ${formData.lastName}`,

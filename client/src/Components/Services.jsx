@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import background2Img from '../Assets/Background2.jpg'
 import cleaningImg from '../Assets/Cleaning.png'
 import plumbingImg from '../Assets/Plumbing.png'
 import electricianImg from '../Assets/Electrician.png'
@@ -71,7 +72,7 @@ const services = [
 
 function Services() {
   return (
-    <div className="py-16 px-8 bg-gray-50">
+    <div className="py-16 px-8" style={{ backgroundImage: `url(${background2Img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
 
 
       <h2 className="text-4xl font-bold text-center text-gray-900 mb-12">
