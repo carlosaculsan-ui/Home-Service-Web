@@ -686,19 +686,26 @@ function Step1({ onContinue }) {
 function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('gcash')
-  const [gcashNumber, setGcashNumber] = useState('')
-  const [cardNumber, setCardNumber] = useState('')
-  const [cardExpiry, setCardExpiry] = useState('')
-  const [cardCvv, setCardCvv] = useState('')
   const [promoCode, setPromoCode] = useState('')
   const [confirmed, setConfirmed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [bookingRef, setBookingRef] = useState('')
-  const [bookingId, setBookingId] = useState(null)
+
+  // Detect PayMongo redirect back with ?payment=success
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('payment') === 'success') {
+      const ref = params.get('ref') || sessionStorage.getItem('pendingBookingRef') || ''
+      setBookingRef(ref)
+      setConfirmed(true)
+      sessionStorage.removeItem('pendingBookingRef')
+    }
+  }, [])
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
+  const estimatedTotal = rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2)
   const estTotal =
     taskSize === 'Small'
       ? `₱${rate.toLocaleString()}`
@@ -809,16 +816,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               <span className="text-lg">💙</span>
               <span className="font-semibold text-gray-800">GCash</span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">Pay via GCash (API integration coming soon)</p>
-            {paymentMethod === 'gcash' && (
-              <input
-                type="text"
-                value={gcashNumber}
-                onChange={(e) => setGcashNumber(e.target.value)}
-                placeholder="Enter GCash number"
-                className="mt-3 w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
-              />
-            )}
+            <p className="text-xs text-gray-400 mt-0.5">You'll be redirected to a secure PayMongo checkout to pay via GCash.</p>
           </div>
         </label>
 
@@ -837,34 +835,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               <span className="text-lg">💳</span>
               <span className="font-semibold text-gray-800">Credit / Debit Card</span>
             </div>
-            <p className="text-xs text-gray-400 mt-0.5">Visa, Mastercard accepted</p>
-            {paymentMethod === 'card' && (
-              <div className="mt-3 space-y-2">
-                <input
-                  type="text"
-                  value={cardNumber}
-                  onChange={(e) => setCardNumber(e.target.value)}
-                  placeholder="Card Number"
-                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
-                />
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={cardExpiry}
-                    onChange={(e) => setCardExpiry(e.target.value)}
-                    placeholder="Expiry Date (MM/YY)"
-                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
-                  />
-                  <input
-                    type="text"
-                    value={cardCvv}
-                    onChange={(e) => setCardCvv(e.target.value)}
-                    placeholder="CVV"
-                    className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
-                  />
-                </div>
-              </div>
-            )}
+            <p className="text-xs text-gray-400 mt-0.5">Visa, Mastercard accepted — enter details securely on PayMongo checkout.</p>
           </div>
         </label>
       </div>
@@ -902,48 +873,81 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           onClick={async () => {
             setSaving(true)
             setSaveError('')
-            const { data: { session } } = await supabase.auth.getSession()
-            // TODO: re-enable auth check before production
-            // if (!session) {
-            //   setSaveError('You must be logged in to book a service. Please log in first.')
-            //   setSaving(false)
-            //   return
-            // }
-            const client_id = session?.user?.id ?? null
-            console.log('client_id:', client_id)
-            console.log('tasker id:', tasker?.id)
-            console.log('tasker object:', tasker)
-            const ref = 'VE-' + Date.now()
-            const { data: bookingData, error } = await supabase.from('bookings').insert({
-              client_id,
-              tasker_id: tasker?.id,
-              service,
-              task_size: taskSize,
-              task_description: taskDetails,
-              address: taskAddress,
-              scheduled_date: date ? date.toISOString().split('T')[0] : null,
-              scheduled_time: time,
-              payment_method: paymentMethod,
-              estimated_total: rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2),
-              status: 'pending',
-              reference_number: ref,
-              ai_image_analysis: aiImageAnalysis ?? null,
-            }).select('id').single()
-            if (error) {
-              console.error('Booking insert error:', error.message, error.details, error.hint)
-              setSaveError(`Error: ${error.message}`)
-              setSaving(false)
-            } else {
-              setBookingRef(ref)
-              setBookingId(bookingData?.id ?? null)
-              setConfirmed(true)
+            try {
+              const { data: { session } } = await supabase.auth.getSession()
+              const client_id = session?.user?.id ?? null
+              const ref = 'VE-' + Date.now()
+
+              // Save booking to Supabase first
+              const { error } = await supabase.from('bookings').insert({
+                client_id,
+                tasker_id: tasker?.id,
+                service,
+                task_size: taskSize,
+                task_description: taskDetails,
+                address: taskAddress,
+                scheduled_date: date ? date.toISOString().split('T')[0] : null,
+                scheduled_time: time,
+                payment_method: paymentMethod,
+                estimated_total: estimatedTotal,
+                status: 'pending_payment',
+                reference_number: ref,
+                ai_image_analysis: aiImageAnalysis ?? null,
+              })
+              if (error) {
+                setSaveError(`Error saving booking: ${error.message}`)
+                setSaving(false)
+                return
+              }
+
+              // Store ref so we can retrieve it after redirect
+              sessionStorage.setItem('pendingBookingRef', ref)
+
+              // Create PayMongo payment link
+              const successUrl = `${window.location.origin}${window.location.pathname}?payment=success&ref=${ref}`
+              const failedUrl = `${window.location.origin}${window.location.pathname}?payment=failed`
+              const pmResponse = await fetch('https://api.paymongo.com/v1/links', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  data: {
+                    attributes: {
+                      amount: estimatedTotal * 100,
+                      description: `hanap.ph booking - ${service}`,
+                      remarks: ref,
+                    },
+                  },
+                }),
+              })
+              const pmData = await pmResponse.json()
+              if (!pmResponse.ok) {
+                const errMsg = pmData?.errors?.[0]?.detail || 'Payment setup failed. Please try again.'
+                setSaveError(errMsg)
+                setSaving(false)
+                return
+              }
+              const checkoutUrl = pmData.data.attributes.checkout_url
+              window.location.href = checkoutUrl
+            } catch (err) {
+              setSaveError('Payment setup failed. Please try again.')
               setSaving(false)
             }
           }}
           disabled={saving}
-          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
+          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center gap-2"
         >
-          {saving ? 'Processing...' : 'Confirm & Book'}
+          {saving ? (
+            <>
+              <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+              </svg>
+              Creating payment link...
+            </>
+          ) : 'Confirm & Pay'}
         </button>
       </div>
     </div>
