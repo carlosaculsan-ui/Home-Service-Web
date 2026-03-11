@@ -6,6 +6,26 @@ function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [session, setSession] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
+  const [isApprovedTasker, setIsApprovedTasker] = useState(false)
+
+  async function checkTaskerStatus(userId) {
+    const { data } = await supabase
+      .from('taskers')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('status', 'approved')
+      .maybeSingle()
+    setIsApprovedTasker(!!data)
+  }
+
+  useEffect(() => {
+    if (session?.user?.id) {
+      checkTaskerStatus(session.user.id)
+    } else {
+      setIsApprovedTasker(false)
+    }
+  }, [session])
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
@@ -95,6 +115,15 @@ function Navbar() {
                 >
                   My Bookings
                 </Link>
+                {isApprovedTasker && (
+                  <Link
+                    to="/tasker-dashboard"
+                    onClick={() => setDropdownOpen(false)}
+                    className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    My Tasks
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={handleLogout}
