@@ -41,11 +41,11 @@ function Chatbot() {
   return (
     <div className="fixed bottom-6 right-6 z-50">
 
-     
+
       {isOpen && (
         <div className="bg-white rounded-2xl shadow-2xl w-80 mb-4 flex flex-col overflow-hidden border border-gray-200">
-          
-    
+
+
           <div className="bg-orange-500 text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="text-2xl">🤖</div>
@@ -57,7 +57,7 @@ function Chatbot() {
             <button onClick={() => setIsOpen(false)} className="text-white hover:text-gray-200 text-xl">✕</button>
           </div>
 
-         
+
           <div className="flex-1 p-4 space-y-3 overflow-y-auto max-h-72">
             {messages.map((msg, index) => (
               <div key={index} className={`flex ${msg.from === 'user' ? 'justify-end' : 'justify-start'}`}>
@@ -72,7 +72,7 @@ function Chatbot() {
             ))}
           </div>
 
-     
+
           <div className="border-t border-gray-200 p-3 flex gap-2">
             <input
               type="text"
@@ -93,7 +93,7 @@ function Chatbot() {
         </div>
       )}
 
-  
+
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-4 py-3 flex items-center justify-center shadow-lg font-semibold"
