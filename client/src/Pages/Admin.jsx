@@ -18,9 +18,21 @@ const BOOKING_STATUS_STYLES = {
 
 // ─── Tasker Applications Tab ────────────────────────────────────────────────
 
+const DOC_FIELDS = [
+  { key: 'front_image_url',          label: 'ID Front' },
+  { key: 'back_image_url',           label: 'ID Back' },
+  { key: 'nbi_clearance_url',        label: 'NBI Clearance' },
+  { key: 'police_clearance_url',     label: 'Police Clearance' },
+  { key: 'barangay_clearance_url',   label: 'Barangay Clearance' },
+  { key: 'certificate_training_url', label: 'Certificate of Training' },
+  { key: 'skill_assessment_url',     label: 'Skill Assessment' },
+  { key: 'work_experience_url',      label: 'Work Experience' },
+]
+
 function TaskerApplications() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedDocs, setExpandedDocs] = useState({})
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -41,6 +53,10 @@ function TaskerApplications() {
     fetchTaskers()
   }
 
+  function toggleDocs(id) {
+    setExpandedDocs((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center mt-16">
@@ -55,51 +71,87 @@ function TaskerApplications() {
 
   return (
     <div className="space-y-4">
-      {taskers.map((t) => (
-        <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1 flex-1">
-              <div className="flex items-center gap-3">
-                <p className="font-bold text-gray-800 text-base">{t.name}</p>
-                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
-                  {t.status}
-                </span>
+      {taskers.map((t) => {
+        const docs = DOC_FIELDS.filter(({ key }) => t[key])
+        return (
+          <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="font-bold text-gray-800 text-base">{t.name}</p>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
+                    {t.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
+                  {[
+                    ['Email',       t.email],
+                    ['Phone',       t.phone],
+                    ['Service',     t.role],
+                    ['Area',        t.service_area],
+                    ['Hourly Rate', t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'],
+                    ['Applied',     t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex gap-2">
+                      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
+                      <span className="text-gray-700">{val ?? '—'}</span>
+                    </div>
+                  ))}
+                </div>
+                {t.bio && (
+                  <p className="text-sm text-gray-600 mt-2 border-t border-gray-100 pt-2">
+                    <span className="font-medium text-gray-500">Bio: </span>{t.bio}
+                  </p>
+                )}
               </div>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
-                {[
-                  ['Email',   t.email],
-                  ['Phone',   t.phone],
-                  ['Service', t.role],
-                  ['Area',    t.service_area],
-                  ['Applied', t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
-                ].map(([label, val]) => (
-                  <div key={label} className="flex gap-2">
-                    <span className="text-gray-400 w-16 flex-shrink-0">{label}</span>
-                    <span className="text-gray-700">{val ?? '—'}</span>
-                  </div>
-                ))}
-              </div>
+
+              {t.status === 'pending' && (
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => updateStatus(t.id, 'approved')}
+                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => updateStatus(t.id, 'rejected')}
+                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              )}
             </div>
 
-            {t.status === 'pending' && (
-              <div className="flex flex-col gap-2 flex-shrink-0">
+            {docs.length > 0 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
                 <button
-                  onClick={() => updateStatus(t.id, 'approved')}
-                  className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  onClick={() => toggleDocs(t.id)}
+                  className="text-sm font-semibold text-orange-500 hover:text-orange-600 flex items-center gap-1"
                 >
-                  Approve
+                  {expandedDocs[t.id] ? '▲ Hide' : '▼ View'} Documents ({docs.length})
                 </button>
-                <button
-                  onClick={() => updateStatus(t.id, 'rejected')}
-                  className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                >
-                  Reject
-                </button>
+                {expandedDocs[t.id] && (
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    {docs.map(({ key, label }) => (
+                      <a key={key} href={t[key]} target="_blank" rel="noreferrer" title={label}>
+                        <div className="text-center">
+                          <img
+                            src={t[key]}
+                            alt={label}
+                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-pointer"
+                          />
+                          <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -494,6 +546,101 @@ function ServicesPanel() {
   )
 }
 
+// ─── Reviews Tab ─────────────────────────────────────────────────────────────
+
+function ReviewsPanel() {
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  async function fetchReviews() {
+    const { data } = await supabase
+      .from('reviews')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setReviews(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchReviews() }, [])
+
+  async function toggleFeature(review) {
+    if (!review.featured) {
+      // Featuring: check count
+      const { count } = await supabase
+        .from('reviews')
+        .select('*', { count: 'exact', head: true })
+        .eq('featured', true)
+      if ((count ?? 0) >= 5) {
+        const { data: oldest } = await supabase
+          .from('reviews')
+          .select('id')
+          .eq('featured', true)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .single()
+        if (oldest) await supabase.from('reviews').update({ featured: false }).eq('id', oldest.id)
+      }
+    }
+    await supabase.from('reviews').update({ featured: !review.featured }).eq('id', review.id)
+    fetchReviews()
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this review?')) return
+    await supabase.from('reviews').delete().eq('id', id)
+    fetchReviews()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (reviews.length === 0) {
+    return <p className="text-center text-gray-400 mt-16">No reviews yet.</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {reviews.map((r) => (
+        <div key={r.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-3 flex-wrap">
+                <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
+                <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
+                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">{r.service}</span>
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${r.featured ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
+                  {r.featured ? 'Featured' : 'Not Featured'}
+                </span>
+              </div>
+              <p className="text-gray-600 text-sm">"{r.comment}"</p>
+              <p className="text-gray-400 text-xs">{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</p>
+            </div>
+            <div className="flex flex-col gap-2 flex-shrink-0">
+              <button
+                onClick={() => toggleFeature(r)}
+                className={`px-4 py-1.5 text-white text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-400 hover:bg-gray-500' : 'bg-orange-500 hover:bg-orange-600'}`}
+              >
+                {r.featured ? 'Unfeature' : 'Feature'}
+              </button>
+              <button
+                onClick={() => handleDelete(r.id)}
+                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Admin Page ──────────────────────────────────────────────────────────────
 
 function Admin() {
@@ -512,6 +659,7 @@ function Admin() {
             { key: 'applications', label: 'Tasker Applications' },
             { key: 'bookings',     label: 'Bookings' },
             { key: 'services',     label: 'Services' },
+            { key: 'reviews',      label: 'Reviews' },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -530,6 +678,7 @@ function Admin() {
         {tab === 'applications' && <TaskerApplications />}
         {tab === 'bookings'     && <BookingsPanel />}
         {tab === 'services'     && <ServicesPanel />}
+        {tab === 'reviews'      && <ReviewsPanel />}
       </div>
     </div>
   )

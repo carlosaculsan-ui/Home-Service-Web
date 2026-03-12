@@ -93,6 +93,37 @@ function TaskerShowcase() {
     )
   }
 
+  if (!fetchError && taskers.length === 0) {
+    return (
+      <div
+        className="py-16 px-8 text-white text-center overflow-hidden"
+        style={{ background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)' }}
+      >
+        <div className="flex items-center justify-center gap-1 mb-2">
+          <div className="relative w-16 h-16 flex items-center justify-center">
+            <svg className="absolute left-1/2 -translate-x-1/2" style={{ top: 0 }} width="52" height="26" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <line x1="20" y1="2" x2="1" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="20" y1="2" x2="39" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
+              <rect x="26" y="4" width="4" height="7" fill="#6b7280" rx="0.5" />
+            </svg>
+            <span className="text-orange-500 font-black text-5xl leading-none">h</span>
+          </div>
+          <span style={{ color: '#6b7280' }} className="font-bold text-lg leading-none">anap.ph</span>
+        </div>
+        <p className="text-white font-semibold text-xl mb-6 -mt-6">Taskers</p>
+        <p className="text-gray-400 mb-8">No taskers available at the moment.</p>
+        <Link to="/become-a-tasker">
+          <button
+            className="text-white px-8 py-3 rounded-lg font-semibold"
+            style={{ background: 'linear-gradient(90deg, #f97316, #ea580c)', boxShadow: '0 0 18px rgba(249,115,22,0.4)', border: 'none', cursor: 'pointer' }}
+          >
+            Become a Tasker
+          </button>
+        </Link>
+      </div>
+    )
+  }
+
   if (fetchError) {
     return (
       <div className="bg-gray-900 py-16 px-8 text-white text-center">
@@ -142,7 +173,7 @@ function TaskerShowcase() {
           className="flex items-center justify-center gap-8 w-full max-w-4xl overflow-hidden"
           style={{ perspective: '1200px' }}
         >
-          {getVisible().map(({ tasker, position }, i) => {
+          {getVisible().filter(({ tasker }) => tasker).map(({ tasker, position }, i) => {
             const isCenter = position === 'center'
             const rotateY = position === 'left' ? 'rotateY(-20deg)' : position === 'right' ? 'rotateY(20deg)' : 'rotateY(0deg)'
             const scale = isCenter ? 'scale(1.05)' : 'scale(0.93)'

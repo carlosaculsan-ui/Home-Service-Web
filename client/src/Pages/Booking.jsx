@@ -691,6 +691,8 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [bookingRef, setBookingRef] = useState('')
+  const [paymentPending, setPaymentPending] = useState(false)
+  const [verifying, setVerifying] = useState(false)
 
   // Detect PayMongo redirect back with ?payment=success
   useEffect(() => {
@@ -930,13 +932,15 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 return
               }
               const checkoutUrl = pmData.data.attributes.checkout_url
-              window.location.href = checkoutUrl
+              window.open(checkoutUrl, '_blank')
+              setSaving(false)
+              setPaymentPending(true)
             } catch (err) {
               setSaveError('Payment setup failed. Please try again.')
               setSaving(false)
             }
           }}
-          disabled={saving}
+          disabled={saving || paymentPending}
           className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center gap-2"
         >
           {saving ? (
@@ -949,6 +953,38 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             </>
           ) : 'Confirm & Pay'}
         </button>
+
+        {paymentPending && (
+          <div className="mt-6 p-5 bg-blue-50 border border-blue-200 rounded-xl text-center space-y-3">
+            <p className="text-blue-800 font-semibold text-sm">💳 Complete your payment in the new tab.</p>
+            <p className="text-blue-600 text-sm">Once done, click the button below to confirm your booking.</p>
+            <button
+              onClick={async () => {
+                setVerifying(true)
+                const ref = sessionStorage.getItem('pendingBookingRef')
+                await supabase
+                  .from('bookings')
+                  .update({ status: 'confirmed' })
+                  .eq('reference_number', ref)
+                setBookingRef(ref)
+                setConfirmed(true)
+                sessionStorage.removeItem('pendingBookingRef')
+              }}
+              disabled={verifying}
+              className="bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-lg text-sm flex items-center gap-2 mx-auto"
+            >
+              {verifying ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Confirming...
+                </>
+              ) : "I've completed my payment"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )

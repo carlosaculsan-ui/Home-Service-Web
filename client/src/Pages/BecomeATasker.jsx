@@ -51,6 +51,7 @@ function BecomeATasker() {
     workEvening: false,
     travelDistance: '',
     serviceRole: '',
+    hourlyRate: '',
     experience: '',
     idType: '',
     frontImage: null,
@@ -81,10 +82,12 @@ function BecomeATasker() {
 
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [uploadProgress, setUploadProgress] = useState('')
 
   const handleSubmit = async () => {
     setSubmitting(true)
     setSubmitError('')
+    setUploadProgress('')
     const { data: { user } } = await supabase.auth.getUser()
 
     const { data: existing } = await supabase
@@ -98,6 +101,42 @@ function BecomeATasker() {
       return
     }
 
+    // Upload files to Supabase Storage
+    const fileFields = [
+      { key: 'frontImage',          urlKey: 'front_image_url' },
+      { key: 'backImage',           urlKey: 'back_image_url' },
+      { key: 'nbiClearance',        urlKey: 'nbi_clearance_url' },
+      { key: 'policeClearance',     urlKey: 'police_clearance_url' },
+      { key: 'barangayClearance',   urlKey: 'barangay_clearance_url' },
+      { key: 'certificateTraining', urlKey: 'certificate_training_url' },
+      { key: 'skillAssessment',     urlKey: 'skill_assessment_url' },
+      { key: 'workExperience',      urlKey: 'work_experience_url' },
+    ]
+
+    const filesToUpload = fileFields.filter(({ key }) => formData[key])
+    const uploadedUrls = {}
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const { key, urlKey } = filesToUpload[i]
+      setUploadProgress(`Uploading documents... (${i + 1}/${filesToUpload.length})`)
+      const file = formData[key]
+      const ext = file.name.split('.').pop()
+      const path = `${user.id}/${key}-${Date.now()}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('tasker-files')
+        .upload(path, file, { upsert: true })
+      if (uploadError) {
+        setSubmitError(`Failed to upload ${key}: ${uploadError.message}`)
+        setSubmitting(false)
+        setUploadProgress('')
+        return
+      }
+      const { data: publicData } = supabase.storage.from('tasker-files').getPublicUrl(path)
+      uploadedUrls[urlKey] = publicData.publicUrl
+    }
+
+    setUploadProgress('Saving application...')
+
     const { error } = await supabase.from('taskers').insert({
       user_id: user.id,
       name: `${formData.firstName} ${formData.lastName}`,
@@ -110,9 +149,11 @@ function BecomeATasker() {
       is_available: false,
       rating: 0,
       reviews_count: 0,
-      hourly_rate: 0,
+      hourly_rate: parseFloat(formData.hourlyRate) || 0,
+      ...uploadedUrls,
     })
     setSubmitting(false)
+    setUploadProgress('')
     if (error) {
       setSubmitError(error.message)
     } else {
@@ -393,7 +434,7 @@ function BecomeATasker() {
                     Anytime
                   </label>
                 </div>
-                <p className="font-bold text-gray-800 text-sm text-center mb-1">Working Hours</p>
+                <p className="font-bold text-gray-800 text-sm mb-1">Working Hours</p>
                 <div className="flex flex-col gap-1 mb-2">
                   <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                     <input
@@ -458,6 +499,24 @@ function BecomeATasker() {
                   <option>Painting</option>
                   <option>Aircon Cleaning</option>
                 </select>
+              </div>
+
+              {/* Hourly Rate */}
+              <div className="mb-3">
+                <p className="font-bold text-gray-800 text-sm mb-2">Hourly Rate</p>
+                <div className="flex items-center border border-gray-300 rounded-md overflow-hidden w-40">
+                  <span className="px-2 text-gray-500 text-sm bg-gray-100 border-r border-gray-300 py-2">₱</span>
+                  <input
+                    type="number"
+                    name="hourlyRate"
+                    value={formData.hourlyRate}
+                    onChange={handleChange}
+                    placeholder="0"
+                    min="0"
+                    className="flex-1 p-2 text-sm outline-none"
+                  />
+                  <span className="px-2 text-gray-400 text-xs bg-gray-50">/hr</span>
+                </div>
               </div>
 
               {/* Experience */}
@@ -1150,7 +1209,7 @@ function BecomeATasker() {
                     disabled={submitting}
                     className="px-4 py-2 bg-orange-500 text-white rounded-md disabled:opacity-50"
                   >
-                    {submitting ? 'Submitting...' : 'Submit Application'}
+                    {submitting ? (uploadProgress || 'Submitting...') : 'Submit Application'}
                   </button>
                 </div>
               </>
