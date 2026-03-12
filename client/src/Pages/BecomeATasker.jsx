@@ -137,7 +137,7 @@ function BecomeATasker() {
     approved: {
       icon: '✅',
       heading: 'Application Approved!',
-      message: 'Welcome to Vortex Elite! You can now access your Tasker Dashboard.',
+      message: 'Welcome to hanap.ph! You can now access your Tasker Dashboard.',
     },
     rejected: {
       icon: '❌',
@@ -238,7 +238,7 @@ function BecomeATasker() {
               {/* Brand header */}
               <div className="flex items-center gap-2 mb-3">
                 <span className="text-base">🏠</span>
-                <span className="text-sm font-bold text-orange-500 tracking-wide">Vortex Elite</span>
+                <span className="text-sm font-bold text-orange-500 tracking-wide">hanap.ph</span>
               </div>
               <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
 

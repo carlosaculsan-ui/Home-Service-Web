@@ -395,7 +395,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
           <div className="flex items-center gap-2 text-sm text-gray-700">
             <span>📧</span>
             <span className="text-gray-400">Email:</span>
-            <span>VortexElite@gmail.com</span>
+            <span>hanapph@gmail.com</span>
           </div>
         </div>
       </div>
@@ -726,7 +726,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         <div>
           <p className="text-2xl font-bold text-gray-800">Booking Confirmed!</p>
           <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-            Thank you for booking with Vortex Elite! Your tasker has been notified and will contact you shortly.
+            Thank you for booking with hanap.ph! Your tasker has been notified and will contact you shortly.
           </p>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-3">
@@ -1038,7 +1038,7 @@ function Booking() {
         {/* Card header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-base font-bold text-orange-500 tracking-wide">🏠 Vortex Elite</span>
+            <span className="text-base font-bold text-orange-500 tracking-wide">🏠 hanap.ph</span>
             <p className="text-sm text-gray-400 capitalize">{service}</p>
           </div>
           <ProgressTracker step={step} />

@@ -6,7 +6,7 @@ function Footer() {
         
         {/* Brand */}
         <div className="col-span-2 sm:col-span-2 md:col-span-1">
-          <h2 className="text-white text-2xl font-bold mb-4">Vortex Elite</h2>
+          <h2 className="text-white text-2xl font-bold mb-4">hanap.ph</h2>
           <p className="text-sm">Your trusted platform for home services. Quality professionals, guaranteed.</p>
         </div>
 
@@ -53,11 +53,11 @@ function Footer() {
             </li>
             <li className="flex items-start gap-2">
               <span>📧</span>
-              <span>VortexElite@gmail.com</span>
+              <span>hanapph@gmail.com</span>
             </li>
             <li className="flex items-start gap-2">
               <span>📍</span>
-              <span>Unit 6, Bisakol Street, Vortex Elite Bldg. Quezon City</span>
+              <span>Unit 6, Bisakol Street, hanap.ph Bldg. Quezon City</span>
             </li>
             <li className="flex items-center gap-3 mt-4">
               <a href="#" className="hover:text-white text-xl">📘</a>
@@ -70,7 +70,7 @@ function Footer() {
       </div>
 
       <div className="border-t border-gray-700 mt-10 pt-6 text-center text-sm">
-        © 2025 Vortex Elite. All rights reserved.
+        © 2025 hanap.ph. All rights reserved.
       </div>
 
     </footer>
