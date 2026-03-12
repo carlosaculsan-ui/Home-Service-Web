@@ -33,6 +33,15 @@ function TaskerApplications() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
   const [expandedDocs, setExpandedDocs] = useState({})
+  const [editingRate, setEditingRate] = useState({}) // { [id]: string }
+
+  async function saveRate(id) {
+    const val = parseFloat(editingRate[id])
+    if (isNaN(val) || val <= 0) return
+    await supabase.from('taskers').update({ hourly_rate: val }).eq('id', id)
+    setEditingRate((prev) => { const next = { ...prev }; delete next[id]; return next })
+    fetchTaskers()
+  }
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -85,18 +94,49 @@ function TaskerApplications() {
                 </div>
                 <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
                   {[
-                    ['Email',       t.email],
-                    ['Phone',       t.phone],
-                    ['Service',     t.role],
-                    ['Area',        t.service_area],
-                    ['Hourly Rate', t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'],
-                    ['Applied',     t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
+                    ['Email',   t.email],
+                    ['Phone',   t.phone],
+                    ['Service', t.role],
+                    ['Area',    t.service_area],
+                    ['Applied', t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-2">
                       <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
                       <span className="text-gray-700">{val ?? '—'}</span>
                     </div>
                   ))}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-gray-400 w-24 flex-shrink-0">Hourly Rate</span>
+                    {editingRate[t.id] !== undefined ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">₱</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editingRate[t.id]}
+                          onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          className="w-20 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:border-orange-400"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveRate(t.id)}
+                          className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
+                        >Save</button>
+                        <button
+                          onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
+                          className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
+                        >Cancel</button>
+                      </div>
+                    ) : (
+                      <span
+                        className="text-gray-700 cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
+                        onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
+                      >
+                        {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
+                        <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {t.bio && (
                   <p className="text-sm text-gray-600 mt-2 border-t border-gray-100 pt-2">

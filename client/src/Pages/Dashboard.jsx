@@ -22,10 +22,17 @@ function ReviewForm({ booking, userId, onSuccess }) {
     if (rating === 0) return
     setStatus('submitting')
 
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', userId)
+      .single()
+
     const { data: newReview, error } = await supabase
       .from('reviews')
       .insert({
         client_id: userId,
+        reviewer_name: profile?.full_name ?? 'Anonymous',
         tasker_id: booking.tasker_id,
         booking_id: booking.id,
         rating,

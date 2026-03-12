@@ -53,7 +53,7 @@ function Reviews() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {reviews.map((review) => {
-            const name = review.reviewer_name ?? review.profiles?.full_name ?? 'Anonymous'
+            const name = review.reviewer_name ?? 'Anonymous'
             const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
             return (
               <div key={review.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow">
