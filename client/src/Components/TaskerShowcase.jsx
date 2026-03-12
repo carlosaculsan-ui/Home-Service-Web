@@ -82,9 +82,12 @@ function TaskerShowcase() {
   }
 
   return (
-    <div className="bg-gray-900 py-16 px-8 text-white text-center overflow-hidden">
-
-      <div className="flex items-center justify-center gap-1 mb-10">
+    <div
+      className="py-16 px-8 text-white text-center overflow-hidden"
+      style={{ background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)' }}
+    >
+      {/* Logo + heading */}
+      <div className="flex items-center justify-center gap-1 mb-2">
         <div className="relative w-16 h-16 flex items-center justify-center">
           <svg
             className="absolute left-1/2 -translate-x-1/2"
@@ -105,48 +108,99 @@ function TaskerShowcase() {
       </div>
       <p className="text-white font-semibold text-xl mb-10 -mt-6">Taskers</p>
 
-      <div className="flex items-center justify-center gap-6">
+      <div className="flex items-center justify-center gap-6" style={{ perspective: '1200px' }}>
 
         <button
           onClick={() => slide('left')}
           className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl flex-shrink-0 z-10"
+          style={{ boxShadow: '0 0 14px rgba(249,115,22,0.5)' }}
         >
           ←
         </button>
 
-        <div className="flex items-center justify-center gap-8 w-full max-w-4xl overflow-hidden">
-          {getVisible().map(({ tasker, position }, i) => (
-            <div
-              key={i}
-              className="bg-gray-800 rounded-xl overflow-hidden shadow-lg flex-shrink-0"
-              style={{
-                width: position === 'center' ? '32%' : '27%',
-                opacity: position === 'center' ? 1 : 0.6,
-                transform: `${position === 'center' ? 'scale(1.05)' : 'scale(0.93)'} ${getSlideStyle(position)}`,
-                transition: 'transform 0.3s ease, opacity 0.3s ease',
-              }}
-            >
+        <div
+          className="flex items-center justify-center gap-8 w-full max-w-4xl overflow-hidden"
+          style={{ perspective: '1200px' }}
+        >
+          {getVisible().map(({ tasker, position }, i) => {
+            const isCenter = position === 'center'
+            const rotateY = position === 'left' ? 'rotateY(-20deg)' : position === 'right' ? 'rotateY(20deg)' : 'rotateY(0deg)'
+            const scale = isCenter ? 'scale(1.05)' : 'scale(0.93)'
+            return (
               <div
-                className="bg-gray-600 w-full"
-                style={{ height: position === 'center' ? '200px' : '165px' }}
-              ></div>
-              <div className="p-4 text-left">
-                <h3 className="font-bold text-base">{tasker.name}</h3>
-                <p className="text-orange-400 text-sm mb-2">{tasker.role}</p>
-                <p className="text-yellow-400 text-sm mb-3">
-                  ★ {tasker.rating} ({tasker.reviews.toLocaleString()} reviews)
-                </p>
-                <button className="w-full bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg font-semibold text-sm">
-                  View Profile
-                </button>
+                key={i}
+                className="rounded-xl overflow-hidden flex-shrink-0"
+                style={{
+                  width: isCenter ? '32%' : '27%',
+                  opacity: isCenter ? 1 : 0.6,
+                  transform: `${scale} ${rotateY} ${getSlideStyle(position)}`,
+                  transition: 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease',
+                  transformStyle: 'preserve-3d',
+                  background: isCenter
+                    ? 'linear-gradient(160deg, #1f2937 0%, #111827 100%)'
+                    : 'linear-gradient(160deg, #1a1f2b 0%, #0e1117 100%)',
+                  border: isCenter
+                    ? '1.5px solid rgba(249,115,22,0.3)'
+                    : '1.5px solid rgba(255,255,255,0.06)',
+                  boxShadow: isCenter
+                    ? '0 0 18px rgba(249,115,22,0.25), 0 8px 32px rgba(0,0,0,0.6)'
+                    : '0 4px 16px rgba(0,0,0,0.4)',
+                }}
+              >
+                {/* Avatar */}
+                <div
+                  style={{
+                    height: isCenter ? '200px' : '165px',
+                    background: 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <div style={{
+                    width: '68px',
+                    height: '68px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #f97316, #ea580c)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '26px',
+                    fontWeight: 'bold',
+                    color: 'white',
+                    boxShadow: '0 0 16px rgba(249,115,22,0.4)',
+                  }}>
+                    {tasker.name?.charAt(0) ?? '?'}
+                  </div>
+                </div>
+
+                <div className="p-4 text-left">
+                  <h3 className="font-bold text-base text-white">{tasker.name}</h3>
+                  <p className="text-orange-400 text-sm mb-2">{tasker.role}</p>
+                  <p className="text-yellow-400 text-sm mb-3">
+                    ★ {tasker.rating} ({tasker.reviews.toLocaleString()} reviews)
+                  </p>
+                  <button
+                    className="w-full text-white py-2 rounded-lg font-semibold text-sm"
+                    style={{
+                      background: 'linear-gradient(90deg, #f97316, #ea580c)',
+                      boxShadow: '0 2px 8px rgba(249,115,22,0.35)',
+                      border: 'none',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    View Profile
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <button
           onClick={() => slide('right')}
           className="bg-orange-500 hover:bg-orange-600 text-white rounded-full w-10 h-10 flex items-center justify-center text-xl flex-shrink-0 z-10"
+          style={{ boxShadow: '0 0 14px rgba(249,115,22,0.5)' }}
         >
           →
         </button>
@@ -159,15 +213,28 @@ function TaskerShowcase() {
           <button
             key={i}
             onClick={() => setIndex(i)}
-            className={`h-3 rounded-full transition-all duration-300 ${
-              i === index ? 'bg-orange-500 w-6' : 'bg-gray-500 w-3'
-            }`}
+            className="h-3 rounded-full transition-all duration-300"
+            style={{
+              width: i === index ? '24px' : '12px',
+              background: i === index ? '#f97316' : '#4b5563',
+              boxShadow: i === index ? '0 0 8px rgba(249,115,22,0.6)' : 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           />
         ))}
       </div>
 
       <Link to="/become-a-tasker" className="mt-8 inline-block">
-        <button className="bg-orange-500 hover:bg-orange-600 text-white px-8 py-3 rounded-lg font-semibold">
+        <button
+          className="text-white px-8 py-3 rounded-lg font-semibold"
+          style={{
+            background: 'linear-gradient(90deg, #f97316, #ea580c)',
+            boxShadow: '0 0 18px rgba(249,115,22,0.4)',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
           Become a Tasker
         </button>
       </Link>
