@@ -7,13 +7,29 @@ function Reviews() {
 
   useEffect(() => {
     async function fetchReviews() {
-      const { data } = await supabase
+      const { data: reviews, error } = await supabase
         .from('reviews')
         .select('*')
         .eq('featured', true)
-        .order('created_at', { ascending: false })
         .limit(5)
-      setReviews(data ?? [])
+
+      if (error || !reviews) { setLoading(false); return }
+
+      const clientIds = reviews.map(r => r.client_id).filter(Boolean)
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', clientIds)
+
+      const profileMap = {}
+      profiles?.forEach(p => { profileMap[p.id] = p.full_name })
+
+      const enriched = reviews.map(r => ({
+        ...r,
+        reviewer_name: profileMap[r.client_id] ?? 'Anonymous'
+      }))
+
+      setReviews(enriched)
       setLoading(false)
     }
     fetchReviews()

@@ -22,7 +22,7 @@ function ReviewForm({ booking, userId, onSuccess }) {
     if (rating === 0) return
     setStatus('submitting')
 
-    const { data: inserted, error } = await supabase
+    const { data: newReview, error } = await supabase
       .from('reviews')
       .insert({
         client_id: userId,
@@ -35,7 +35,8 @@ function ReviewForm({ booking, userId, onSuccess }) {
       .select()
       .single()
 
-    if (error) { setStatus('error'); return }
+    if (error) { console.log('Review insert error:', JSON.stringify(error, null, 2)); setStatus('error'); return }
+    console.log('Review inserted:', newReview)
 
     // Auto-feature: keep max 5 featured reviews (rotate oldest out)
     const { count } = await supabase
@@ -43,8 +44,11 @@ function ReviewForm({ booking, userId, onSuccess }) {
       .select('*', { count: 'exact', head: true })
       .eq('featured', true)
 
+    console.log('Featured count:', count)
+
     if ((count ?? 0) < 5) {
-      await supabase.from('reviews').update({ featured: true }).eq('id', inserted.id)
+      const { error: featureError } = await supabase.from('reviews').update({ featured: true }).eq('id', newReview.id)
+      console.log('Feature update error:', featureError)
     } else {
       const { data: oldest } = await supabase
         .from('reviews')
@@ -54,7 +58,8 @@ function ReviewForm({ booking, userId, onSuccess }) {
         .limit(1)
         .single()
       if (oldest) await supabase.from('reviews').update({ featured: false }).eq('id', oldest.id)
-      await supabase.from('reviews').update({ featured: true }).eq('id', inserted.id)
+      const { error: featureError } = await supabase.from('reviews').update({ featured: true }).eq('id', newReview.id)
+      console.log('Feature update error:', featureError)
     }
 
     setStatus('success')

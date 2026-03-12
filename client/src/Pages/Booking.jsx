@@ -328,14 +328,84 @@ function DetailRow({ label, value, valueClass = '' }) {
 function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack, onContinue }) {
   const navigate = useNavigate()
 
+  const [userProfile, setUserProfile] = useState(null)
+  const [profileLoading, setProfileLoading] = useState(true)
+  const [showInlineForm, setShowInlineForm] = useState(false)
+  const [formName, setFormName] = useState('')
+  const [formPhone, setFormPhone] = useState('')
+  const [formSaving, setFormSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        sessionStorage.setItem('redirectAfterLogin', window.location.pathname)
-        navigate('/login')
+    let settled = false
+
+    const timeout = setTimeout(() => {
+      if (!settled) {
+        settled = true
+        setProfileLoading(false)
+        setShowInlineForm(true)
       }
-    })
+    }, 5000)
+
+    async function loadProfile() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          settled = true
+          clearTimeout(timeout)
+          sessionStorage.setItem('redirectAfterLogin', window.location.pathname)
+          navigate('/login')
+          return
+        }
+        const { data: { user } } = await supabase.auth.getUser()
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', user.id)
+          .single()
+        if (!settled) {
+          settled = true
+          clearTimeout(timeout)
+          setUserProfile({ email: user.email, full_name: profile?.full_name || '', phone: profile?.phone || '' })
+          setProfileLoading(false)
+        }
+      } catch {
+        if (!settled) {
+          settled = true
+          clearTimeout(timeout)
+          setProfileLoading(false)
+          setShowInlineForm(true)
+        }
+      }
+    }
+    loadProfile()
+
+    return () => { settled = true; clearTimeout(timeout) }
   }, [])
+
+  async function handleSaveProfile() {
+    if (!formName.trim() || !formPhone.trim()) {
+      setFormError('Both name and phone are required.')
+      return
+    }
+    setFormSaving(true)
+    setFormError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: formName.trim(), phone: formPhone.trim() })
+      .eq('id', user.id)
+    if (error) {
+      setFormError('Failed to save. Please try again.')
+      setFormSaving(false)
+      return
+    }
+    setUserProfile((prev) => ({ ...prev, full_name: formName.trim(), phone: formPhone.trim() }))
+    setShowInlineForm(false)
+    setFormSaving(false)
+  }
+
+  const profileIncomplete = !profileLoading && (!userProfile?.full_name || !userProfile?.phone)
 
   const formattedDate = date
     ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
@@ -386,45 +456,100 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             </div>
           </div>
         </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>📞</span>
-            <span className="text-gray-400">Phone:</span>
-            <span>09500435479</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>📧</span>
-            <span className="text-gray-400">Email:</span>
-            <span>hanapph@gmail.com</span>
-          </div>
-        </div>
       </div>
 
       {/* Section 4 – Your Information */}
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-4">Your Information</p>
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>👤</span>
-            <span className="text-gray-400">Name:</span>
-            <span className="italic text-gray-400">Logged in user</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>📞</span>
-            <span className="text-gray-400">Phone:</span>
-            <span className="italic text-gray-400">—</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>📧</span>
-            <span className="text-gray-400">Email:</span>
-            <span className="italic text-gray-400">—</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm text-gray-700">
-            <span>📍</span>
-            <span className="text-gray-400">Address:</span>
-            <span>{taskAddress}</span>
-          </div>
-        </div>
+
+        {profileLoading ? (
+          <p className="text-sm text-gray-400">Loading your profile...</p>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span>👤</span>
+                <span className="text-gray-400">Name:</span>
+                {userProfile?.full_name
+                  ? <span>{userProfile.full_name}</span>
+                  : <span className="italic text-red-400">Not set</span>}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span>📞</span>
+                <span className="text-gray-400">Phone:</span>
+                {userProfile?.phone
+                  ? <span>{userProfile.phone}</span>
+                  : <span className="italic text-red-400">Not set</span>}
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span>📧</span>
+                <span className="text-gray-400">Email:</span>
+                <span>{userProfile?.email}</span>
+              </div>
+              <div className="flex items-center gap-2 text-sm text-gray-700">
+                <span>📍</span>
+                <span className="text-gray-400">Address:</span>
+                <span>{taskAddress}</span>
+              </div>
+            </div>
+
+            {profileIncomplete && !showInlineForm && (
+              <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-xl p-4">
+                <p className="text-sm text-yellow-800 font-medium mb-2">
+                  Please complete your profile before proceeding. We need your name and phone number to confirm your booking.
+                </p>
+                <button
+                  onClick={() => { setFormName(userProfile?.full_name || ''); setFormPhone(userProfile?.phone || ''); setShowInlineForm(true) }}
+                  className="text-sm font-semibold text-orange-500 hover:text-orange-600 underline"
+                >
+                  Complete Profile
+                </button>
+              </div>
+            )}
+
+            {showInlineForm && (
+              <div className="mt-4 border border-orange-200 rounded-xl p-4 bg-orange-50 space-y-3">
+                <p className="text-sm font-bold text-gray-800">Complete Your Profile</p>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Full Name</label>
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="Your full name"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Phone Number</label>
+                  <input
+                    type="tel"
+                    value={formPhone}
+                    onChange={(e) => setFormPhone(e.target.value)}
+                    placeholder="e.g. 09171234567"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                  />
+                </div>
+                {formError && <p className="text-xs text-red-500">{formError}</p>}
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveProfile}
+                    disabled={formSaving}
+                    className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
+                  >
+                    {formSaving ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setShowInlineForm(false)}
+                    className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Note box */}
@@ -445,7 +570,8 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         </button>
         <button
           onClick={onContinue}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
+          disabled={profileIncomplete || profileLoading}
+          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
         >
           Proceed to Payment
         </button>
