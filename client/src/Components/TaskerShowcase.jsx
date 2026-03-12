@@ -1,6 +1,25 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import Tasker1 from '../Assets/Tasker1.jpg'
+import Tasker2 from '../Assets/Tasker2.jpg'
+import Tasker3 from '../Assets/Tasker3.jpg'
+import Tasker4 from '../Assets/Tasker4.jpg'
+import Tasker5 from '../Assets/Tasker5.jpg'
+import Tasker6 from '../Assets/Tasker6.jpg'
+import Tasker7 from '../Assets/Tasker7.jpg'
+import Tasker8 from '../Assets/Tasker8.jpg'
+
+const taskerImages = {
+  'Tasker1.jpg': Tasker1,
+  'Tasker2.jpg': Tasker2,
+  'Tasker3.jpg': Tasker3,
+  'Tasker4.jpg': Tasker4,
+  'Tasker5.jpg': Tasker5,
+  'Tasker6.jpg': Tasker6,
+  'Tasker7.jpg': Tasker7,
+  'Tasker8.jpg': Tasker8,
+}
 
 function TaskerShowcase() {
   const [taskers, setTaskers] = useState([])
@@ -20,6 +39,7 @@ function TaskerShowcase() {
           role: t.role,
           rating: t.rating,
           reviews: t.reviews_count,
+          avatar_url: t.avatar_url,
         })))
       }
       setLoading(false)
@@ -147,32 +167,27 @@ function TaskerShowcase() {
                     : '0 4px 16px rgba(0,0,0,0.4)',
                 }}
               >
-                {/* Avatar */}
-                <div
-                  style={{
+                {taskerImages[tasker.avatar_url] ? (
+                  <img
+                    src={taskerImages[tasker.avatar_url]}
+                    alt={tasker.name}
+                    className="w-full object-cover"
+                    style={{ height: isCenter ? '200px' : '165px' }}
+                  />
+                ) : (
+                  <div style={{
                     height: isCenter ? '200px' : '165px',
                     background: 'linear-gradient(135deg, #374151 0%, #1f2937 100%)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                  }}
-                >
-                  <div style={{
-                    width: '68px',
-                    height: '68px',
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #f97316, #ea580c)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '26px',
+                    fontSize: '36px',
                     fontWeight: 'bold',
-                    color: 'white',
-                    boxShadow: '0 0 16px rgba(249,115,22,0.4)',
+                    color: '#f97316',
                   }}>
                     {tasker.name?.charAt(0) ?? '?'}
                   </div>
-                </div>
+                )}
 
                 <div className="p-4 text-left">
                   <h3 className="font-bold text-base text-white">{tasker.name}</h3>
