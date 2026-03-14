@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
@@ -377,7 +377,7 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError }) {
 function DetailRow({ label, value, valueClass = '' }) {
   return (
     <div className="flex gap-3 py-2.5 border-b border-gray-100 last:border-0">
-      <span className="text-sm text-gray-400 w-36 flex-shrink-0">{label}</span>
+      <span className="text-sm text-gray-400 w-24 md:w-36 flex-shrink-0">{label}</span>
       <span className={`text-sm text-gray-800 flex-1 ${valueClass}`}>{value}</span>
     </div>
   )
@@ -518,7 +518,16 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
 
       {/* Section 4 – Your Information */}
       <div className="border border-gray-200 rounded-xl p-5">
-        <p className="font-bold text-gray-800 text-base mb-4">Your Information</p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="font-bold text-gray-800 text-base">Your Information</p>
+          <button
+            type="button"
+            onClick={() => setShowInlineForm((v) => !v)}
+            className="text-sm text-gray-400 hover:text-gray-600"
+          >
+            ✏️
+          </button>
+        </div>
 
         {profileLoading ? (
           <p className="text-sm text-gray-400">Loading your profile...</p>
@@ -619,17 +628,17 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
       </div>
 
       {/* Buttons */}
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-3 pt-1">
         <button
           onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-600 underline"
+          className="text-sm text-gray-400 hover:text-gray-600 underline text-center md:text-left"
         >
           ← Back
         </button>
         <button
           onClick={onContinue}
           disabled={profileIncomplete || profileLoading}
-          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
+          className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base"
         >
           Proceed to Payment
         </button>
@@ -685,6 +694,57 @@ function Step1({ onContinue }) {
   const [analyzing, setAnalyzing] = useState(false)
   const [aiResult, setAiResult] = useState('')
   const [fileInputKey, setFileInputKey] = useState(0)
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  const handleDetectLocation = () => {
+    setDetectingLocation(true)
+    setLocationError('')
+
+    const onSuccess = async (position) => {
+      try {
+        const { latitude, longitude } = position.coords
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+        )
+        const data = await res.json()
+        if (data?.display_name) {
+          setAddress(data.display_name)
+        } else {
+          setLocationError('Could not determine address from location.')
+        }
+      } catch {
+        setLocationError('Reverse geocoding failed.')
+      } finally {
+        setDetectingLocation(false)
+      }
+    }
+
+    const onError = async () => {
+      try {
+        const res = await fetch(
+          `http://api.ipstack.com/check?access_key=${import.meta.env.VITE_IPSTACK_API_KEY}`
+        )
+        const data = await res.json()
+        const parts = [data.city, data.region_name, data.country_name].filter(Boolean)
+        if (parts.length > 0) {
+          setAddress(parts.join(', '))
+        } else {
+          setLocationError('Could not detect location. Please enter your address manually.')
+        }
+      } catch {
+        setLocationError('Could not detect location. Please enter your address manually.')
+      } finally {
+        setDetectingLocation(false)
+      }
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError)
+    } else {
+      onError()
+    }
+  }
 
   const handleRemoveImage = () => {
     setImagePreview(null)
@@ -756,7 +816,21 @@ function Step1({ onContinue }) {
             placeholder="Enter your address"
             className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
           />
+          <button
+            type="button"
+            onClick={handleDetectLocation}
+            disabled={detectingLocation}
+            className="flex items-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-600 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+          >
+            {detectingLocation ? (
+              <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
+            ) : '📍'}
+            {detectingLocation ? 'Detecting…' : 'Detect my location'}
+          </button>
         </div>
+        {locationError && (
+          <p className="text-xs text-red-500 mt-1">{locationError}</p>
+        )}
         {address.length > 5 && (
           <div className="mt-3">
             <LocationMap address={address} />
@@ -1047,11 +1121,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
       {saveError && (
         <p className="text-sm text-red-500 text-center">{saveError}</p>
       )}
-      <div className="flex items-center justify-between pt-1">
+      <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-3 pt-1">
         <button
           onClick={onBack}
           disabled={saving}
-          className="text-sm text-gray-400 hover:text-gray-600 underline disabled:opacity-50"
+          className="text-sm text-gray-400 hover:text-gray-600 underline disabled:opacity-50 text-center md:text-left"
         >
           ← Back
         </button>
@@ -1125,7 +1199,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             }
           }}
           disabled={saving || paymentPending}
-          className="bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center gap-2"
+          className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2"
         >
           {saving ? (
             <>
@@ -1270,11 +1344,13 @@ function Booking() {
       )}
 
       {/* Card */}
-      <div className="relative z-10 w-full max-w-[830px] bg-white rounded-2xl shadow-2xl p-10">
+      <div className="relative z-10 w-full max-w-[830px] bg-white rounded-2xl shadow-2xl p-4 md:p-10">
         {/* Card header */}
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
-            <span className="text-base font-bold text-orange-500 tracking-wide">🏠 hanap.ph</span>
+            <Link to="/" className="hover:opacity-80 transition-opacity">
+              <span className="text-base font-bold text-orange-500 tracking-wide">🏠 hanap.ph</span>
+            </Link>
             <p className="text-sm text-gray-400 capitalize">{service}</p>
           </div>
           <ProgressTracker step={step} />

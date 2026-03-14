@@ -77,7 +77,8 @@ function BecomeATasker() {
   }
 
   const handleBack = () => {
-    setStep((prev) => Math.max(prev - 1, 1))
+    if (step === 1) navigate('/')
+    else setStep((prev) => prev - 1)
   }
 
   const [submitting, setSubmitting] = useState(false)
@@ -233,9 +234,28 @@ function BecomeATasker() {
     >
 
       {/* Panels Container */}
-      <div className="relative z-10 flex gap-6 w-full max-w-6xl items-stretch">
+      <div className="relative z-10 flex flex-col md:flex-row gap-6 w-full max-w-6xl items-stretch px-4 md:px-0">
+
+        {/* Mobile Step Indicator */}
+        <div className="md:hidden bg-white rounded-2xl shadow-lg px-5 py-3 flex items-center gap-3">
+          <span className="text-xl">{steps[step - 1].icon}</span>
+          <div>
+            <p className="text-xs text-gray-400 font-medium">Step {step} of {steps.length}</p>
+            <p className="text-sm font-bold text-gray-800">{steps[step - 1].label}</p>
+          </div>
+          <div className="ml-auto flex gap-1">
+            {steps.map((_, i) => (
+              <div
+                key={i}
+                className={`h-1.5 rounded-full transition-all ${i < step ? 'bg-blue-800' : 'bg-gray-200'}`}
+                style={{ width: i === step - 1 ? '20px' : '8px' }}
+              />
+            ))}
+          </div>
+        </div>
+
         {/* Left Sidebar Panel */}
-        <div className="w-1/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px]">
+        <div className="hidden md:block w-1/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px]">
           <div className="flex flex-col h-full">
             {steps.map((s, i) => (
               <div key={i} className={`flex flex-col ${i < steps.length - 1 ? 'flex-1' : ''}`}>
@@ -273,7 +293,7 @@ function BecomeATasker() {
         </div>
 
         {/* Right Content Panel */}
-        <div className="w-2/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px] overflow-y-auto">
+        <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-lg p-5 md:p-8 h-[600px] max-h-[600px] overflow-y-auto">
           {step === 1 && (
             <>
               {/* Brand header */}
@@ -535,7 +555,6 @@ function BecomeATasker() {
               <div className="flex justify-between">
                 <button
                   onClick={handleBack}
-                  disabled={step === 1}
                   className="px-4 py-2 bg-gray-300 rounded-md"
                 >
                   Back

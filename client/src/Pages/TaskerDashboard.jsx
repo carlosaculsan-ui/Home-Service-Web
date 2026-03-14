@@ -150,6 +150,7 @@ function LeaveRequestSection({ taskerId }) {
   const [selectedDates, setSelectedDates] = useState(new Set())
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [submitError, setSubmitError] = useState('')
   const [leaves, setLeaves] = useState([])
   const [leavesLoading, setLeavesLoading] = useState(true)
 
@@ -203,7 +204,26 @@ function LeaveRequestSection({ taskerId }) {
 
   async function handleSubmit() {
     if (selectedDates.size === 0 || !reason.trim()) return
+    setSubmitError('')
     setSubmitting(true)
+
+    const { data: existing } = await supabase
+      .from('tasker_leaves')
+      .select('leave_dates')
+      .eq('tasker_id', taskerId)
+      .in('status', ['pending', 'approved'])
+
+    const existingDates = (existing ?? []).flatMap((r) => {
+      try { return JSON.parse(r.leave_dates) } catch { return [] }
+    })
+
+    const conflicts = [...selectedDates].filter((d) => existingDates.includes(d))
+    if (conflicts.length > 0) {
+      setSubmitError(`You already have a leave request for: ${conflicts.sort().join(', ')}. Please remove those dates before submitting.`)
+      setSubmitting(false)
+      return
+    }
+
     const sorted = [...selectedDates].sort()
     await supabase.from('tasker_leaves').insert({
       tasker_id: taskerId,
@@ -286,6 +306,9 @@ function LeaveRequestSection({ taskerId }) {
         >
           {submitting ? 'Submitting…' : 'Submit Leave Request'}
         </button>
+        {submitError && (
+          <p className="text-xs text-red-500 mt-2">{submitError}</p>
+        )}
       </div>
 
       {leavesLoading ? (

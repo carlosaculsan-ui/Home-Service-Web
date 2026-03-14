@@ -177,12 +177,15 @@ function TaskerShowcase() {
             const isCenter = position === 'center'
             const rotateY = position === 'left' ? 'rotateY(-20deg)' : position === 'right' ? 'rotateY(20deg)' : 'rotateY(0deg)'
             const scale = isCenter ? 'scale(1.05)' : 'scale(0.93)'
+            const responsiveClass =
+              position === 'left'  ? 'hidden lg:block lg:w-[27%]' :
+              position === 'right' ? 'hidden md:block md:w-[50%] lg:w-[27%]' :
+                                     'w-full md:w-[50%] lg:w-[32%]'
             return (
               <div
                 key={i}
-                className="rounded-xl overflow-hidden flex-shrink-0"
+                className={`rounded-xl overflow-hidden flex-shrink-0 ${responsiveClass}`}
                 style={{
-                  width: isCenter ? '32%' : '27%',
                   opacity: isCenter ? 1 : 0.6,
                   transform: `${scale} ${rotateY} ${getSlideStyle(position)}`,
                   transition: 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease',

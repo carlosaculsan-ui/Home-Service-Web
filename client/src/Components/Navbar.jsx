@@ -74,6 +74,7 @@ function Navbar() {
     <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh] bg-white">
       {/* left white section */}
       <div className="w-[30%] bg-white min-h-[70px] flex items-center pl-4">
+        <Link to="/" className="hover:opacity-80 transition-opacity">
         <div className="relative w-16 h-16 flex items-center justify-center">
           {/* Roof SVG: two lines meeting at peak + chimney */}
           <svg
@@ -94,6 +95,7 @@ function Navbar() {
           </svg>
           <span className="text-orange-500 font-black text-5xl leading-none">h</span>
         </div>
+        </Link>
       </div>
 
       {/* right orange section */}

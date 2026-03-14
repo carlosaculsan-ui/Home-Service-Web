@@ -84,7 +84,7 @@ function TaskerApplications() {
         const docs = DOC_FIELDS.filter(({ key }) => t[key])
         return (
           <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="space-y-1 flex-1">
                 <div className="flex items-center gap-3">
                   <p className="font-bold text-gray-800 text-base">{t.name}</p>
@@ -92,7 +92,7 @@ function TaskerApplications() {
                     {t.status}
                   </span>
                 </div>
-                <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
                   {[
                     ['Email',   t.email],
                     ['Phone',   t.phone],
@@ -146,16 +146,16 @@ function TaskerApplications() {
               </div>
 
               {t.status === 'pending' && (
-                <div className="flex flex-col gap-2 flex-shrink-0">
+                <div className="flex md:flex-col gap-2 md:flex-shrink-0">
                   <button
                     onClick={() => updateStatus(t.id, 'approved')}
-                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
                     Approve
                   </button>
                   <button
                     onClick={() => updateStatus(t.id, 'rejected')}
-                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
                     Reject
                   </button>
@@ -257,7 +257,7 @@ function BookingsPanel() {
     <div className="space-y-4">
       {bookings.map((b) => (
         <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3">
                 <p className="font-bold text-orange-500 text-sm tracking-wide">{b.reference_number ?? '—'}</p>
@@ -265,7 +265,7 @@ function BookingsPanel() {
                   {b.status?.replace('_', ' ')}
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-0.5 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm">
                 {[
                   ['Service',   b.service],
                   ['Tasker',    b.taskerName],
@@ -282,11 +282,11 @@ function BookingsPanel() {
               </div>
             </div>
 
-            <div className="flex-shrink-0">
+            <div className="md:flex-shrink-0">
               <select
                 value={b.status}
                 onChange={(e) => updateBookingStatus(b.id, e.target.value)}
-                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+                className="w-full md:w-auto border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400"
               >
                 <option value="pending">Pending</option>
                 <option value="confirmed">Confirmed</option>
@@ -725,7 +725,7 @@ function LeaveRequestsPanel() {
         const statusClass = TASKER_STATUS_STYLES[leave.status] ?? 'bg-gray-100 text-gray-600'
         return (
           <div key={leave.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
               <div className="flex-1 space-y-1">
                 <div className="flex items-center gap-3 flex-wrap">
                   <p className="font-bold text-gray-800 text-base">{leave.taskers?.name ?? '—'}</p>
@@ -744,18 +744,18 @@ function LeaveRequestsPanel() {
               </div>
 
               {leave.status === 'pending' && (
-                <div className="flex flex-col gap-2 flex-shrink-0">
+                <div className="flex md:flex-col gap-2 md:flex-shrink-0">
                   <button
                     onClick={() => updateStatus(leave.id, 'approved')}
                     disabled={actionLoading !== null}
-                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
                     {actionLoading === leave.id + 'approved' ? 'Approving…' : 'Approve'}
                   </button>
                   <button
                     onClick={() => updateStatus(leave.id, 'rejected')}
                     disabled={actionLoading !== null}
-                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
                     {actionLoading === leave.id + 'rejected' ? 'Rejecting…' : 'Reject'}
                   </button>
@@ -782,7 +782,7 @@ function Admin() {
         <h1 className="text-3xl font-extrabold text-gray-800 mb-6">Admin Panel</h1>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="-mx-4 px-4 md:mx-0 md:px-0 flex overflow-x-auto gap-2 pb-2 mb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
           {[
             { key: 'applications',   label: 'Tasker Applications' },
             { key: 'bookings',       label: 'Bookings' },
@@ -793,7 +793,7 @@ function Admin() {
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
+              className={`whitespace-nowrap flex-shrink-0 px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
                 tab === key
                   ? 'bg-orange-500 text-white'
                   : 'bg-white text-gray-600 hover:bg-orange-50 hover:text-orange-500 border border-gray-200'
