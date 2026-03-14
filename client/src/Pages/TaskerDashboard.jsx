@@ -7,22 +7,21 @@ import LocationMap from '../Components/LocationMap'
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
   confirmed:   'bg-blue-100 text-blue-700',
+  accepted:    'bg-green-100 text-green-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
+  rejected:    'bg-red-100 text-red-600',
   cancelled:   'bg-red-100 text-red-600',
 }
 
-const NEXT_STATUSES = {
-  pending:     ['confirmed'],
-  confirmed:   ['in_progress'],
-  in_progress: ['completed'],
-}
+const FORWARD_STATUSES = ['accepted', 'in_progress', 'completed']
 
 function TaskCard({ booking, onStatusChange }) {
   const [updating, setUpdating] = useState(false)
+  const [actionLoading, setActionLoading] = useState(null) // 'accepted' | 'rejected' | null
   const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
-  const nextStatuses = NEXT_STATUSES[booking.status] ?? []
+  const currentIdx = FORWARD_STATUSES.indexOf(booking.status)
 
   async function handleChange(e) {
     const newStatus = e.target.value
@@ -30,6 +29,13 @@ function TaskCard({ booking, onStatusChange }) {
     setUpdating(true)
     await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
     setUpdating(false)
+    onStatusChange()
+  }
+
+  async function handleAction(newStatus) {
+    setActionLoading(newStatus)
+    await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
+    setActionLoading(null)
     onStatusChange()
   }
 
@@ -75,21 +81,53 @@ function TaskCard({ booking, onStatusChange }) {
         <LocationMap address={booking.address} />
       )}
 
-      {nextStatuses.length > 0 && (
+      {booking.status === 'confirmed' && (
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => handleAction('accepted')}
+            disabled={actionLoading !== null}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+          >
+            {actionLoading === 'accepted' ? 'Accepting…' : 'Accept'}
+          </button>
+          <button
+            onClick={() => handleAction('rejected')}
+            disabled={actionLoading !== null}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
+          >
+            {actionLoading === 'rejected' ? 'Rejecting…' : 'Reject'}
+          </button>
+        </div>
+      )}
+
+      {currentIdx !== -1 && (
         <div className="pt-1">
           <select
             key={booking.status}
             disabled={updating}
-            defaultValue=""
+            value={booking.status}
             onChange={handleChange}
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400 disabled:opacity-50"
           >
-            <option value="" disabled>Update status…</option>
-            {nextStatuses.map((s) => (
-              <option key={s} value={s}>{s.replace('_', ' ')}</option>
+            {FORWARD_STATUSES.map((s, idx) => (
+              <option key={s} value={s} disabled={idx < currentIdx}>
+                {s.replace('_', ' ')}
+              </option>
             ))}
           </select>
         </div>
+      )}
+
+      {booking.status === 'completed' && (
+        <span className="inline-block mt-1 text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
+          Completed
+        </span>
+      )}
+
+      {booking.status === 'rejected' && (
+        <span className="inline-block mt-1 text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-600">
+          Rejected
+        </span>
       )}
     </div>
   )

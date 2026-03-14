@@ -62,6 +62,34 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(getDefaultTime())
+  const [bookedDates, setBookedDates] = useState(new Set())
+
+  useEffect(() => {
+    async function fetchBookedDates() {
+      const { data: { session } } = await supabase.auth.getSession()
+      const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(accepted,in_progress)&select=scheduled_date`,
+        {
+          headers: {
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${token}`,
+          }
+        }
+      )
+      const data = await response.json()
+      if (Array.isArray(data)) {
+        const dateSet = new Set(
+          data
+            .filter((r) => r.scheduled_date)
+            .map((r) => r.scheduled_date.slice(0, 10))
+        )
+        console.log('[ScheduleModal] bookedDates:', dateSet)
+        setBookedDates(dateSet)
+      }
+    }
+    fetchBookedDates()
+  }, [tasker.id])
 
   const timeOptions = generateTimeOptions()
 
@@ -75,6 +103,11 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
   const isPast = (d) => getDateObj(d) < todayStart
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
+  const isBooked = (d) => {
+    const mm = String(viewMonth + 1).padStart(2, '0')
+    const dd = String(d).padStart(2, '0')
+    return bookedDates.has(`${viewYear}-${mm}-${dd}`)
+  }
   const isSelected = (d) =>
     selectedDate &&
     selectedDate.getDate() === d &&
@@ -97,7 +130,7 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
   }
 
   const handleDayClick = (d) => {
-    if (!d || isPast(d)) return
+    if (!d || isPast(d) || isBooked(d)) return
     setSelectedDate(getDateObj(d))
   }
 
@@ -153,10 +186,12 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
               {d ? (
                 <button
                   onClick={() => handleDayClick(d)}
-                  disabled={isPast(d)}
+                  disabled={isPast(d) || isBooked(d)}
                   className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
                     ${isSelected(d)
                       ? 'bg-orange-500 text-white font-bold'
+                      : isBooked(d)
+                      ? 'bg-red-500 text-white cursor-not-allowed'
                       : isToday(d)
                       ? 'bg-orange-500 text-white font-bold'
                       : isPast(d)
@@ -1014,7 +1049,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 task_size: taskSize,
                 task_description: taskDetails,
                 address: taskAddress,
-                scheduled_date: date ? date.toISOString().split('T')[0] : null,
+                scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
                 scheduled_time: time,
                 payment_method: paymentMethod,
                 estimated_total: estimatedTotal,
@@ -1133,7 +1168,20 @@ function Booking() {
 
   useEffect(() => {
     async function fetchTaskers() {
-      const { data, error } = await supabase.from('taskers').select('*')
+      const serviceToRole = {
+        'Plumbing Repair': 'Plumbing',
+        'Electrical Repair': 'Electrical',
+        'Aircon Cleaning': 'Aircon Cleaning',
+        'Cleaning': 'Cleaning',
+        'Carpentry': 'Carpentry',
+        'Painting': 'Painting',
+      }
+      const role = serviceToRole[service] || service
+      const { data, error } = await supabase
+        .from('taskers')
+        .select('*')
+        .ilike('role', role)
+        .eq('status', 'approved')
       if (error) {
         setTaskersError(true)
       } else {
