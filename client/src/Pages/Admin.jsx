@@ -681,6 +681,94 @@ function ReviewsPanel() {
   )
 }
 
+// ─── Leave Requests Tab ───────────────────────────────────────────────────────
+
+function LeaveRequestsPanel() {
+  const [leaves, setLeaves] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [actionLoading, setActionLoading] = useState(null)
+
+  async function fetchLeaves() {
+    const { data } = await supabase
+      .from('tasker_leaves')
+      .select('*, taskers(name)')
+      .order('created_at', { ascending: false })
+    setLeaves(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchLeaves() }, [])
+
+  async function updateStatus(id, status) {
+    setActionLoading(id + status)
+    await supabase.from('tasker_leaves').update({ status }).eq('id', id)
+    setActionLoading(null)
+    fetchLeaves()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (leaves.length === 0) {
+    return <p className="text-center text-gray-400 mt-16">No leave requests yet.</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {leaves.map((leave) => {
+        const dates = (() => { try { return JSON.parse(leave.leave_dates) } catch { return [] } })()
+        const statusClass = TASKER_STATUS_STYLES[leave.status] ?? 'bg-gray-100 text-gray-600'
+        return (
+          <div key={leave.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="font-bold text-gray-800 text-base">{leave.taskers?.name ?? '—'}</p>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${statusClass}`}>
+                    {leave.status}
+                  </span>
+                </div>
+                <p className="text-sm text-gray-500">
+                  <span className="text-gray-400 font-medium">Dates: </span>
+                  {dates.length > 0 ? dates.join(', ') : '—'}
+                </p>
+                <p className="text-sm text-gray-600">
+                  <span className="text-gray-400 font-medium">Reason: </span>
+                  {leave.reason}
+                </p>
+              </div>
+
+              {leave.status === 'pending' && (
+                <div className="flex flex-col gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => updateStatus(leave.id, 'approved')}
+                    disabled={actionLoading !== null}
+                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {actionLoading === leave.id + 'approved' ? 'Approving…' : 'Approve'}
+                  </button>
+                  <button
+                    onClick={() => updateStatus(leave.id, 'rejected')}
+                    disabled={actionLoading !== null}
+                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+                  >
+                    {actionLoading === leave.id + 'rejected' ? 'Rejecting…' : 'Reject'}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Admin Page ──────────────────────────────────────────────────────────────
 
 function Admin() {
@@ -696,10 +784,11 @@ function Admin() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
           {[
-            { key: 'applications', label: 'Tasker Applications' },
-            { key: 'bookings',     label: 'Bookings' },
-            { key: 'services',     label: 'Services' },
-            { key: 'reviews',      label: 'Reviews' },
+            { key: 'applications',   label: 'Tasker Applications' },
+            { key: 'bookings',       label: 'Bookings' },
+            { key: 'services',       label: 'Services' },
+            { key: 'reviews',        label: 'Reviews' },
+            { key: 'leave-requests', label: 'Leave Requests' },
           ].map(({ key, label }) => (
             <button
               key={key}
@@ -715,10 +804,11 @@ function Admin() {
           ))}
         </div>
 
-        {tab === 'applications' && <TaskerApplications />}
-        {tab === 'bookings'     && <BookingsPanel />}
-        {tab === 'services'     && <ServicesPanel />}
-        {tab === 'reviews'      && <ReviewsPanel />}
+        {tab === 'applications'   && <TaskerApplications />}
+        {tab === 'bookings'       && <BookingsPanel />}
+        {tab === 'services'       && <ServicesPanel />}
+        {tab === 'reviews'        && <ReviewsPanel />}
+        {tab === 'leave-requests' && <LeaveRequestsPanel />}
       </div>
     </div>
   )

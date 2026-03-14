@@ -26,7 +26,7 @@ function Reviews() {
 
       const enriched = reviews.map(r => ({
         ...r,
-        reviewer_name: profileMap[r.client_id] ?? 'Anonymous'
+        reviewer_name: r.reviewer_name || profileMap[r.client_id] || 'Anonymous'
       }))
 
       setReviews(enriched)
@@ -53,8 +53,8 @@ function Reviews() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-7xl mx-auto">
           {reviews.map((review) => {
-            const name = review.reviewer_name ?? 'Anonymous'
-            const initials = name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase()
+            const name = review.reviewer_name || 'Anonymous'
+            const initial = name[0]?.toUpperCase() ?? 'A'
             return (
               <div key={review.id} className="bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow">
                 <div className="flex gap-1 mb-3">
@@ -68,7 +68,7 @@ function Reviews() {
                 </span>
                 <div className="flex items-center gap-3 mt-4">
                   <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
-                    {initials}
+                    {initial}
                   </div>
                   <div>
                     <p className="font-semibold text-gray-800 text-sm">{name}</p>

@@ -58,9 +58,12 @@ function Hero() {
           Hindi basta serbisyo — professional service talaga. Through proper training and trusted partnerships, we make sure every job is done right the first time.
         </p>
 
-        {/* Our Services Button */}
-        <button className="mb-8 px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg text-lg">
-          Our Services
+        {/* Get Started Button */}
+        <button
+          onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
+          className="mb-8 px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg text-lg"
+        >
+          Get Started
         </button>
       </div>
 

@@ -36,7 +36,7 @@ function formatReviews(n) {
 
 function generateTimeOptions() {
   const options = []
-  for (let h = 6; h <= 21; h++) {
+  for (let h = 6; h <= 17; h++) {
     const suffix = h < 12 ? 'AM' : 'PM'
     const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
     options.push(`${hour}:00 ${suffix}`)
@@ -47,7 +47,7 @@ function generateTimeOptions() {
 function getDefaultTime() {
   const now = new Date()
   let h = now.getHours() + 1
-  if (h > 21) h = 21
+  if (h > 17) h = 17
   if (h < 6) h = 6
   const suffix = h < 12 ? 'AM' : 'PM'
   const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
@@ -68,28 +68,51 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
     async function fetchBookedDates() {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(accepted,in_progress)&select=scheduled_date`,
-        {
-          headers: {
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${token}`,
-          }
-        }
-      )
-      const data = await response.json()
-      if (Array.isArray(data)) {
-        const dateSet = new Set(
-          data
-            .filter((r) => r.scheduled_date)
-            .map((r) => r.scheduled_date.slice(0, 10))
-        )
-        console.log('[ScheduleModal] bookedDates:', dateSet)
-        setBookedDates(dateSet)
+      const headers = {
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${token}`,
       }
+
+      const [bookingsRes, leavesRes] = await Promise.all([
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(accepted,in_progress)&select=scheduled_date`,
+          { headers }
+        ),
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tasker_leaves?tasker_id=eq.${tasker.id}&status=eq.approved&select=leave_dates`,
+          { headers }
+        ),
+      ])
+
+      const [bookingsData, leavesData] = await Promise.all([bookingsRes.json(), leavesRes.json()])
+
+      const dateSet = new Set()
+
+      if (Array.isArray(bookingsData)) {
+        bookingsData
+          .filter((r) => r.scheduled_date)
+          .forEach((r) => dateSet.add(r.scheduled_date.slice(0, 10)))
+      }
+
+      if (Array.isArray(leavesData)) {
+        leavesData.forEach((r) => {
+          try {
+            const dates = JSON.parse(r.leave_dates)
+            if (Array.isArray(dates)) dates.forEach((d) => dateSet.add(d.slice(0, 10)))
+          } catch { /* skip malformed rows */ }
+        })
+      }
+
+      setBookedDates(dateSet)
     }
     fetchBookedDates()
   }, [tasker.id])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
 
   const timeOptions = generateTimeOptions()
 
@@ -1199,6 +1222,9 @@ function Booking() {
     }
     fetchTaskers()
   }, [])
+
+  // Clear modal on unmount to prevent backdrop getting stuck
+  useEffect(() => () => setModalTasker(null), [])
 
   // Step 2 modal + tasker selection
   const [modalTasker, setModalTasker] = useState(null)
