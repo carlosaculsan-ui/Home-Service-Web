@@ -60,6 +60,7 @@ function Navbar() {
 
   async function handleLogout() {
     setDropdownOpen(false)
+    setMenuOpen(false)
     try {
       await supabase.auth.signOut()
     } catch (err) {
@@ -71,7 +72,7 @@ function Navbar() {
   const avatarLabel = session?.user?.email?.slice(0, 2).toUpperCase() ?? ''
 
   return (
-    <nav className="relative shadow-md w-full flex sticky top-0 z-50 min-h-[5vh] bg-white">
+    <nav className="relative shadow-md w-full flex flex-wrap sticky top-0 z-50 min-h-[5vh] bg-white">
       {/* left white section */}
       <div className="w-[30%] bg-white min-h-[70px] flex items-center pl-4">
         <Link to="/" className="hover:opacity-80 transition-opacity">
@@ -112,18 +113,17 @@ function Navbar() {
         </div>
 
         <button
-          className="md:hidden text-white focus:outline-none"
+          className="md:hidden text-white text-xl focus:outline-none"
           onClick={() => setMenuOpen(!menuOpen)}
         >
           {menuOpen ? '✕' : '☰'}
         </button>
       </div>
 
-      {/* avatar / login — absolute to avoid clip-path cutoff */}
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-[10000] flex-shrink-0">
+      {/* avatar / login — hidden on mobile when menu is open */}
+      <div className={`absolute right-4 top-1/2 -translate-y-1/2 z-[10000] flex-shrink-0 ${menuOpen ? 'hidden md:flex' : 'flex'}`}>
         {session ? (
           <>
-            {/* backdrop — closes dropdown when clicking outside */}
             {dropdownOpen && (
               <div
                 className="fixed inset-0 z-[9998]"
@@ -186,21 +186,61 @@ function Navbar() {
         )}
       </div>
 
+      {/* Mobile menu — full width below the navbar bar, high z-index */}
       {menuOpen && (
-        <div className="md:hidden flex flex-col gap-4 text-white font-medium px-8 py-6 bg-orange-500">
-          <a href="/" onClick={(e) => handleNavClick(e, null)} className="hover:text-orange-200 cursor-pointer">Home</a>
-          <a href="/#services" onClick={(e) => handleNavClick(e, 'services')} className="hover:text-orange-200 cursor-pointer">Services</a>
-          <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="hover:text-orange-200 cursor-pointer">How It Works</a>
-          <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="hover:text-orange-200 cursor-pointer">About</a>
-          <a href="/#contact" onClick={(e) => handleNavClick(e, 'contact')} className="hover:text-orange-200 cursor-pointer">Contact Us Now</a>
-          {session && (
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-left text-red-200 hover:text-red-100"
-            >
-              Logout
-            </button>
+        <div className="md:hidden w-full flex flex-col gap-0 bg-orange-500 z-[9999]">
+          {/* Nav links */}
+          <div className="flex flex-col gap-4 text-white font-medium px-8 py-6 border-b border-orange-400">
+            <a href="/" onClick={(e) => handleNavClick(e, null)} className="hover:text-orange-200 cursor-pointer">Home</a>
+            <a href="/#services" onClick={(e) => handleNavClick(e, 'services')} className="hover:text-orange-200 cursor-pointer">Services</a>
+            <a href="/#how-it-works" onClick={(e) => handleNavClick(e, 'how-it-works')} className="hover:text-orange-200 cursor-pointer">How It Works</a>
+            <a href="/#about" onClick={(e) => handleNavClick(e, 'about')} className="hover:text-orange-200 cursor-pointer">About</a>
+            <a href="/#contact" onClick={(e) => handleNavClick(e, 'contact')} className="hover:text-orange-200 cursor-pointer">Contact Us Now</a>
+          </div>
+
+          {/* Account section */}
+          {session ? (
+            <div className="flex flex-col px-8 py-4 gap-3">
+              <p className="text-orange-200 text-xs truncate">{session.user.email}</p>
+              <Link
+                to="/become-a-tasker"
+                onClick={() => setMenuOpen(false)}
+                className="text-white font-medium hover:text-orange-200"
+              >
+                Become a Tasker
+              </Link>
+              <Link
+                to="/dashboard"
+                onClick={() => setMenuOpen(false)}
+                className="text-white font-medium hover:text-orange-200"
+              >
+                My Bookings
+              </Link>
+              {isApprovedTasker && (
+                <Link
+                  to="/tasker-dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-white font-medium hover:text-orange-200"
+                >
+                  My Tasks
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-left text-red-200 hover:text-red-100 font-medium"
+              >
+                Logout
+              </button>
+            </div>
+          ) : (
+            <div className="px-8 py-4">
+              <Link to="/login" onClick={() => setMenuOpen(false)}>
+                <button className="w-full px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 font-semibold border border-white">
+                  Log In →
+                </button>
+              </Link>
+            </div>
           )}
         </div>
       )}
