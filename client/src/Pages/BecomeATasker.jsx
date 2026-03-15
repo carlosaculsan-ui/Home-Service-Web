@@ -234,7 +234,7 @@ function BecomeATasker() {
     >
 
       {/* Panels Container */}
-      <div className="relative z-10 flex flex-col md:flex-row gap-6 w-full max-w-6xl items-stretch px-4 md:px-0">
+      <div className="relative z-10 flex flex-col md:flex-row gap-6 w-full max-w-6xl items-stretch overflow-hidden">
 
         {/* Mobile Step Indicator */}
         <div className="md:hidden bg-white rounded-2xl shadow-lg px-5 py-3 flex items-center gap-3">
@@ -304,14 +304,14 @@ function BecomeATasker() {
               <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
 
               {/* Row 1: Name fields */}
-              <div className="flex gap-2 mb-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
                 <input
                   type="text"
                   name="firstName"
                   value={formData.firstName}
                   onChange={handleChange}
                   placeholder="Firstname"
-                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                 />
                 <input
                   type="text"
@@ -319,7 +319,7 @@ function BecomeATasker() {
                   value={formData.middleName}
                   onChange={handleChange}
                   placeholder="Middle"
-                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                 />
                 <input
                   type="text"
@@ -327,7 +327,7 @@ function BecomeATasker() {
                   value={formData.lastName}
                   onChange={handleChange}
                   placeholder="Lastname"
-                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                 />
                 <input
                   type="text"
@@ -335,12 +335,12 @@ function BecomeATasker() {
                   value={formData.suffix}
                   onChange={handleChange}
                   placeholder="Jr."
-                  className="w-14 border border-gray-300 rounded-md p-2 text-sm"
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
                 />
               </div>
 
               {/* Row 2: Phone + Service Area */}
-              <div className="flex gap-2 mb-3">
+              <div className="grid grid-cols-1 md:flex md:flex-row gap-2 mb-3">
                 <input
                   type="tel"
                   name="phone"
@@ -365,7 +365,7 @@ function BecomeATasker() {
               </div>
 
               {/* Row 3: Email + Map side by side */}
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-col md:flex-row gap-2 mb-3">
                 {/* Left column: Email, Age, Gender, Postal Code */}
                 <div className="flex-1 flex flex-col gap-2">
                   <input
@@ -374,7 +374,7 @@ function BecomeATasker() {
                     value={formData.email}
                     onChange={handleChange}
                     placeholder="Email"
-                    className="border border-gray-300 rounded-md p-2 text-sm"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   />
                   <input
                     type="number"
@@ -382,7 +382,7 @@ function BecomeATasker() {
                     value={formData.age}
                     onChange={handleChange}
                     placeholder="Age"
-                    className="w-24 border border-gray-300 rounded-md p-2 text-sm"
+                    className="w-full md:w-24 border border-gray-300 rounded-md p-2 text-sm"
                   />
                   <div className="flex gap-4">
                     <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
@@ -410,11 +410,11 @@ function BecomeATasker() {
                     value={formData.postalCode}
                     onChange={handleChange}
                     placeholder="Postal Code"
-                    className="border border-gray-300 rounded-md p-2 text-sm"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   />
                 </div>
                 {/* Right column: Map */}
-                <div className="flex-1 min-h-[130px]">
+                <div className="w-full h-48 md:flex-1 md:min-h-[130px] md:h-auto">
                   {formData.serviceArea.length > 5
                     ? <LocationMap address={formData.serviceArea} />
                     : <div className="bg-gray-200 rounded-md flex items-center justify-center h-full min-h-[130px]"><span className="text-gray-500 text-sm">Map Placeholder</span></div>
@@ -484,13 +484,13 @@ function BecomeATasker() {
                     Evening (6:00 PM – 10:00 PM)
                   </label>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col md:flex-row md:items-center gap-2">
                   <label className="text-sm font-medium text-gray-700">Travel Distance:</label>
                   <select
                     name="travelDistance"
                     value={formData.travelDistance}
                     onChange={handleChange}
-                    className="border border-gray-300 rounded-md p-1.5 text-sm"
+                    className="w-full md:w-auto border border-gray-300 rounded-md p-1.5 text-sm"
                   >
                     <option value="">Select...</option>
                     <option>1km</option>
@@ -524,7 +524,7 @@ function BecomeATasker() {
               {/* Hourly Rate */}
               <div className="mb-3">
                 <p className="font-bold text-gray-800 text-sm mb-2">Hourly Rate</p>
-                <div className="flex items-center border border-gray-300 rounded-md overflow-hidden w-40">
+                <div className="flex items-center border border-gray-300 rounded-md overflow-hidden w-full md:w-40">
                   <span className="px-2 text-gray-500 text-sm bg-gray-100 border-r border-gray-300 py-2">₱</span>
                   <input
                     type="number"
