@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Tasker1 from '../Assets/Tasker1.jpg'
 import Tasker2 from '../Assets/Tasker2.jpg'
@@ -21,12 +21,106 @@ const taskerImages = {
   'Tasker8.jpg': Tasker8,
 }
 
+const roleQuotes = {
+  'Cleaning':       "I treat every home like my own. Cleanliness is not just my job — it's my passion.",
+  'Plumbing':       "No leak is too small, no pipe too old. I fix it right the first time.",
+  'Painting':       "Every wall is a canvas. I bring color and life to your space.",
+  'Electrical':     "Safety first, always. I make sure your home is wired right and worry-free.",
+  'Carpentry':      "Wood, nails, and craftsmanship — I build things that last a lifetime.",
+  'Aircon Cleaning':"A well-maintained aircon means a comfortable home. I keep yours running like new.",
+}
+
+function getQuote(role) {
+  return roleQuotes[role] ?? "I take pride in every job I do. Your home deserves the best care."
+}
+
+function ProfileModal({ tasker, onClose, justOpenedRef }) {
+  const navigate = useNavigate()
+  const avatar = taskerImages[tasker.avatar_url]
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      style={{ pointerEvents: 'auto' }}
+      onClick={() => { if (justOpenedRef.current) return; onClose() }}
+    >
+      <div
+        className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl relative"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 font-bold z-10 transition-colors"
+        >
+          ✕
+        </button>
+
+        {/* Avatar */}
+        {avatar ? (
+          <img
+            src={avatar}
+            alt={tasker.name}
+            className="w-full h-56 object-cover rounded-t-2xl"
+          />
+        ) : (
+          <div className="w-full h-56 rounded-t-2xl bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-5xl font-bold text-orange-500">
+            {tasker.name?.charAt(0) ?? '?'}
+          </div>
+        )}
+
+        <div className="p-6">
+          {/* Name & role */}
+          <h2 className="text-2xl font-bold text-gray-900">{tasker.name}</h2>
+          <p className="text-orange-500 font-semibold mt-0.5">{tasker.role}</p>
+
+          {/* Rating */}
+          <p className="text-yellow-500 text-sm mt-2">
+            ★ {tasker.rating} <span className="text-gray-400">({(tasker.reviews ?? 0).toLocaleString()} reviews)</span>
+          </p>
+
+          {/* Hourly rate */}
+          {tasker.hourly_rate && (
+            <p className="text-gray-700 text-sm mt-2 font-medium">
+              ₱{tasker.hourly_rate}/hr
+            </p>
+          )}
+
+          {/* Quote */}
+          <blockquote className="mt-4 border-l-4 border-orange-400 pl-4 italic text-gray-600 text-sm">
+            "{getQuote(tasker.role)}"
+          </blockquote>
+
+          {/* Bio */}
+          {tasker.bio && (
+            <p className="text-gray-700 text-sm mt-4 leading-relaxed">{tasker.bio}</p>
+          )}
+
+          {/* Book Now */}
+          <button
+            onClick={() => {
+              onClose()
+              navigate(`/booking/${encodeURIComponent(tasker.role)}`)
+            }}
+            className="mt-6 w-full py-3 rounded-xl text-white font-bold text-base transition-opacity hover:opacity-90"
+            style={{ background: 'linear-gradient(90deg, #f97316, #ea580c)', boxShadow: '0 4px 14px rgba(249,115,22,0.4)' }}
+          >
+            Book Now
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TaskerShowcase() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
   const [fetchError, setFetchError] = useState(false)
   const [index, setIndex] = useState(1)
   const [sliding, setSliding] = useState(null)
+  const [selectedTasker, setSelectedTasker] = useState(null)
+  const justOpenedRef = useRef(false)
 
   useEffect(() => {
     async function fetchTaskers() {
@@ -40,6 +134,8 @@ function TaskerShowcase() {
           rating: t.rating,
           reviews: t.reviews_count,
           avatar_url: t.avatar_url,
+          bio: t.bio,
+          hourly_rate: t.hourly_rate,
         })))
       }
       setLoading(false)
@@ -189,7 +285,6 @@ function TaskerShowcase() {
                   opacity: isCenter ? 1 : 0.6,
                   transform: `${scale} ${rotateY} ${getSlideStyle(position)}`,
                   transition: 'transform 0.3s ease, opacity 0.3s ease, box-shadow 0.3s ease',
-                  transformStyle: 'preserve-3d',
                   background: isCenter
                     ? 'linear-gradient(160deg, #1f2937 0%, #111827 100%)'
                     : 'linear-gradient(160deg, #1a1f2b 0%, #0e1117 100%)',
@@ -227,15 +322,19 @@ function TaskerShowcase() {
                   <h3 className="font-bold text-base text-white">{tasker.name}</h3>
                   <p className="text-orange-400 text-sm mb-2">{tasker.role}</p>
                   <p className="text-yellow-400 text-sm mb-3">
-                    ★ {tasker.rating} ({tasker.reviews.toLocaleString()} reviews)
+                    ★ {tasker.rating} ({(tasker.reviews ?? 0).toLocaleString()} reviews)
                   </p>
                   <button
-                    className="w-full text-white py-2 rounded-lg font-semibold text-sm"
+                    onClick={() => {
+                      justOpenedRef.current = true
+                      setSelectedTasker(tasker)
+                      setTimeout(() => { justOpenedRef.current = false }, 300)
+                    }}
+                    className="w-full text-white py-2 rounded-lg font-semibold text-sm cursor-pointer relative z-10"
                     style={{
                       background: 'linear-gradient(90deg, #f97316, #ea580c)',
                       boxShadow: '0 2px 8px rgba(249,115,22,0.35)',
                       border: 'none',
-                      cursor: 'pointer',
                     }}
                   >
                     View Profile
@@ -287,6 +386,15 @@ function TaskerShowcase() {
           Become a Tasker
         </button>
       </Link>
+
+      {/* Profile Modal */}
+      {selectedTasker && (
+        <ProfileModal
+          tasker={selectedTasker}
+          onClose={() => setSelectedTasker(null)}
+          justOpenedRef={justOpenedRef}
+        />
+      )}
 
     </div>
   )
