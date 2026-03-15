@@ -807,20 +807,22 @@ function Step1({ onContinue }) {
           <span className="font-bold text-gray-800 text-base">Your task location</span>
           <span className="text-gray-400 cursor-pointer text-lg">✏️</span>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xl">📍</span>
-          <input
-            type="text"
-            value={address}
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="Enter your address"
-            className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
-          />
+        <div className="flex flex-col md:flex-row md:items-center gap-2">
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-xl">📍</span>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Enter your address"
+              className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
+            />
+          </div>
           <button
             type="button"
             onClick={handleDetectLocation}
             disabled={detectingLocation}
-            className="flex items-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-600 disabled:opacity-50 whitespace-nowrap flex-shrink-0"
+            className="flex items-center justify-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-600 disabled:opacity-50 w-full md:w-auto whitespace-nowrap"
           >
             {detectingLocation ? (
               <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
