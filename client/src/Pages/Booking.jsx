@@ -1282,12 +1282,21 @@ function Booking() {
       if (error) {
         setTaskersError(true)
       } else {
+        const { data: completedBookings } = await supabase
+          .from('bookings')
+          .select('tasker_id')
+          .eq('status', 'completed')
+        const taskCountMap = {}
+        completedBookings?.forEach(b => {
+          taskCountMap[b.tasker_id] = (taskCountMap[b.tasker_id] || 0) + 1
+        })
         setTaskers(data.map((t) => ({
           id: t.id,
           name: t.name,
           role: t.role,
           rating: t.rating,
           reviews: t.reviews_count,
+          tasks: taskCountMap[t.id] || 0,
           price: `₱${t.hourly_rate}/hr`,
           bio: t.bio,
         })))
