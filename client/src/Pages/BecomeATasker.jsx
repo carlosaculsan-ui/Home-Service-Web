@@ -84,6 +84,46 @@ function BecomeATasker() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [uploadProgress, setUploadProgress] = useState('')
+  const [detectingLocation, setDetectingLocation] = useState(false)
+  const [locationError, setLocationError] = useState('')
+
+  const handleDetectLocation = () => {
+    setDetectingLocation(true)
+    setLocationError('')
+    const onSuccess = async (pos) => {
+      try {
+        const { latitude, longitude } = pos.coords
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+        )
+        const json = await res.json()
+        setFormData((prev) => ({ ...prev, serviceArea: json.display_name }))
+      } catch {
+        setLocationError('Could not fetch address. Please enter it manually.')
+      } finally {
+        setDetectingLocation(false)
+      }
+    }
+    const onError = async () => {
+      try {
+        const res = await fetch(
+          `http://api.ipstack.com/check?access_key=${import.meta.env.VITE_IPSTACK_API_KEY}`
+        )
+        const json = await res.json()
+        const addr = [json.city, json.region_name, json.country_name].filter(Boolean).join(', ')
+        setFormData((prev) => ({ ...prev, serviceArea: addr }))
+      } catch {
+        setLocationError('Could not detect location. Please enter it manually.')
+      } finally {
+        setDetectingLocation(false)
+      }
+    }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(onSuccess, onError)
+    } else {
+      onError()
+    }
+  }
 
   const handleSubmit = async () => {
     setSubmitting(true)
@@ -362,6 +402,24 @@ function BecomeATasker() {
                   />
                   <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
                 </div>
+              </div>
+
+              {/* Detect location — mobile only */}
+              <div className="md:hidden mb-3">
+                <button
+                  type="button"
+                  onClick={handleDetectLocation}
+                  disabled={detectingLocation}
+                  className="w-full flex items-center justify-center gap-2 border border-orange-400 text-orange-500 rounded-md p-2 text-sm font-medium bg-orange-50 active:bg-orange-100 disabled:opacity-60"
+                >
+                  {detectingLocation ? (
+                    <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
+                  ) : '📍'}
+                  {detectingLocation ? 'Detecting...' : 'Detect my location'}
+                </button>
+                {locationError && (
+                  <p className="text-red-500 text-xs mt-1">{locationError}</p>
+                )}
               </div>
 
               {/* Row 3: Email + Map side by side */}
