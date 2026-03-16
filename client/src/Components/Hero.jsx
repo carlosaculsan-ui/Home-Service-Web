@@ -27,7 +27,7 @@ function Hero() {
 
       {/* top-left space for logo (empty) */}
 
-      <div className="relative z-10" style={{paddingLeft: '60px', maxWidth: '50%'}}>
+      <div className="relative z-10 flex flex-col items-center md:items-start w-full px-6 md:pl-[60px] md:max-w-[50%]">
         {/* Logo */}
         <div className="flex items-center gap-1 mb-5">
           <div className="relative w-16 h-16 flex items-center justify-center">
@@ -48,13 +48,13 @@ function Hero() {
           </div>
           <span style={{ color: '#6b7280' }} className="font-bold text-lg leading-none">anap.ph</span>
         </div>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 text-center md:text-left">
           YOUR HOME, OUR
         </h1>
-        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-orange-500">
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 text-orange-500 text-center md:text-left">
           EXPERTISE.
         </h1>
-        <p className="text-xs sm:text-sm md:text-base mb-8 md:mb-10 text-white">
+        <p className="text-xs sm:text-sm md:text-base mb-8 md:mb-10 text-white text-center md:text-left">
           Hindi basta serbisyo — professional service talaga. Through proper training and trusted partnerships, we make sure every job is done right the first time.
         </p>
 
