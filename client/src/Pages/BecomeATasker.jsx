@@ -391,35 +391,33 @@ function BecomeATasker() {
                   placeholder="Phone"
                   className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
                 />
-                <div className="flex-1 relative">
-                  <input
-                    type="text"
-                    name="serviceArea"
-                    value={formData.serviceArea}
-                    onChange={handleChange}
-                    placeholder="Select Your Home Or Main Service Area..."
-                    className="w-full border border-gray-300 rounded-md p-2 pr-8 text-sm"
-                  />
-                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                <div className="flex-1 flex flex-col gap-1">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      name="serviceArea"
+                      value={formData.serviceArea}
+                      onChange={handleChange}
+                      placeholder="Select Your Home Or Main Service Area..."
+                      className="w-full border border-gray-300 rounded-md p-2 pr-8 text-sm"
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDetectLocation}
+                    disabled={detectingLocation}
+                    className="w-full flex items-center justify-center gap-2 border border-orange-400 text-orange-500 rounded-md p-2 text-sm font-medium bg-orange-50 active:bg-orange-100 disabled:opacity-60"
+                  >
+                    {detectingLocation ? (
+                      <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
+                    ) : '📍'}
+                    {detectingLocation ? 'Detecting...' : 'Detect my location'}
+                  </button>
+                  {locationError && (
+                    <p className="text-red-500 text-xs mt-1">{locationError}</p>
+                  )}
                 </div>
-              </div>
-
-              {/* Detect location — mobile only */}
-              <div className="md:hidden mb-3">
-                <button
-                  type="button"
-                  onClick={handleDetectLocation}
-                  disabled={detectingLocation}
-                  className="w-full flex items-center justify-center gap-2 border border-orange-400 text-orange-500 rounded-md p-2 text-sm font-medium bg-orange-50 active:bg-orange-100 disabled:opacity-60"
-                >
-                  {detectingLocation ? (
-                    <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
-                  ) : '📍'}
-                  {detectingLocation ? 'Detecting...' : 'Detect my location'}
-                </button>
-                {locationError && (
-                  <p className="text-red-500 text-xs mt-1">{locationError}</p>
-                )}
               </div>
 
               {/* Row 3: Email + Map side by side */}
