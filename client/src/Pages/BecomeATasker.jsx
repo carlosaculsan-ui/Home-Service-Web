@@ -407,16 +407,23 @@ function BecomeATasker() {
                     type="button"
                     onClick={handleDetectLocation}
                     disabled={detectingLocation}
-                    className="w-full flex items-center justify-center gap-2 border border-orange-400 text-orange-500 rounded-md p-2 text-sm font-medium bg-orange-50 active:bg-orange-100 disabled:opacity-60"
+                    className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600 disabled:opacity-50 mt-1"
                   >
                     {detectingLocation ? (
-                      <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin inline-block" />
+                      <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
                     ) : '📍'}
                     {detectingLocation ? 'Detecting...' : 'Detect my location'}
                   </button>
                   {locationError && (
                     <p className="text-red-500 text-xs mt-1">{locationError}</p>
                   )}
+                  {/* Map — mobile only, stacked below the address input */}
+                  <div className="md:hidden w-full h-48 mt-2">
+                    {formData.serviceArea.length > 5
+                      ? <LocationMap address={formData.serviceArea} />
+                      : <div className="bg-gray-200 rounded-md flex items-center justify-center h-full"><span className="text-gray-500 text-sm">Map Placeholder</span></div>
+                    }
+                  </div>
                 </div>
               </div>
 
@@ -469,8 +476,8 @@ function BecomeATasker() {
                     className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   />
                 </div>
-                {/* Right column: Map */}
-                <div className="w-full h-48 md:flex-1 md:min-h-[130px] md:h-auto">
+                {/* Right column: Map — desktop only */}
+                <div className="hidden md:block md:flex-1 md:min-h-[130px]">
                   {formData.serviceArea.length > 5
                     ? <LocationMap address={formData.serviceArea} />
                     : <div className="bg-gray-200 rounded-md flex items-center justify-center h-full min-h-[130px]"><span className="text-gray-500 text-sm">Map Placeholder</span></div>
