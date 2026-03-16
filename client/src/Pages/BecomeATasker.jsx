@@ -407,7 +407,7 @@ function BecomeATasker() {
                     type="button"
                     onClick={handleDetectLocation}
                     disabled={detectingLocation}
-                    className="flex items-center gap-1 text-sm text-orange-500 hover:text-orange-600 disabled:opacity-50 mt-1"
+                    className="flex items-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-600 disabled:opacity-50 cursor-pointer mt-1"
                   >
                     {detectingLocation ? (
                       <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
