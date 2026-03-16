@@ -1133,6 +1133,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         </button>
         <button
           onClick={async () => {
+            const paymentWindow = window.open('', '_blank')
             setSaving(true)
             setSaveError('')
             try {
@@ -1157,6 +1158,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 ai_image_analysis: aiImageAnalysis ?? null,
               })
               if (error) {
+                paymentWindow.close()
                 setSaveError(`Error saving booking: ${error.message}`)
                 setSaving(false)
                 return
@@ -1186,16 +1188,18 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const pmData = await pmResponse.json()
               if (!pmResponse.ok) {
+                paymentWindow.close()
                 const errMsg = pmData?.errors?.[0]?.detail || 'Payment setup failed. Please try again.'
                 setSaveError(errMsg)
                 setSaving(false)
                 return
               }
               const checkoutUrl = pmData.data.attributes.checkout_url
-              window.open(checkoutUrl, '_blank')
+              paymentWindow.location.href = checkoutUrl
               setSaving(false)
               setPaymentPending(true)
             } catch (err) {
+              paymentWindow.close()
               setSaveError('Payment setup failed. Please try again.')
               setSaving(false)
             }

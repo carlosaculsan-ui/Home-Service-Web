@@ -124,7 +124,7 @@ function TaskerShowcase() {
 
   useEffect(() => {
     async function fetchTaskers() {
-      const { data, error } = await supabase.from('taskers').select('*')
+      const { data, error } = await supabase.from('taskers').select('*').eq('status', 'approved')
       if (error) {
         setFetchError(true)
       } else {
