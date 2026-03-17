@@ -120,7 +120,20 @@ function TaskerShowcase() {
   const [index, setIndex] = useState(1)
   const [sliding, setSliding] = useState(null)
   const [selectedTasker, setSelectedTasker] = useState(null)
+  const [isAdmin, setIsAdmin] = useState(false)
   const justOpenedRef = useRef(false)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session?.user?.id) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', session.user.id)
+        .single()
+      setIsAdmin(data?.role === 'admin')
+    })
+  }, [])
 
   useEffect(() => {
     async function fetchTaskers() {
@@ -208,12 +221,12 @@ function TaskerShowcase() {
         </div>
         <p className="text-white font-semibold text-xl mb-6 -mt-6">Taskers</p>
         <p className="text-gray-400 mb-8">No taskers available at the moment.</p>
-        <Link to="/become-a-tasker">
+        <Link to={isAdmin ? '/admin' : '/become-a-tasker'}>
           <button
             className="text-white px-8 py-3 rounded-lg font-semibold"
             style={{ background: 'linear-gradient(90deg, #f97316, #ea580c)', boxShadow: '0 0 18px rgba(249,115,22,0.4)', border: 'none', cursor: 'pointer' }}
           >
-            Become a Tasker
+            {isAdmin ? 'Manage Taskers' : 'Become a Tasker'}
           </button>
         </Link>
       </div>
@@ -373,7 +386,7 @@ function TaskerShowcase() {
         ))}
       </div>
 
-      <Link to="/become-a-tasker" className="mt-8 inline-block">
+      <Link to={isAdmin ? '/admin' : '/become-a-tasker'} className="mt-8 inline-block">
         <button
           className="text-white px-8 py-3 rounded-lg font-semibold"
           style={{
@@ -383,7 +396,7 @@ function TaskerShowcase() {
             cursor: 'pointer',
           }}
         >
-          Become a Tasker
+          {isAdmin ? 'Manage Taskers' : 'Become a Tasker'}
         </button>
       </Link>
 

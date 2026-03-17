@@ -165,13 +165,15 @@ function Navbar() {
                 <div className="px-4 py-3 border-b border-gray-100">
                   <p className="text-xs text-gray-400 truncate">{session.user.email}</p>
                 </div>
-                <Link
-                  to="/become-a-tasker"
-                  onClick={() => setDropdownOpen(false)}
-                  className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                >
-                  Become a Tasker
-                </Link>
+                {!isAdmin && (
+                  <Link
+                    to="/become-a-tasker"
+                    onClick={() => setDropdownOpen(false)}
+                    className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    Become a Tasker
+                  </Link>
+                )}
                 <Link
                   to="/dashboard"
                   onClick={() => setDropdownOpen(false)}
@@ -232,13 +234,15 @@ function Navbar() {
           {session ? (
             <div className="flex flex-col px-8 py-4 gap-3">
               <p className="text-orange-200 text-xs truncate">{session.user.email}</p>
-              <Link
-                to="/become-a-tasker"
-                onClick={() => setMenuOpen(false)}
-                className="text-white font-medium hover:text-orange-200"
-              >
-                Become a Tasker
-              </Link>
+              {!isAdmin && (
+                <Link
+                  to="/become-a-tasker"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-white font-medium hover:text-orange-200"
+                >
+                  Become a Tasker
+                </Link>
+              )}
               <Link
                 to="/dashboard"
                 onClick={() => setMenuOpen(false)}
