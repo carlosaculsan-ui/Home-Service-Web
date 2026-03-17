@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
+import { Phone, Bot, Car, Wrench, CheckCircle2 } from 'lucide-react'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -79,7 +80,7 @@ function TaskCard({ booking, onStatusChange }) {
           <span className="text-gray-400 w-28 flex-shrink-0">Phone</span>
           {['accepted', 'on_the_way', 'in_progress', 'completed'].includes(booking.status) ? (
             booking.customer_phone
-              ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium">📞 {booking.customer_phone}</a>
+              ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium flex items-center gap-1"><Phone size={14} />{booking.customer_phone}</a>
               : <span className="text-gray-700">Not provided</span>
           ) : (
             <span className="text-gray-400 italic text-xs self-center">Available after acceptance</span>
@@ -95,7 +96,7 @@ function TaskCard({ booking, onStatusChange }) {
 
       {booking.ai_image_analysis && (
         <div className="text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
-          <span className="font-semibold">🤖 AI Analysis: </span>{booking.ai_image_analysis}
+          <span className="font-semibold flex items-center gap-1 inline-flex"><Bot size={14} /> AI Analysis: </span>{booking.ai_image_analysis}
         </div>
       )}
 
@@ -131,7 +132,7 @@ function TaskCard({ booking, onStatusChange }) {
             disabled={actionLoading !== null}
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
           >
-            {actionLoading === 'on_the_way' ? 'Updating…' : "🚗 I'm On My Way"}
+            {actionLoading === 'on_the_way' ? 'Updating…' : <span className="flex items-center gap-1"><Car size={15} />I'm On My Way</span>}
           </button>
         </div>
       )}
@@ -144,7 +145,7 @@ function TaskCard({ booking, onStatusChange }) {
             disabled={actionLoading !== null}
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
           >
-            {actionLoading === 'in_progress' ? 'Updating…' : '🔧 Start Job'}
+            {actionLoading === 'in_progress' ? 'Updating…' : <span className="flex items-center gap-1"><Wrench size={15} />Start Job</span>}
           </button>
         </div>
       )}
@@ -157,7 +158,7 @@ function TaskCard({ booking, onStatusChange }) {
             disabled={actionLoading !== null}
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
           >
-            {actionLoading === 'completed' ? 'Updating…' : '✅ Complete Job'}
+            {actionLoading === 'completed' ? 'Updating…' : <span className="flex items-center gap-1"><CheckCircle2 size={15} />Complete Job</span>}
           </button>
         </div>
       )}

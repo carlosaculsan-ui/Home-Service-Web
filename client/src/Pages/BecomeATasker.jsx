@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
+import { User, CreditCard as IdCard, ShieldCheck, GraduationCap, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, Trash2, Eye, Star } from 'lucide-react'
 
 function BecomeATasker() {
   const [step, setStep] = useState(1)
@@ -212,26 +213,26 @@ function BecomeATasker() {
   }
 
   const steps = [
-    { label: 'Personal Information', icon: '👤' },
-    { label: 'Valid Identification', icon: '🪪' },
-    { label: 'Background Verification', icon: '🛡️' },
-    { label: 'Certifications & Training', icon: '🎓' },
-    { label: 'Review & Submit', icon: '🔍' },
+    { label: 'Personal Information', icon: <User size={16} /> },
+    { label: 'Valid Identification', icon: <IdCard size={16} /> },
+    { label: 'Background Verification', icon: <ShieldCheck size={16} /> },
+    { label: 'Certifications & Training', icon: <GraduationCap size={16} /> },
+    { label: 'Review & Submit', icon: <Search size={16} /> },
   ]
 
   const statusScreens = {
     pending: {
-      icon: '⏳',
+      icon: <Hourglass size={64} className="text-orange-400 mx-auto mb-4" />,
       heading: 'Application Under Review',
       message: 'Your application has been submitted. We will review it and contact you within 3-5 business days.',
     },
     approved: {
-      icon: '✅',
+      icon: <CheckCircle2 size={64} className="text-green-500 mx-auto mb-4" />,
       heading: 'Application Approved!',
       message: 'Welcome to hanap.ph! You can now access your Tasker Dashboard.',
     },
     rejected: {
-      icon: '❌',
+      icon: <XCircle size={64} className="text-red-400 mx-auto mb-4" />,
       heading: 'Application Not Approved',
       message: 'Unfortunately your application was not approved. Please contact us for more information.',
     },
@@ -256,7 +257,7 @@ function BecomeATasker() {
         style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
         <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
-          <span className="text-6xl mb-4 block">{screen.icon}</span>
+          <div className="flex justify-center">{screen.icon}</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-3">{screen.heading}</h2>
           <p className="text-gray-500 text-sm mb-6">{screen.message}</p>
           {existingApplication.status === 'approved' && (
@@ -347,7 +348,7 @@ function BecomeATasker() {
             <>
               {/* Brand header */}
               <div className="flex items-center gap-2 mb-3">
-                <span className="text-base">🏠</span>
+                <Home size={16} className="text-orange-500" />
                 <span className="text-sm font-bold text-orange-500 tracking-wide">hanap.ph</span>
               </div>
               <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
@@ -421,7 +422,7 @@ function BecomeATasker() {
                       placeholder="Select Your Home Or Main Service Area..."
                       className="w-full border border-gray-300 rounded-md p-2 pr-8 text-sm"
                     />
-                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                    <Search size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
                   </div>
                   <button
                     type="button"
@@ -431,7 +432,7 @@ function BecomeATasker() {
                   >
                     {detectingLocation ? (
                       <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
-                    ) : '📍'}
+                    ) : <MapPin size={13} />}
                     {detectingLocation ? 'Detecting...' : 'Detect my location'}
                   </button>
                   {locationError && (
@@ -1092,7 +1093,7 @@ function BecomeATasker() {
           {step === 5 && (
             submitted ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
-                <span className="text-6xl mb-4">✅</span>
+                <CheckCircle2 size={64} className="text-green-500 mb-4" />
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">
                   Application Submitted!
                 </h2>

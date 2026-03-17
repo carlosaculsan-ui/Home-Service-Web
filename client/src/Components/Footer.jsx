@@ -1,9 +1,11 @@
+import { Phone, Mail, MapPin, Facebook, Instagram, Twitter } from 'lucide-react'
+
 function Footer() {
   return (
     <footer id="contact" className="bg-gray-900 text-gray-400 py-12 px-6 md:px-8">
-      
+
       <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-2 md:grid-cols-5 gap-8">
-        
+
         {/* Brand */}
         <div className="col-span-2 sm:col-span-2 md:col-span-1">
           <h2 className="text-white text-2xl font-bold mb-4">hanap.ph</h2>
@@ -48,21 +50,21 @@ function Footer() {
           <h3 className="text-white font-semibold mb-4">Contact Us</h3>
           <ul className="space-y-3 text-sm">
             <li className="flex items-start gap-2">
-              <span>📞</span>
+              <Phone size={16} className="mt-0.5 flex-shrink-0" />
               <span>09500435479</span>
             </li>
             <li className="flex items-start gap-2">
-              <span>📧</span>
+              <Mail size={16} className="mt-0.5 flex-shrink-0" />
               <span>hanapph@gmail.com</span>
             </li>
             <li className="flex items-start gap-2">
-              <span>📍</span>
+              <MapPin size={16} className="mt-0.5 flex-shrink-0" />
               <span>Unit 6, Bisakol Street, hanap.ph Bldg. Quezon City</span>
             </li>
             <li className="flex items-center gap-3 mt-4">
-              <a href="#" className="hover:text-white text-xl">📘</a>
-              <a href="#" className="hover:text-white text-xl">📸</a>
-              <a href="#" className="hover:text-white text-xl">🐦</a>
+              <a href="#" className="hover:text-white"><Facebook size={28} /></a>
+              <a href="#" className="hover:text-white"><Instagram size={28} /></a>
+              <a href="#" className="hover:text-white"><Twitter size={28} /></a>
             </li>
           </ul>
         </div>

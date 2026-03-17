@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Navigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { Hourglass, XCircle } from 'lucide-react'
 
 function TaskerRoute({ children }) {
   const [state, setState] = useState('loading') // loading | no_session | no_row | pending | rejected | approved
@@ -43,7 +44,7 @@ function TaskerRoute({ children }) {
   if (state === 'pending') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4 text-center">
-        <span className="text-6xl mb-6">⏳</span>
+        <Hourglass size={64} className="text-orange-400 mb-6" />
         <h1 className="text-2xl font-bold text-gray-800 mb-3">Application Under Review</h1>
         <p className="text-gray-500 max-w-sm">Your application is still being reviewed by our team.</p>
       </div>
@@ -53,7 +54,7 @@ function TaskerRoute({ children }) {
   if (state === 'rejected') {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 px-4 text-center">
-        <span className="text-6xl mb-6">❌</span>
+        <XCircle size={64} className="text-red-400 mb-6" />
         <h1 className="text-2xl font-bold text-gray-800 mb-3">Application Not Approved</h1>
         <p className="text-gray-500 max-w-sm">Unfortunately your application was not approved. Please contact us for more information.</p>
       </div>

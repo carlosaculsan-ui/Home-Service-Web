@@ -6,6 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import backgroundImg from '../Assets/Background.jpg'
+import { MapPin, Wrench } from 'lucide-react'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
@@ -195,14 +196,14 @@ function BookingCard({ booking, userId, onCancel }) {
 
         {booking.status === 'on_the_way' && (
           <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
-            <span>📍</span>
+            <MapPin size={16} />
             <span>Your tasker is heading to your location</span>
           </div>
         )}
 
         {booking.status === 'in_progress' && (
           <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
-            <span>🔧</span>
+            <Wrench size={16} />
             <span>Your tasker is currently working</span>
           </div>
         )}

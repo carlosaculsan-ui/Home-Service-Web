@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { getServiceIcon } from '../utils/serviceIcons'
 import background2Img from '../Assets/Background2.jpg'
 import cleaningImg from '../Assets/Cleaning.png'
 import plumbingImg from '../Assets/Plumbing.png'
@@ -59,7 +60,9 @@ function Services() {
             <div key={service.id} className="bg-white rounded-xl border border-gray-200 shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer">
               {/* Header with icon and stars */}
               <div className="flex items-start justify-between mb-4">
-                <div className="text-4xl">{service.icon}</div>
+                <div className="text-4xl">
+                  {getServiceIcon(service.icon, { size: 40, className: 'text-orange-500' }) ?? service.icon}
+                </div>
                 <div className="flex gap-1">
                   {[...Array(5)].map((_, i) => (
                     <span key={i} className="text-yellow-500">★</span>

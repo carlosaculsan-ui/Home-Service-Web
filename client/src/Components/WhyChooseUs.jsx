@@ -1,17 +1,19 @@
+import { Users, BadgeCheck, TrendingUp } from 'lucide-react'
+
 function WhyChooseUs() {
   const features = [
     {
-      icon: "👥",
+      icon: <Users size={32} className="text-white" />,
       title: "Skilled Professionals",
       description: "100+ trained professionals delivering reliable, high-quality service across all offerings."
     },
     {
-      icon: "✅",
+      icon: <BadgeCheck size={32} className="text-white" />,
       title: "Quality Work",
       description: "Tasks are completed with precision, care, and consistency, ensuring top-notch service every time."
     },
     {
-      icon: "💪",
+      icon: <TrendingUp size={32} className="text-white" />,
       title: "Empowering Filipinos",
       description: "We help Filipinos grow their careers by providing training, mentorship, and real-world experience across our services."
     }
@@ -36,7 +38,7 @@ function WhyChooseUs() {
             >
               {/* Circular Icon */}
               <div className="flex justify-center mb-6">
-                <div className="w-16 h-16 rounded-full bg-orange-500 flex items-center justify-center text-4xl">
+                <div className="w-16 h-16 rounded-full bg-orange-500 flex items-center justify-center">
                   {feature.icon}
                 </div>
               </div>

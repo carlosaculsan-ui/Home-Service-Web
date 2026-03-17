@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Bot } from 'lucide-react'
 import Groq from 'groq-sdk'
 
 const groq = new Groq({
@@ -64,7 +65,7 @@ function Chatbot() {
 
           <div className="bg-orange-500 text-white px-4 py-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="text-2xl">🤖</div>
+              <Bot size={24} className="text-white" />
               <div>
                 <p className="font-bold text-sm">Hanap AI</p>
                 <p className="text-xs text-orange-200">Always here to help</p>

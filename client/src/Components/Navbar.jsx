@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { ShieldCheck } from 'lucide-react'
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -196,7 +197,7 @@ function Navbar() {
                     onClick={() => setDropdownOpen(false)}
                     className="block px-4 py-3 text-sm font-semibold text-orange-600 hover:bg-orange-50 transition-colors border-t border-gray-100"
                   >
-                    🛡 Admin Panel
+                    <ShieldCheck size={14} className="inline mr-1" />Admin Panel
                   </Link>
                 )}
                 <button
@@ -265,7 +266,7 @@ function Navbar() {
                   onClick={() => setMenuOpen(false)}
                   className="text-yellow-200 font-semibold hover:text-yellow-100"
                 >
-                  🛡 Admin Panel
+                  <ShieldCheck size={14} className="inline mr-1" />Admin Panel
                 </Link>
               )}
               <button

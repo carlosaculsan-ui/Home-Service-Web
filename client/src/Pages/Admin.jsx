@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
+import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
+import { Bot, Star, Eye, Trash2 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
   pending:  'bg-yellow-100 text-yellow-700',
@@ -297,7 +299,7 @@ function BookingsPanel() {
           </div>
           {b.ai_image_analysis && (
             <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
-              <span className="font-semibold">🤖 AI Analysis: </span>{b.ai_image_analysis}
+              <span className="font-semibold flex items-center gap-1"><Bot size={14} /> AI Analysis: </span>{b.ai_image_analysis}
             </div>
           )}
         </div>
@@ -430,13 +432,22 @@ function ServicesPanel() {
           <p className="font-bold text-gray-800 mb-1">New Service</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-gray-500 font-medium">Icon (emoji)</label>
-              <input
-                value={addForm.icon}
-                onChange={(e) => setAddForm({ ...addForm, icon: e.target.value })}
-                placeholder="🧹"
-                className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-              />
+              <label className="text-xs text-gray-500 font-medium">Icon</label>
+              <div className="flex items-center gap-2 mt-1">
+                <select
+                  value={addForm.icon}
+                  onChange={(e) => setAddForm({ ...addForm, icon: e.target.value })}
+                  className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                >
+                  <option value="">Select icon…</option>
+                  {ICON_OPTIONS.map((o) => (
+                    <option key={o.name} value={o.name}>{o.label}</option>
+                  ))}
+                </select>
+                <span className="text-orange-500 flex-shrink-0">
+                  {getServiceIcon(addForm.icon, { size: 24 })}
+                </span>
+              </div>
             </div>
             <div>
               <label className="text-xs text-gray-500 font-medium">Title</label>
@@ -488,12 +499,22 @@ function ServicesPanel() {
             <form onSubmit={handleEdit} className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs text-gray-500 font-medium">Icon (emoji)</label>
-                  <input
-                    value={editForm.icon}
-                    onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })}
-                    className="w-full mt-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
-                  />
+                  <label className="text-xs text-gray-500 font-medium">Icon</label>
+                  <div className="flex items-center gap-2 mt-1">
+                    <select
+                      value={editForm.icon}
+                      onChange={(e) => setEditForm({ ...editForm, icon: e.target.value })}
+                      className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-orange-400"
+                    >
+                      <option value="">Select icon…</option>
+                      {ICON_OPTIONS.map((o) => (
+                        <option key={o.name} value={o.name}>{o.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-orange-500 flex-shrink-0">
+                      {getServiceIcon(editForm.icon, { size: 24 })}
+                    </span>
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-gray-500 font-medium">Title</label>
@@ -544,7 +565,9 @@ function ServicesPanel() {
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-2xl">{s.icon}</span>
+                  <span className="text-orange-500">
+                    {getServiceIcon(s.icon, { size: 28 }) ?? <span className="text-2xl">{s.icon}</span>}
+                  </span>
                   <p className="font-bold text-gray-800 text-base">{s.title}</p>
                   <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${s.is_active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                     {s.is_active ? 'Active' : 'Inactive'}
@@ -736,19 +759,19 @@ function ReviewsPanel() {
                     onClick={() => toggleFeature(r)}
                     className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
                   >
-                    {r.featured ? '★ Unfeature' : '⭐ Feature'}
+                    <Star size={14} className="inline mr-1" />{r.featured ? 'Unfeature' : 'Feature'}
                   </button>
                   <button
                     onClick={() => toggleHide(r)}
                     className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                   >
-                    {r.is_hidden ? '👁 Show' : '👁 Hide'}
+                    <Eye size={14} className="inline mr-1" />{r.is_hidden ? 'Show' : 'Hide'}
                   </button>
                   <button
                     onClick={() => handleDelete(r.id)}
                     className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
-                    🗑 Delete
+                    <Trash2 size={14} className="inline mr-1" />Delete
                   </button>
                 </div>
               </div>

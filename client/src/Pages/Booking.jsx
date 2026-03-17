@@ -4,6 +4,7 @@ import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import Groq from 'groq-sdk'
+import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home } from 'lucide-react'
 
 const groq = new Groq({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
@@ -174,8 +175,8 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
         </button>
 
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-xl text-gray-400">
-            👤
+          <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+            <User size={22} />
           </div>
           <h2 className="text-base font-bold text-gray-800">{tasker.name}'s Availability</h2>
         </div>
@@ -271,8 +272,8 @@ function TaskerCard({ tasker, onSelect }) {
   return (
     <div className="border border-gray-200 rounded-xl p-5 space-y-3">
       <div className="flex gap-4">
-        <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-2xl text-gray-400">
-          👤
+        <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+          <User size={28} />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -311,7 +312,7 @@ function TaskerCard({ tasker, onSelect }) {
       </button>
 
       <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-        <span className="text-base mt-0.5">📋</span>
+        <ClipboardList size={16} className="mt-0.5 text-gray-400 flex-shrink-0" />
         <p className="text-xs text-gray-500">
           Next, confirm your details to get connected with your Tasker.
         </p>
@@ -324,7 +325,7 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError }) {
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
-        <span className="text-2xl">👥</span>
+        <Users size={24} className="text-blue-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
           Filter and sort to find your Tasker. Then view their availability to request your date and time.
         </p>
@@ -501,7 +502,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
     <div className="space-y-5">
       {/* Section 1 – Booking Summary banner */}
       <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
-        <span className="text-2xl">📅</span>
+        <CalendarDays size={24} className="text-orange-400 flex-shrink-0" />
         <div className="flex-1">
           <p className="text-sm font-bold text-gray-800">Booking Summary</p>
           <p className="text-sm text-gray-600 mt-0.5">
@@ -526,8 +527,8 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-4">Your Tasker</p>
         <div className="flex gap-4 mb-4">
-          <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-2xl text-gray-400">
-            👤
+          <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+            <User size={28} />
           </div>
           <div>
             <p className="font-bold text-gray-800 text-base leading-tight">{tasker?.name}</p>
@@ -550,7 +551,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             onClick={() => setShowInlineForm((v) => !v)}
             className="text-sm text-gray-400 hover:text-gray-600"
           >
-            ✏️
+            <Pencil size={15} />
           </button>
         </div>
 
@@ -560,26 +561,26 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
           <>
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span>👤</span>
+                <User size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="text-gray-400">Name:</span>
                 {userProfile?.full_name
                   ? <span>{userProfile.full_name}</span>
                   : <span className="italic text-red-400">Not set</span>}
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span>📞</span>
+                <Phone size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="text-gray-400">Phone:</span>
                 {userProfile?.phone
                   ? <span>{userProfile.phone}</span>
                   : <span className="italic text-red-400">Not set</span>}
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span>📧</span>
+                <Mail size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="text-gray-400">Email:</span>
                 <span>{userProfile?.email}</span>
               </div>
               <div className="flex items-center gap-2 text-sm text-gray-700">
-                <span>📍</span>
+                <MapPin size={14} className="text-gray-400 flex-shrink-0" />
                 <span className="text-gray-400">Address:</span>
                 <span>{taskAddress}</span>
               </div>
@@ -654,7 +655,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
 
       {/* Note box */}
       <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
-        <span className="text-lg">ℹ️</span>
+        <Info size={18} className="text-orange-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
           Your contact information will be shared with your Tasker once payment is confirmed. Please proceed to payment to finalize your booking.
         </p>
@@ -838,11 +839,11 @@ function Step1({ onContinue }) {
       <div className="border border-gray-200 rounded-xl p-5">
         <div className="flex items-center justify-between mb-3">
           <span className="font-bold text-gray-800 text-base">Your task location</span>
-          <span className="text-gray-400 cursor-pointer text-lg">✏️</span>
+          <Pencil size={15} className="text-gray-400 cursor-pointer" />
         </div>
         <div className="flex flex-col md:flex-row md:items-center gap-2">
           <div className="flex items-center gap-2 flex-1">
-            <span className="text-xl">📍</span>
+            <MapPin size={20} className="text-orange-400 flex-shrink-0" />
             <input
               type="text"
               value={address}
@@ -859,7 +860,7 @@ function Step1({ onContinue }) {
           >
             {detectingLocation ? (
               <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin inline-block" />
-            ) : '📍'}
+            ) : <MapPin size={20} className="text-orange-400" />}
             {detectingLocation ? 'Detecting…' : 'Detect my location'}
           </button>
         </div>
@@ -1015,8 +1016,8 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   if (confirmed) {
     return (
       <div className="flex flex-col items-center text-center py-8 space-y-5">
-        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center text-4xl">
-          ✅
+        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
+          <CheckCircle2 size={44} className="text-green-500" />
         </div>
         <div>
           <p className="text-2xl font-bold text-gray-800">Booking Confirmed!</p>
@@ -1058,7 +1059,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
       {/* Section 1 – Order Summary */}
       <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 space-y-3">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-xl">📋</span>
+          <ClipboardList size={20} className="text-orange-400 flex-shrink-0" />
           <p className="font-bold text-gray-800 text-base">Order Summary</p>
         </div>
         <div className="space-y-1 text-sm text-gray-700">
@@ -1108,7 +1109,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           />
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-lg">💙</span>
+              <Smartphone size={18} className="text-blue-500" />
               <span className="font-semibold text-gray-800">GCash</span>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">You'll be redirected to a secure PayMongo checkout to pay via GCash.</p>
@@ -1127,7 +1128,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           />
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-lg">💳</span>
+              <CreditCard size={18} className="text-gray-500" />
               <span className="font-semibold text-gray-800">Credit / Debit Card</span>
             </div>
             <p className="text-xs text-gray-400 mt-0.5">Visa, Mastercard accepted — enter details securely on PayMongo checkout.</p>
@@ -1271,7 +1272,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
         {paymentPending && (
           <div className="mt-6 p-5 bg-blue-50 border border-blue-200 rounded-xl text-center space-y-3">
-            <p className="text-blue-800 font-semibold text-sm">💳 Complete your payment in the new tab.</p>
+            <p className="text-blue-800 font-semibold text-sm flex items-center justify-center gap-1"><CreditCard size={16} /> Complete your payment in the new tab.</p>
             <p className="text-blue-600 text-sm">Once done, click the button below to confirm your booking.</p>
             <button
               onClick={async () => {
@@ -1415,7 +1416,7 @@ function Booking() {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-4">
             <Link to="/" className="hover:opacity-80 transition-opacity">
-              <span className="text-base font-bold text-orange-500 tracking-wide">🏠 hanap.ph</span>
+              <span className="text-base font-bold text-orange-500 tracking-wide flex items-center gap-1"><Home size={16} />hanap.ph</span>
             </Link>
             <p className="text-sm text-gray-400 capitalize">{service}</p>
           </div>

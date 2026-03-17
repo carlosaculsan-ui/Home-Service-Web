@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { MapPin } from 'lucide-react'
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 import L from 'leaflet'
 import markerIcon2x from 'leaflet/dist/images/marker-icon-2x.png'
@@ -39,7 +40,7 @@ function LocationMap({ address }) {
     return (
       <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200">
         <div className="text-center">
-          <div className="text-3xl">📍</div>
+          <MapPin size={32} className="text-gray-400" />
           <p className="text-sm text-gray-400">Locating address...</p>
         </div>
       </div>
