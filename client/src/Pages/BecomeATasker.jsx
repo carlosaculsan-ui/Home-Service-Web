@@ -73,6 +73,11 @@ function BecomeATasker() {
   }
 
   const handleNext = () => {
+    if (step === 1 && formData.phone && !validatePhone(formData.phone)) {
+      setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
+      return
+    }
+    setPhoneError('')
     setStep((prev) => Math.min(prev + 1, 5))
   }
 
@@ -86,6 +91,10 @@ function BecomeATasker() {
   const [uploadProgress, setUploadProgress] = useState('')
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
+
+  const PH_PHONE_RE = /^(09|\+639)\d{9}$/
+  const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
 
   const handleDetectLocation = () => {
     setDetectingLocation(true)
@@ -381,16 +390,27 @@ function BecomeATasker() {
 
               {/* Row 2: Phone + Service Area */}
               <div className="grid grid-cols-1 md:flex md:flex-row gap-2 mb-3">
-                <input
-                  type="tel"
-                  name="phone"
-                  value={formData.phone}
-                  onChange={(e) => {
-                    if (/^\d*$/.test(e.target.value)) handleChange(e)
-                  }}
-                  placeholder="Phone"
-                  className="flex-1 border border-gray-300 rounded-md p-2 text-sm"
-                />
+                <div className="flex-1 flex flex-col">
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={(e) => {
+                      handleChange(e)
+                      setPhoneError('')
+                    }}
+                    onKeyPress={(e) => { if (!/[0-9+]/.test(e.key)) e.preventDefault() }}
+                    onBlur={() => {
+                      if (formData.phone && !validatePhone(formData.phone))
+                        setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
+                      else
+                        setPhoneError('')
+                    }}
+                    placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+                    className={`w-full border rounded-md p-2 text-sm ${phoneError ? 'border-red-400' : formData.phone && validatePhone(formData.phone) ? 'border-green-400' : 'border-gray-300'}`}
+                  />
+                  {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                </div>
                 <div className="flex-1 flex flex-col gap-1">
                   <div className="relative">
                     <input

@@ -391,8 +391,12 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [showInlineForm, setShowInlineForm] = useState(false)
   const [formName, setFormName] = useState('')
   const [formPhone, setFormPhone] = useState('')
+  const [formPhoneError, setFormPhoneError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
   const [formError, setFormError] = useState('')
+
+  const PH_PHONE_RE = /^(09|\+639)\d{9}$/
+  const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
 
   useEffect(() => {
     let settled = false
@@ -444,6 +448,10 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   async function handleSaveProfile() {
     if (!formName.trim() || !formPhone.trim()) {
       setFormError('Both name and phone are required.')
+      return
+    }
+    if (!validatePhone(formPhone)) {
+      setFormPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
       return
     }
     setFormSaving(true)
@@ -609,10 +617,18 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
                   <input
                     type="tel"
                     value={formPhone}
-                    onChange={(e) => setFormPhone(e.target.value)}
-                    placeholder="e.g. 09171234567"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400"
+                    onChange={(e) => { setFormPhone(e.target.value); setFormPhoneError('') }}
+                    onKeyPress={(e) => { if (!/[0-9+]/.test(e.key)) e.preventDefault() }}
+                    onBlur={() => {
+                      if (formPhone && !validatePhone(formPhone))
+                        setFormPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
+                      else
+                        setFormPhoneError('')
+                    }}
+                    placeholder="09XXXXXXXXX or +639XXXXXXXXX"
+                    className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 ${formPhoneError ? 'border-red-400' : formPhone && validatePhone(formPhone) ? 'border-green-400' : 'border-gray-200'}`}
                   />
+                  {formPhoneError && <p className="text-xs text-red-500 mt-1">{formPhoneError}</p>}
                 </div>
                 {formError && <p className="text-xs text-red-500">{formError}</p>}
                 <div className="flex gap-2">
