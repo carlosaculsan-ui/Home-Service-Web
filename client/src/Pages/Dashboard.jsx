@@ -1,3 +1,6 @@
+// NOTE: Run this SQL in Supabase if not already done:
+// ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
+
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
@@ -6,20 +9,33 @@ import backgroundImg from '../Assets/Background.jpg'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
-  confirmed:   'bg-blue-100 text-blue-700',
+  confirmed:   'bg-amber-100 text-amber-700',
+  accepted:    'bg-green-100 text-green-700',
+  on_the_way:  'bg-blue-100 text-blue-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
-  cancelled:   'bg-red-100 text-red-600',
+  cancelled:   'bg-gray-100 text-gray-500',
+  rejected:    'bg-red-100 text-red-600',
 }
 
-function ReviewForm({ booking, userId, onSuccess }) {
+const STATUS_LABELS = {
+  confirmed:   'Awaiting Tasker',
+  accepted:    'Accepted',
+  on_the_way:  'Tasker On The Way',
+  in_progress: 'In Progress',
+  completed:   'Completed',
+  cancelled:   'Cancelled',
+  rejected:    'Rejected',
+}
+
+function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
   const [comment, setComment] = useState('')
   const [status, setStatus] = useState('idle')
 
   async function handleSubmit() {
-    if (rating === 0) return
+    if (rating === 0 || !comment.trim()) return
     setStatus('submitting')
 
     const { data: profile } = await supabase
@@ -28,7 +44,7 @@ function ReviewForm({ booking, userId, onSuccess }) {
       .eq('id', userId)
       .single()
 
-    const { data: newReview, error } = await supabase
+    const { error } = await supabase
       .from('reviews')
       .insert({
         client_id: userId,
@@ -36,98 +52,94 @@ function ReviewForm({ booking, userId, onSuccess }) {
         tasker_id: booking.tasker_id,
         booking_id: booking.id,
         rating,
-        comment,
+        comment: comment.trim(),
         service: booking.service,
+        featured: false,
+        is_hidden: false,
       })
-      .select()
-      .single()
 
-    if (error) { console.log('Review insert error:', JSON.stringify(error, null, 2)); setStatus('error'); return }
-    console.log('Review inserted:', newReview)
-
-    // Auto-feature: keep max 5 featured reviews (rotate oldest out)
-    const { count } = await supabase
-      .from('reviews')
-      .select('*', { count: 'exact', head: true })
-      .eq('featured', true)
-
-    console.log('Featured count:', count)
-
-    if ((count ?? 0) < 5) {
-      const { error: featureError } = await supabase.from('reviews').update({ featured: true }).eq('id', newReview.id)
-      console.log('Feature update error:', featureError)
-    } else {
-      const { data: oldest } = await supabase
-        .from('reviews')
-        .select('id')
-        .eq('featured', true)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .single()
-      if (oldest) await supabase.from('reviews').update({ featured: false }).eq('id', oldest.id)
-      const { error: featureError } = await supabase.from('reviews').update({ featured: true }).eq('id', newReview.id)
-      console.log('Feature update error:', featureError)
-    }
-
+    if (error) { setStatus('error'); return }
     setStatus('success')
-    onSuccess()
-  }
-
-  if (status === 'success') {
-    return <p className="text-sm font-semibold text-green-600 mt-3">Thank you for your review! ⭐</p>
+    setTimeout(() => { onSuccess(); onClose() }, 1200)
   }
 
   return (
-    <div className="mt-3 border-t border-gray-100 pt-3 space-y-2">
-      <p className="text-xs font-semibold text-gray-600">Leave a Review</p>
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            onClick={() => setRating(star)}
-            onMouseEnter={() => setHovered(star)}
-            onMouseLeave={() => setHovered(0)}
-            className="text-2xl leading-none transition-colors"
-          >
-            <span className={(hovered || rating) >= star ? 'text-orange-500' : 'text-gray-300'}>★</span>
-          </button>
-        ))}
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold leading-none"
+        >
+          ✕
+        </button>
+        <h2 className="text-lg font-bold text-gray-800 mb-1">Rate &amp; Review</h2>
+        <p className="text-sm text-gray-500 mb-4">{booking.service} · {booking.taskerName}</p>
+
+        <p className="text-sm font-semibold text-gray-600 mb-2">Your Rating <span className="text-red-400">*</span></p>
+        <div className="flex gap-1 mb-4">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              onClick={() => setRating(star)}
+              onMouseEnter={() => setHovered(star)}
+              onMouseLeave={() => setHovered(0)}
+              className="text-3xl leading-none transition-colors"
+            >
+              <span className={(hovered || rating) >= star ? 'text-orange-500' : 'text-gray-200'}>★</span>
+            </button>
+          ))}
+        </div>
+
+        <p className="text-sm font-semibold text-gray-600 mb-1">Your Comment <span className="text-red-400">*</span></p>
+        <textarea
+          value={comment}
+          onChange={(e) => setComment(e.target.value)}
+          placeholder="Share your experience..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-3"
+        />
+
+        {status === 'error' && (
+          <p className="text-xs text-red-500 mb-2">Failed to submit. Please try again.</p>
+        )}
+        {status === 'success' && (
+          <p className="text-sm font-semibold text-green-600 mb-2">Thank you for your review! ⭐</p>
+        )}
+
+        <button
+          onClick={handleSubmit}
+          disabled={rating === 0 || !comment.trim() || status === 'submitting' || status === 'success'}
+          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+        >
+          {status === 'submitting' ? 'Submitting...' : 'Submit Review'}
+        </button>
       </div>
-      <textarea
-        value={comment}
-        onChange={(e) => setComment(e.target.value)}
-        placeholder="Share your experience... (optional)"
-        rows={2}
-        className="w-full border border-gray-200 rounded-lg p-2 text-sm text-gray-700 resize-none outline-none focus:border-orange-400"
-      />
-      {status === 'error' && <p className="text-xs text-red-500">Failed to submit. Please try again.</p>}
-      <button
-        onClick={handleSubmit}
-        disabled={rating === 0 || status === 'submitting'}
-        className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-1.5 rounded-lg transition-colors"
-      >
-        {status === 'submitting' ? 'Submitting...' : 'Submit Review'}
-      </button>
     </div>
   )
 }
 
 function BookingCard({ booking, userId, onCancel }) {
-  const [showReviewForm, setShowReviewForm] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
   const [hasReview, setHasReview] = useState(true)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
+  const [cancelError, setCancelError] = useState('')
 
   async function handleCancel() {
     setCancelling(true)
+    setCancelError('')
     const { error } = await supabase
       .from('bookings')
       .update({ status: 'cancelled' })
       .eq('id', booking.id)
     setCancelling(false)
+    if (error) {
+      setCancelError('Failed to cancel booking. Please try again.')
+      return
+    }
     setConfirmCancel(false)
-    if (!error) onCancel()
+    onCancel()
   }
 
   useEffect(() => {
@@ -142,87 +154,113 @@ function BookingCard({ booking, userId, onCancel }) {
       })
   }, [booking.id, booking.status])
 
-  const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
+  const statusLabel = STATUS_LABELS[booking.status] ?? (booking.status?.replace('_', ' ') ?? 'pending')
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
 
   return (
-    <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
-      <div className="flex items-center justify-between">
-        <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
-          {statusLabel}
-        </span>
-      </div>
+    <>
+      {showReviewModal && (
+        <ReviewModal
+          booking={booking}
+          userId={userId}
+          onClose={() => setShowReviewModal(false)}
+          onSuccess={() => { setReviewSubmitted(true); setHasReview(true) }}
+        />
+      )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-        {[
-          ['Tasker',     booking.taskerName ?? '—'],
-          ['Date & Time', booking.scheduled_date
-            ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
-            : '—'],
-          ['Task Size',  booking.task_size ?? '—'],
-          ['Address',    booking.address ?? '—'],
-          ['Reference',  booking.reference_number ?? '—'],
-        ].map(([label, val]) => (
-          <div key={label} className="flex gap-2">
-            <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
-            <span className="text-gray-700">{val}</span>
-          </div>
-        ))}
-      </div>
-
-      {booking.status === 'pending' && (
-        <div className="pt-1">
-          {!confirmCancel ? (
-            <button
-              onClick={() => setConfirmCancel(true)}
-              className="text-sm font-semibold text-red-500 hover:text-red-600 underline"
-            >
-              Cancel Booking
-            </button>
-          ) : (
-            <div className="flex items-center gap-3">
-              <p className="text-sm text-gray-600">Are you sure?</p>
-              <button
-                onClick={handleCancel}
-                disabled={cancelling}
-                className="text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded-lg transition-colors"
-              >
-                {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
-              </button>
-              <button
-                onClick={() => setConfirmCancel(false)}
-                className="text-sm text-gray-500 hover:text-gray-700 underline"
-              >
-                Keep Booking
-              </button>
-            </div>
-          )}
+      <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
+            {statusLabel}
+          </span>
         </div>
-      )}
 
-      {booking.status === 'completed' && !hasReview && !reviewSubmitted && (
-        <>
-          {!showReviewForm ? (
-            <button
-              onClick={() => setShowReviewForm(true)}
-              className="mt-1 text-sm font-semibold text-orange-500 hover:text-orange-600 underline"
-            >
-              Leave a Review
-            </button>
-          ) : (
-            <ReviewForm
-              booking={booking}
-              userId={userId}
-              onSuccess={() => { setReviewSubmitted(true); setShowReviewForm(false) }}
-            />
-          )}
-        </>
-      )}
-      {reviewSubmitted && (
-        <p className="text-sm font-semibold text-green-600 mt-1">Thank you for your review! ⭐</p>
-      )}
-    </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+          {[
+            ['Tasker',     booking.taskerName ?? '—'],
+            ['Date & Time', booking.scheduled_date
+              ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
+              : '—'],
+            ['Task Size',  booking.task_size ?? '—'],
+            ['Address',    booking.address ?? '—'],
+            ['Reference',  booking.reference_number ?? '—'],
+          ].map(([label, val]) => (
+            <div key={label} className="flex gap-2">
+              <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
+              <span className="text-gray-700">{val}</span>
+            </div>
+          ))}
+        </div>
+
+        {booking.status === 'on_the_way' && (
+          <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
+            <span>📍</span>
+            <span>Your tasker is heading to your location</span>
+          </div>
+        )}
+
+        {booking.status === 'in_progress' && (
+          <div className="flex items-center gap-2 text-sm text-orange-600 bg-orange-50 rounded-lg px-3 py-2">
+            <span>🔧</span>
+            <span>Your tasker is currently working</span>
+          </div>
+        )}
+
+        {(booking.status === 'pending' || booking.status === 'confirmed') && (
+          <div className="pt-1">
+            {!confirmCancel ? (
+              <button
+                onClick={() => { setConfirmCancel(true); setCancelError('') }}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400 px-3 py-1 rounded-lg transition-colors"
+              >
+                Cancel Booking
+              </button>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-sm text-gray-600">Are you sure you want to cancel this booking? This action cannot be undone.</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={handleCancel}
+                    disabled={cancelling}
+                    className="text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-3 py-1 rounded-lg transition-colors"
+                  >
+                    {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
+                  </button>
+                  <button
+                    onClick={() => { setConfirmCancel(false); setCancelError('') }}
+                    className="text-sm text-gray-500 hover:text-gray-700 underline"
+                  >
+                    Keep Booking
+                  </button>
+                </div>
+                {cancelError && <p className="text-xs text-red-500">{cancelError}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {booking.status === 'completed' && (
+          <div className="space-y-2 pt-1">
+            <p className="text-sm text-gray-500">
+              Thank you for using Hanap.ph! We hope you're happy with the service.
+              Leave a review to help others find great taskers.
+            </p>
+            {!hasReview && !reviewSubmitted && (
+              <button
+                onClick={() => setShowReviewModal(true)}
+                className="text-sm font-semibold text-orange-500 hover:text-orange-600 underline"
+              >
+                Rate &amp; Review
+              </button>
+            )}
+            {reviewSubmitted && (
+              <p className="text-sm font-semibold text-green-600">Thank you for your review! ⭐</p>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

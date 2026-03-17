@@ -587,41 +587,61 @@ function ServicesPanel() {
 }
 
 // ─── Reviews Tab ─────────────────────────────────────────────────────────────
+// NOTE: Run this SQL in Supabase if not already done:
+// ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
 function ReviewsPanel() {
   const [reviews, setReviews] = useState([])
+  const [taskerMap, setTaskerMap] = useState({})
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
+  const [toast, setToast] = useState('')
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
+  }
 
   async function fetchReviews() {
     const { data } = await supabase
       .from('reviews')
       .select('*')
       .order('created_at', { ascending: false })
-    setReviews(data ?? [])
+    const rows = data ?? []
+    setReviews(rows)
     setLoading(false)
+
+    const ids = [...new Set(rows.map(r => r.tasker_id).filter(Boolean))]
+    if (ids.length > 0) {
+      const { data: taskers } = await supabase
+        .from('taskers')
+        .select('id, name')
+        .in('id', ids)
+      const map = {}
+      taskers?.forEach(t => { map[t.id] = t.name })
+      setTaskerMap(map)
+    }
   }
 
   useEffect(() => { fetchReviews() }, [])
 
   async function toggleFeature(review) {
     if (!review.featured) {
-      // Featuring: check count
       const { count } = await supabase
         .from('reviews')
         .select('*', { count: 'exact', head: true })
         .eq('featured', true)
       if ((count ?? 0) >= 5) {
-        const { data: oldest } = await supabase
-          .from('reviews')
-          .select('id')
-          .eq('featured', true)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .single()
-        if (oldest) await supabase.from('reviews').update({ featured: false }).eq('id', oldest.id)
+        showToast('Maximum 5 featured reviews reached.')
+        return
       }
     }
     await supabase.from('reviews').update({ featured: !review.featured }).eq('id', review.id)
+    fetchReviews()
+  }
+
+  async function toggleHide(review) {
+    await supabase.from('reviews').update({ is_hidden: !review.is_hidden }).eq('id', review.id)
     fetchReviews()
   }
 
@@ -631,6 +651,22 @@ function ReviewsPanel() {
     fetchReviews()
   }
 
+  const allCount      = reviews.length
+  const featuredCount = reviews.filter(r => r.featured).length
+  const hiddenCount   = reviews.filter(r => r.is_hidden).length
+
+  const visible = reviews.filter(r => {
+    if (filter === 'featured') return r.featured
+    if (filter === 'hidden')   return r.is_hidden
+    return true
+  })
+
+  const filterTabs = [
+    { key: 'all',      label: 'All',      count: allCount },
+    { key: 'featured', label: 'Featured', count: featuredCount },
+    { key: 'hidden',   label: 'Hidden',   count: hiddenCount },
+  ]
+
   if (loading) {
     return (
       <div className="flex justify-center mt-16">
@@ -639,44 +675,87 @@ function ReviewsPanel() {
     )
   }
 
-  if (reviews.length === 0) {
-    return <p className="text-center text-gray-400 mt-16">No reviews yet.</p>
-  }
-
   return (
-    <div className="space-y-4">
-      {reviews.map((r) => (
-        <div key={r.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
-                <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
-                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">{r.service}</span>
-                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${r.featured ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-500'}`}>
-                  {r.featured ? 'Featured' : 'Not Featured'}
-                </span>
-              </div>
-              <p className="text-gray-600 text-sm">"{r.comment}"</p>
-              <p className="text-gray-400 text-xs">{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</p>
-            </div>
-            <div className="flex flex-col gap-2 flex-shrink-0">
-              <button
-                onClick={() => toggleFeature(r)}
-                className={`px-4 py-1.5 text-white text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-400 hover:bg-gray-500' : 'bg-orange-500 hover:bg-orange-600'}`}
-              >
-                {r.featured ? 'Unfeature' : 'Feature'}
-              </button>
-              <button
-                onClick={() => handleDelete(r.id)}
-                className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
+    <div>
+      {/* Toast */}
+      {toast && (
+        <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm font-medium px-4 py-2 rounded-lg">
+          {toast}
         </div>
-      ))}
+      )}
+
+      {/* Filter tabs */}
+      <div className="flex gap-2 mb-5 flex-wrap">
+        {filterTabs.map(({ key, label, count }) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors flex items-center gap-1.5 ${
+              filter === key
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-500'
+            }`}
+          >
+            {label}
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${filter === key ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>
+              {count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {visible.length === 0 ? (
+        <p className="text-center text-gray-400 mt-16">No reviews in this category.</p>
+      ) : (
+        <div className="space-y-4">
+          {visible.map((r) => (
+            <div key={r.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${r.is_hidden ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
+                    <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
+                    {r.featured && (
+                      <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-semibold">Featured</span>
+                    )}
+                    {r.is_hidden && (
+                      <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-semibold">Hidden</span>
+                    )}
+                  </div>
+                  <p className="text-gray-600 text-sm">"{r.comment}"</p>
+                  <div className="flex items-center gap-3 flex-wrap text-xs text-gray-400">
+                    <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full font-medium">{r.service}</span>
+                    {taskerMap[r.tasker_id] && (
+                      <span>Tasker: <span className="text-gray-600 font-medium">{taskerMap[r.tasker_id]}</span></span>
+                    )}
+                    <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => toggleFeature(r)}
+                    className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
+                  >
+                    {r.featured ? '★ Unfeature' : '⭐ Feature'}
+                  </button>
+                  <button
+                    onClick={() => toggleHide(r)}
+                    className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    {r.is_hidden ? '👁 Show' : '👁 Hide'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(r.id)}
+                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    🗑 Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

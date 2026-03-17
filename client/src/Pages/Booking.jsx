@@ -448,19 +448,36 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
     }
     setFormSaving(true)
     setFormError('')
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase
-      .from('profiles')
-      .update({ full_name: formName.trim(), phone: formPhone.trim() })
-      .eq('id', user.id)
-    if (error) {
-      setFormError('Failed to save. Please try again.')
+
+    const timeoutId = setTimeout(() => {
       setFormSaving(false)
-      return
+      setFormError('Save timed out. Please check your connection and try again.')
+    }, 8000)
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      if (authError || !user) throw new Error('Could not get user session.')
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({ id: user.id, full_name: formName.trim(), phone: formPhone.trim() })
+
+      clearTimeout(timeoutId)
+
+      if (error) {
+        setFormError('Failed to save profile. Please try again.')
+        setFormSaving(false)
+        return
+      }
+
+      setUserProfile((prev) => ({ ...prev, full_name: formName.trim(), phone: formPhone.trim() }))
+      setShowInlineForm(false)
+      setFormSaving(false)
+    } catch {
+      clearTimeout(timeoutId)
+      setFormError('Failed to save profile. Please try again.')
+      setFormSaving(false)
     }
-    setUserProfile((prev) => ({ ...prev, full_name: formName.trim(), phone: formPhone.trim() }))
-    setShowInlineForm(false)
-    setFormSaving(false)
   }
 
   const profileIncomplete = !profileLoading && (!userProfile?.full_name || !userProfile?.phone)
@@ -1139,7 +1156,25 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             try {
               const { data: { session } } = await supabase.auth.getSession()
               const client_id = session?.user?.id ?? null
+
+              // Fetch customer's own profile for name/phone (user reads their own row — no RLS block)
+              let customerName = null
+              let customerPhone = null
+              if (client_id) {
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('full_name, phone')
+                  .eq('id', client_id)
+                  .single()
+                customerName = profileData?.full_name ?? null
+                customerPhone = profileData?.phone ?? null
+              }
+
               const ref = 'VE-' + Date.now()
+
+              // SQL to run in Supabase if not already done:
+              // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_name text;
+              // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_phone text;
 
               // Save booking to Supabase first
               const { error } = await supabase.from('bookings').insert({
@@ -1156,6 +1191,8 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 status: 'pending_payment',
                 reference_number: ref,
                 ai_image_analysis: aiImageAnalysis ?? null,
+                customer_name: customerName,
+                customer_phone: customerPhone,
               })
               if (error) {
                 paymentWindow.close()
@@ -1168,8 +1205,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               sessionStorage.setItem('pendingBookingRef', ref)
 
               // Create PayMongo payment link
-              const successUrl = `${window.location.origin}${window.location.pathname}?payment=success&ref=${ref}`
-              const failedUrl = `${window.location.origin}${window.location.pathname}?payment=failed`
               const pmResponse = await fetch('https://api.paymongo.com/v1/links', {
                 method: 'POST',
                 headers: {
@@ -1179,7 +1214,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 body: JSON.stringify({
                   data: {
                     attributes: {
-                      amount: estimatedTotal * 100,
+                      amount: Math.round(estimatedTotal * 100),
                       description: `hanap.ph booking - ${service}`,
                       remarks: ref,
                     },

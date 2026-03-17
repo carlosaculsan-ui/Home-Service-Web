@@ -7,29 +7,18 @@ function Reviews() {
 
   useEffect(() => {
     async function fetchReviews() {
-      const { data: reviews, error } = await supabase
+      // Fetch all non-hidden reviews — featured ones float to the top
+      const { data, error } = await supabase
         .from('reviews')
         .select('*')
-        .eq('featured', true)
-        .limit(5)
+        .eq('is_hidden', false)
+        .order('featured', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(8)
 
-      if (error || !reviews) { setLoading(false); return }
+      if (error || !data) { setLoading(false); return }
 
-      const clientIds = reviews.map(r => r.client_id).filter(Boolean)
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name')
-        .in('id', clientIds)
-
-      const profileMap = {}
-      profiles?.forEach(p => { profileMap[p.id] = p.full_name })
-
-      const enriched = reviews.map(r => ({
-        ...r,
-        reviewer_name: r.reviewer_name || profileMap[r.client_id] || 'Anonymous'
-      }))
-
-      setReviews(enriched)
+      setReviews(data)
       setLoading(false)
     }
     fetchReviews()

@@ -16,34 +16,31 @@ const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
   confirmed:   'bg-blue-100 text-blue-700',
   accepted:    'bg-green-100 text-green-700',
+  on_the_way:  'bg-blue-100 text-blue-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
   rejected:    'bg-red-100 text-red-600',
-  cancelled:   'bg-red-100 text-red-600',
+  cancelled:   'bg-gray-100 text-gray-500',
 }
 
-const FORWARD_STATUSES = ['accepted', 'in_progress', 'completed']
-
 function TaskCard({ booking, onStatusChange }) {
-  const [updating, setUpdating] = useState(false)
-  const [actionLoading, setActionLoading] = useState(null) // 'accepted' | 'rejected' | null
+  const [actionLoading, setActionLoading] = useState(null)
+  const [statusError, setStatusError] = useState('')
   const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
-  const currentIdx = FORWARD_STATUSES.indexOf(booking.status)
-
-  async function handleChange(e) {
-    const newStatus = e.target.value
-    if (!newStatus) return
-    setUpdating(true)
-    await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
-    setUpdating(false)
-    onStatusChange()
-  }
 
   async function handleAction(newStatus) {
+    if (newStatus === 'completed') {
+      if (!window.confirm('Mark this job as complete? The customer will be notified to leave a review.')) return
+    }
     setActionLoading(newStatus)
-    await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
+    setStatusError('')
+    const { error } = await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
     setActionLoading(null)
+    if (error) {
+      setStatusError('Failed to update status. Try again.')
+      return
+    }
     onStatusChange()
   }
 
@@ -64,13 +61,30 @@ function TaskCard({ booking, onStatusChange }) {
           ['Task Size',   booking.task_size ?? '—'],
           ['Address',     booking.address ?? '—'],
           ['Reference',   booking.reference_number ?? '—'],
-          ['Customer',    booking.customerEmail ?? '—'],
         ].map(([label, val]) => (
           <div key={label} className="flex gap-2">
             <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
             <span className="text-gray-700">{val}</span>
           </div>
         ))}
+
+        {/* Customer name — always visible */}
+        <div className="flex gap-2">
+          <span className="text-gray-400 w-28 flex-shrink-0">Customer</span>
+          <span className="text-gray-700">{booking.customer_name ?? 'Unknown'}</span>
+        </div>
+
+        {/* Phone — visible only after acceptance */}
+        <div className="flex gap-2">
+          <span className="text-gray-400 w-28 flex-shrink-0">Phone</span>
+          {['accepted', 'on_the_way', 'in_progress', 'completed'].includes(booking.status) ? (
+            booking.customer_phone
+              ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium">📞 {booking.customer_phone}</a>
+              : <span className="text-gray-700">Not provided</span>
+          ) : (
+            <span className="text-gray-400 italic text-xs self-center">Available after acceptance</span>
+          )}
+        </div>
       </div>
 
       {booking.task_description && (
@@ -89,6 +103,7 @@ function TaskCard({ booking, onStatusChange }) {
         <LocationMap address={booking.address} />
       )}
 
+      {/* Accept / Reject — confirmed only */}
       {booking.status === 'confirmed' && (
         <div className="flex gap-2 pt-1">
           <button
@@ -108,34 +123,47 @@ function TaskCard({ booking, onStatusChange }) {
         </div>
       )}
 
-      {currentIdx !== -1 && (
+      {/* I'm On My Way — accepted only */}
+      {booking.status === 'accepted' && (
         <div className="pt-1">
-          <select
-            key={booking.status}
-            disabled={updating}
-            value={booking.status}
-            onChange={handleChange}
-            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400 disabled:opacity-50"
+          <button
+            onClick={() => handleAction('on_the_way')}
+            disabled={actionLoading !== null}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
           >
-            {FORWARD_STATUSES.map((s, idx) => (
-              <option key={s} value={s} disabled={idx < currentIdx}>
-                {s.replace('_', ' ')}
-              </option>
-            ))}
-          </select>
+            {actionLoading === 'on_the_way' ? 'Updating…' : "🚗 I'm On My Way"}
+          </button>
         </div>
       )}
 
-      {booking.status === 'completed' && (
-        <span className="inline-block mt-1 text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">
-          Completed
-        </span>
+      {/* Start Job — on_the_way only */}
+      {booking.status === 'on_the_way' && (
+        <div className="pt-1">
+          <button
+            onClick={() => handleAction('in_progress')}
+            disabled={actionLoading !== null}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+          >
+            {actionLoading === 'in_progress' ? 'Updating…' : '🔧 Start Job'}
+          </button>
+        </div>
       )}
 
-      {booking.status === 'rejected' && (
-        <span className="inline-block mt-1 text-xs font-semibold px-3 py-1 rounded-full bg-red-100 text-red-600">
-          Rejected
-        </span>
+      {/* Complete Job — in_progress only */}
+      {booking.status === 'in_progress' && (
+        <div className="pt-1">
+          <button
+            onClick={() => handleAction('completed')}
+            disabled={actionLoading !== null}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
+          >
+            {actionLoading === 'completed' ? 'Updating…' : '✅ Complete Job'}
+          </button>
+        </div>
+      )}
+
+      {statusError && (
+        <p className="text-xs text-red-500">{statusError}</p>
       )}
     </div>
   )
@@ -153,6 +181,21 @@ function LeaveRequestSection({ taskerId }) {
   const [submitError, setSubmitError] = useState('')
   const [leaves, setLeaves] = useState([])
   const [leavesLoading, setLeavesLoading] = useState(true)
+  const [cancellingId, setCancellingId] = useState(null)
+  const [cancelError, setCancelError] = useState('')
+
+  async function handleCancelLeave(id) {
+    if (!window.confirm('Are you sure you want to cancel this leave request?')) return
+    setCancellingId(id)
+    setCancelError('')
+    const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
+    setCancellingId(null)
+    if (error) {
+      setCancelError('Failed to cancel. Please try again.')
+      return
+    }
+    setLeaves((prev) => prev.filter((l) => l.id !== id))
+  }
 
   async function loadLeaves() {
     const { data } = await supabase
@@ -333,6 +376,20 @@ function LeaveRequestSection({ taskerId }) {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500">{leave.reason}</p>
+                {leave.status === 'pending' && (
+                  <div className="flex items-center justify-end mt-3 gap-2">
+                    {cancelError && cancellingId === null && (
+                      <p className="text-xs text-red-500">{cancelError}</p>
+                    )}
+                    <button
+                      onClick={() => handleCancelLeave(leave.id)}
+                      disabled={cancellingId === leave.id}
+                      className="text-xs font-semibold text-gray-500 border border-gray-300 hover:border-gray-400 hover:text-gray-700 px-3 py-1 rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      {cancellingId === leave.id ? 'Cancelling…' : 'Cancel Request'}
+                    </button>
+                  </div>
+                )}
               </div>
             )
           })}
@@ -349,53 +406,47 @@ function TaskerDashboard() {
 
   async function load(tid) {
     console.log('load() called with tasker_id:', tid)
+
     const { data: bookingRows, error: bookingError } = await supabase
       .from('bookings')
       .select('*')
       .eq('tasker_id', tid)
       .order('created_at', { ascending: false })
 
-    console.log('bookingRows:', bookingRows)
-    console.log('bookingError:', bookingError)
+    console.log('bookingRows:', bookingRows, 'error:', bookingError)
 
     if (!bookingRows || bookingRows.length === 0) {
       setBookings([])
       return
     }
 
-    const clientIds = [...new Set(bookingRows.map((b) => b.client_id).filter(Boolean))]
-    let emailMap = {}
-    if (clientIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, email')
-        .in('id', clientIds)
-      profiles?.forEach((p) => { emailMap[p.id] = p.email })
-    }
-
-    setBookings(bookingRows.map((b) => ({ ...b, customerEmail: emailMap[b.client_id] ?? '—' })))
+    setBookings(bookingRows)
   }
 
   useEffect(() => {
     async function init() {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) return
-      console.log('session user id:', session.user.id)
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) { setLoading(false); return }
+        console.log('session user id:', session.user.id)
 
-      const { data: tasker, error: taskerError } = await supabase
-        .from('taskers')
-        .select('id, name, user_id')
-        .eq('user_id', session.user.id)
-        .maybeSingle()
+        const { data: tasker, error: taskerError } = await supabase
+          .from('taskers')
+          .select('id, name, user_id')
+          .eq('user_id', session.user.id)
+          .maybeSingle()
 
-      console.log('tasker row:', tasker)
-      console.log('tasker error:', taskerError)
+        console.log('tasker row:', tasker, 'tasker error:', taskerError)
 
-      if (!tasker) return
+        if (!tasker) { setLoading(false); return }
 
-      setTaskerId(tasker.id)
-      await load(tasker.id)
-      setLoading(false)
+        setTaskerId(tasker.id)
+        await load(tasker.id)
+      } catch (err) {
+        console.error('TaskerDashboard init error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     init()
   }, [])
