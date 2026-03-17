@@ -7,6 +7,7 @@ function Navbar() {
   const [session, setSession] = useState(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isApprovedTasker, setIsApprovedTasker] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -38,11 +39,22 @@ function Navbar() {
     setIsApprovedTasker(!!data)
   }
 
+  async function checkAdminRole(userId) {
+    const { data } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .single()
+    setIsAdmin(data?.role === 'admin')
+  }
+
   useEffect(() => {
     if (session?.user?.id) {
       checkTaskerStatus(session.user.id)
+      checkAdminRole(session.user.id)
     } else {
       setIsApprovedTasker(false)
+      setIsAdmin(false)
     }
   }, [session])
 
@@ -176,6 +188,15 @@ function Navbar() {
                     My Tasks
                   </Link>
                 )}
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={() => setDropdownOpen(false)}
+                    className="block px-4 py-3 text-sm font-semibold text-orange-600 hover:bg-orange-50 transition-colors border-t border-gray-100"
+                  >
+                    🛡 Admin Panel
+                  </Link>
+                )}
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -232,6 +253,15 @@ function Navbar() {
                   className="text-white font-medium hover:text-orange-200"
                 >
                   My Tasks
+                </Link>
+              )}
+              {isAdmin && (
+                <Link
+                  to="/admin"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-yellow-200 font-semibold hover:text-yellow-100"
+                >
+                  🛡 Admin Panel
                 </Link>
               )}
               <button
