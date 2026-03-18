@@ -568,22 +568,6 @@ function BecomeATasker() {
                     Evening (6:00 PM – 10:00 PM)
                   </label>
                 </div>
-                <div className="flex flex-col md:flex-row md:items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700">Travel Distance:</label>
-                  <select
-                    name="travelDistance"
-                    value={formData.travelDistance}
-                    onChange={handleChange}
-                    className="w-full md:w-auto border border-gray-300 rounded-md p-1.5 text-sm"
-                  >
-                    <option value="">Select...</option>
-                    <option>1km</option>
-                    <option>5km</option>
-                    <option>10km</option>
-                    <option>20km</option>
-                    <option>50km+</option>
-                  </select>
-                </div>
               </div>
 
               {/* Service Role */}
@@ -605,23 +589,6 @@ function BecomeATasker() {
                 </select>
               </div>
 
-              {/* Hourly Rate */}
-              <div className="mb-3">
-                <p className="font-bold text-gray-800 text-sm mb-2">Hourly Rate</p>
-                <div className="flex items-center border border-gray-300 rounded-md overflow-hidden w-full md:w-40">
-                  <span className="px-2 text-gray-500 text-sm bg-gray-100 border-r border-gray-300 py-2">₱</span>
-                  <input
-                    type="number"
-                    name="hourlyRate"
-                    value={formData.hourlyRate}
-                    onChange={handleChange}
-                    placeholder="0"
-                    min="0"
-                    className="flex-1 p-2 text-sm outline-none"
-                  />
-                  <span className="px-2 text-gray-400 text-xs bg-gray-50">/hr</span>
-                </div>
-              </div>
 
               {/* Experience */}
               <div className="mb-4">
