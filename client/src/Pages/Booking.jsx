@@ -321,9 +321,15 @@ function TaskerCard({ tasker, onSelect }) {
   )
 }
 
-function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError }) {
+function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded }) {
   return (
     <div className="space-y-4">
+      {taskersNeeded >= 2 && (
+        <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 text-sm text-blue-700">
+          <Info size={16} className="mt-0.5 flex-shrink-0" />
+          <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+        </div>
+      )}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
         <Users size={24} className="text-blue-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
@@ -384,7 +390,7 @@ function DetailRow({ label, value, valueClass = '' }) {
   )
 }
 
-function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, onBack, onContinue }) {
+function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, taskOptions, taskersNeeded, onBack, onContinue }) {
   const navigate = useNavigate()
 
   const [userProfile, setUserProfile] = useState(null)
@@ -521,6 +527,15 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         <DetailRow label="Task Size" value={taskSize} />
         <DetailRow label="Address" value={taskAddress} />
         <DetailRow label="Task Description" value={taskDetails} />
+        {taskOptions && (
+          <>
+            <DetailRow label="Cleaning Type" value={taskOptions.type} />
+            <DetailRow label="Area Size" value={taskOptions.area} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
       </div>
 
       {/* Section 3 – Tasker Information */}
@@ -719,7 +734,7 @@ function ProgressTracker({ step }) {
   )
 }
 
-function Step1({ onContinue }) {
+function Step1({ service, onContinue }) {
   const [address, setAddress] = useState('')
   const [size, setSize] = useState('Medium')
   const [details, setDetails] = useState('')
@@ -730,6 +745,27 @@ function Step1({ onContinue }) {
   const [fileInputKey, setFileInputKey] = useState(0)
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [cleaningType, setCleaningType] = useState('')
+  const [cleaningArea, setCleaningArea] = useState('')
+  const [cleaningExtras, setCleaningExtras] = useState([])
+
+  const BASE_PRICES = {
+    'Basic Cleaning':  { 'Small (1 room)': 750, 'Medium (2-3 rooms)': 1500, 'Large (whole house)': 2250 },
+    'Deep Cleaning':   { 'Small (1 room)': 1200, 'Medium (2-3 rooms)': 2400, 'Large (whole house)': 3600 },
+  }
+  const EXTRAS_PRICES = { 'With Laundry': 200, 'With Appliances': 250 }
+
+  const basePrice = cleaningType && cleaningArea ? BASE_PRICES[cleaningType]?.[cleaningArea] ?? 0 : 0
+  const extrasTotal = cleaningExtras.reduce((sum, e) => sum + (EXTRAS_PRICES[e] ?? 0), 0)
+  const finalPrice = basePrice + extrasTotal
+
+  const taskersNeeded = (() => {
+    if (!cleaningType || !cleaningArea) return 1
+    if (cleaningArea === 'Large (whole house)' && cleaningExtras.length > 0) return 3
+    if (cleaningArea === 'Large (whole house)') return 2
+    if (cleaningType === 'Deep Cleaning' && cleaningArea === 'Medium (2-3 rooms)') return 2
+    return 1
+  })()
 
   const handleDetectLocation = () => {
     setDetectingLocation(true)
@@ -830,8 +866,30 @@ function Step1({ onContinue }) {
       setError('Please fill in all required fields')
       return
     }
+    if (service?.toLowerCase() === 'cleaning' && (!cleaningType || !cleaningArea)) {
+      setError('Please select a cleaning type and area size')
+      return
+    }
     setError('')
-    onContinue(address.trim(), size, details.trim(), aiResult && aiResult !== 'error' ? aiResult : null)
+    const aiImageAnalysis = aiResult && aiResult !== 'error' ? aiResult : null
+    onContinue({
+      address: address.trim(),
+      size,
+      details: details.trim(),
+      aiImageAnalysis,
+      ...(service?.toLowerCase() === 'cleaning' && cleaningType && cleaningArea ? {
+        taskOptions: {
+          type: cleaningType,
+          area: cleaningArea,
+          extras: cleaningExtras,
+          base_price: basePrice,
+          extras_total: extrasTotal,
+          final_price: finalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: finalPrice,
+      } : {}),
+    })
   }
 
   return (
@@ -873,6 +931,101 @@ function Step1({ onContinue }) {
           </div>
         )}
       </div>
+
+      {service?.toLowerCase() === 'cleaning' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Type of Cleaning */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Type of Cleaning <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Basic Cleaning', price: '₱750' },
+                { value: 'Deep Cleaning', price: '₱1,200' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningType === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input type="radio" name="cleaningType" value={opt.value} checked={cleaningType === opt.value} onChange={() => setCleaningType(opt.value)} className="accent-orange-500 w-4 h-4" />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Area Size */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {['Small (1 room)', 'Medium (2-3 rooms)', 'Large (whole house)'].map((area) => (
+                <label key={area} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input type="radio" name="cleaningArea" value={area} checked={cleaningArea === area} onChange={() => setCleaningArea(area)} className="accent-orange-500 w-4 h-4" />
+                  <span className="text-sm font-medium text-gray-700">{area}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Extras */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'With Laundry', price: '+₱200' },
+                { value: 'With Appliances', price: '+₱250' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={cleaningExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setCleaningExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown */}
+          {cleaningType && cleaningArea && (
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{cleaningType}</span>
+                <span>₱{basePrice.toLocaleString()}</span>
+              </div>
+              {cleaningExtras.map((e) => (
+                <div key={e} className="flex justify-between text-gray-600">
+                  <span>{e}</span>
+                  <span>+₱{EXTRAS_PRICES[e].toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{finalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+          )}
+
+          {/* Taskers note */}
+          {taskersNeeded >= 2 && (
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
+              <Info size={16} className="mt-0.5 flex-shrink-0" />
+              <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 mb-2 text-base">Tell us the details of your task</p>
@@ -950,7 +1103,7 @@ function Step1({ onContinue }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, estimatedTotal: estimatedTotalProp, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('gcash')
   const [promoCode, setPromoCode] = useState('')
@@ -974,7 +1127,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
-  const estimatedTotal = rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2)
+  const estimatedTotal = estimatedTotalProp && estimatedTotalProp > 0 ? estimatedTotalProp : rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2)
   const estTotal =
     taskSize === 'Small'
       ? `₱${rate.toLocaleString()}`
@@ -1177,12 +1330,14 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
                 scheduled_time: time,
                 payment_method: paymentMethod,
-                estimated_total: estimatedTotal,
                 status: 'pending_payment',
                 reference_number: ref,
                 ai_image_analysis: aiImageAnalysis ?? null,
                 customer_name: customerName,
                 customer_phone: customerPhone,
+                task_options: taskOptions ? JSON.stringify(taskOptions) : null,
+                taskers_needed: taskersNeeded,
+                estimated_total: estimatedTotal,
               })
               if (error) {
                 paymentWindow.close()
@@ -1288,6 +1443,9 @@ function Booking() {
   const [taskSize, setTaskSize] = useState('Medium')
   const [taskDetails, setTaskDetails] = useState('')
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
+  const [taskOptions, setTaskOptions] = useState(null)
+  const [taskersNeeded, setTaskersNeeded] = useState(1)
+  const [estimatedTotal, setEstimatedTotal] = useState(0)
 
   // Tasker list (fetched from Supabase)
   const [taskers, setTaskers] = useState([])
@@ -1346,11 +1504,14 @@ function Booking() {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
 
-  const handleStep1Continue = (address, size, details, aiResult) => {
-    setTaskAddress(address)
-    setTaskSize(size)
-    setTaskDetails(details)
-    setAiImageAnalysis(aiResult)
+  const handleStep1Continue = (data) => {
+    setTaskAddress(data.address)
+    setTaskSize(data.size)
+    setTaskDetails(data.details)
+    setAiImageAnalysis(data.aiImageAnalysis)
+    if (data.taskOptions) setTaskOptions(data.taskOptions)
+    if (data.taskersNeeded) setTaskersNeeded(data.taskersNeeded)
+    if (data.estimatedTotal) setEstimatedTotal(data.estimatedTotal)
     setStep(1)
   }
 
@@ -1396,7 +1557,7 @@ function Booking() {
           <ProgressTracker step={step} />
         </div>
 
-        {step === 0 && <Step1 onContinue={handleStep1Continue} />}
+        {step === 0 && <Step1 service={service} onContinue={handleStep1Continue} />}
 
         {step === 1 && (
           <Step2
@@ -1405,6 +1566,7 @@ function Booking() {
             taskers={taskers}
             loadingTaskers={loadingTaskers}
             taskersError={taskersError}
+            taskersNeeded={taskersNeeded}
           />
         )}
 
@@ -1417,6 +1579,8 @@ function Booking() {
             taskSize={taskSize}
             taskAddress={taskAddress}
             taskDetails={taskDetails}
+            taskOptions={taskOptions}
+            taskersNeeded={taskersNeeded}
             onBack={() => setStep(1)}
             onContinue={() => setStep(3)}
           />
@@ -1432,6 +1596,9 @@ function Booking() {
             taskAddress={taskAddress}
             taskDetails={taskDetails}
             aiImageAnalysis={aiImageAnalysis}
+            taskOptions={taskOptions}
+            taskersNeeded={taskersNeeded}
+            estimatedTotal={estimatedTotal}
             onBack={() => setStep(2)}
           />
         )}
