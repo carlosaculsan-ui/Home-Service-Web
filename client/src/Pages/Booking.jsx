@@ -527,10 +527,38 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         <DetailRow label="Task Size" value={taskSize} />
         <DetailRow label="Address" value={taskAddress} />
         <DetailRow label="Task Description" value={taskDetails} />
-        {taskOptions && (
+        {taskOptions && taskOptions.service === 'Cleaning' && (
           <>
-            <DetailRow label="Cleaning Type" value={taskOptions.type} />
-            <DetailRow label="Area Size" value={taskOptions.area} />
+            <DetailRow label="Type" value={taskOptions.type} />
+            <DetailRow label="Area" value={taskOptions.area} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
+        {taskOptions && taskOptions.service === 'Carpentry' && (
+          <>
+            <DetailRow label="Type of Work" value={taskOptions.type} />
+            <DetailRow label="Item" value={taskOptions.item} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
+        {taskOptions && taskOptions.service === 'Electrical' && (
+          <>
+            <DetailRow label="Type of Work" value={taskOptions.type} />
+            <DetailRow label="Urgency" value={taskOptions.urgency} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
+        {taskOptions && taskOptions.service === 'Aircon Maintenance' && (
+          <>
+            <DetailRow label="Aircon Type" value={taskOptions.aircon_type} />
+            <DetailRow label="Number of Units" value={String(taskOptions.units)} />
+            <DetailRow label="Service Type" value={taskOptions.service_type} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
@@ -748,6 +776,16 @@ function Step1({ service, onContinue }) {
   const [cleaningType, setCleaningType] = useState('')
   const [cleaningArea, setCleaningArea] = useState('')
   const [cleaningExtras, setCleaningExtras] = useState([])
+  const [carpentryType, setCarpentryType] = useState('')
+  const [carpentryItem, setCarpentryItem] = useState('')
+  const [carpentryExtras, setCarpentryExtras] = useState([])
+  const [electricalType, setElectricalType] = useState('')
+  const [electricalUrgency, setElectricalUrgency] = useState('')
+  const [electricalExtras, setElectricalExtras] = useState([])
+  const [airconType, setAirconType] = useState('')
+  const [airconUnits, setAirconUnits] = useState(1)
+  const [airconServiceType, setAirconServiceType] = useState('')
+  const [airconExtras, setAirconExtras] = useState([])
 
   const BASE_PRICES = {
     'Basic Cleaning':  { 'Small (1 room)': 750, 'Medium (2-3 rooms)': 1500, 'Large (whole house)': 2250 },
@@ -755,15 +793,95 @@ function Step1({ service, onContinue }) {
   }
   const EXTRAS_PRICES = { 'With Laundry': 200, 'With Appliances': 250 }
 
+  const CARPENTRY_ITEMS = {
+    'Repair': [
+      { value: 'Door / Window', price: 500 },
+      { value: 'Cabinet / Drawer', price: 450 },
+      { value: 'Table / Chair', price: 400 },
+      { value: 'Bed Frame', price: 550 },
+      { value: 'Ceiling / Wall Panel', price: 600 },
+    ],
+    'Install': [
+      { value: 'Door / Window', price: 800 },
+      { value: 'Cabinet', price: 750 },
+      { value: 'Shelves', price: 600 },
+      { value: 'Bed Frame', price: 700 },
+      { value: 'Ceiling / Wall Panel', price: 900 },
+    ],
+    'Custom Build': [
+      { value: 'Cabinet', price: 2500 },
+      { value: 'Shelves', price: 1500 },
+      { value: 'Table', price: 2000 },
+      { value: 'Bed Frame', price: 3000 },
+      { value: 'Ceiling / Wall Panel', price: 3500 },
+    ],
+  }
+  const CARPENTRY_EXTRAS_PRICES = { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 }
+
+  const ELECTRICAL_TYPES = [
+    { value: 'Install Outlet', price: 600 },
+    { value: 'Repair Wiring', price: 800 },
+    { value: 'Install Lights', price: 700 },
+  ]
+  const ELECTRICAL_EXTRAS_PRICES = { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 }
+
+  const AIRCON_PRICES = {
+    'Window Type': { 'Cleaning': 500, 'Cleaning + Checkup': 700 },
+    'Split Type':  { 'Cleaning': 700, 'Cleaning + Checkup': 950 },
+  }
+
+  // Cleaning pricing
   const basePrice = cleaningType && cleaningArea ? BASE_PRICES[cleaningType]?.[cleaningArea] ?? 0 : 0
   const extrasTotal = cleaningExtras.reduce((sum, e) => sum + (EXTRAS_PRICES[e] ?? 0), 0)
   const finalPrice = basePrice + extrasTotal
 
+  // Carpentry pricing
+  const carpentryItemPrice = carpentryType && carpentryItem
+    ? (CARPENTRY_ITEMS[carpentryType]?.find(i => i.value === carpentryItem)?.price ?? 0)
+    : 0
+  const carpentryExtrasTotal = carpentryExtras.reduce((sum, e) => sum + (CARPENTRY_EXTRAS_PRICES[e] ?? 0), 0)
+  const carpentryFinalPrice = carpentryItemPrice + carpentryExtrasTotal
+
+  // Electrical pricing
+  const electricalBasePrice = ELECTRICAL_TYPES.find(t => t.value === electricalType)?.price ?? 0
+  const electricalUrgencySurcharge = electricalUrgency === 'Urgent' ? Math.round(electricalBasePrice * 0.5) : 0
+  const electricalExtrasTotal = electricalExtras.reduce((sum, e) => sum + (ELECTRICAL_EXTRAS_PRICES[e] ?? 0), 0)
+  const electricalFinalPrice = electricalBasePrice + electricalUrgencySurcharge + electricalExtrasTotal
+
+  // Aircon pricing
+  const airconPricePerUnit = airconType && airconServiceType ? (AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) : 0
+  const airconBasePrice = airconPricePerUnit * airconUnits
+  const airconFreonTotal = airconExtras.includes('Freon Recharge') ? 500 * airconUnits : 0
+  const airconSameDayTotal = airconExtras.includes('Same Day Service') ? 300 : 0
+  const airconExtrasTotal = airconFreonTotal + airconSameDayTotal
+  const airconFinalPrice = airconBasePrice + airconExtrasTotal
+
   const taskersNeeded = (() => {
-    if (!cleaningType || !cleaningArea) return 1
-    if (cleaningArea === 'Large (whole house)' && cleaningExtras.length > 0) return 3
-    if (cleaningArea === 'Large (whole house)') return 2
-    if (cleaningType === 'Deep Cleaning' && cleaningArea === 'Medium (2-3 rooms)') return 2
+    const isCleaning = service?.toLowerCase() === 'cleaning'
+    const isCarpentry = service?.toLowerCase() === 'carpentry'
+    const isElectrical = service?.toLowerCase() === 'electrical'
+    const isAircon = service?.toLowerCase() === 'aircon cleaning'
+    if (isCleaning) {
+      if (!cleaningType || !cleaningArea) return 1
+      if (cleaningArea === 'Large (whole house)' && cleaningExtras.length > 0) return 3
+      if (cleaningArea === 'Large (whole house)') return 2
+      if (cleaningType === 'Deep Cleaning' && cleaningArea === 'Medium (2-3 rooms)') return 2
+      return 1
+    }
+    if (isCarpentry) {
+      if (!carpentryType || !carpentryItem) return 1
+      let n = carpentryType === 'Custom Build' && (carpentryItem === 'Bed Frame' || carpentryItem === 'Ceiling / Wall Panel') ? 2 : 1
+      if (carpentryExtras.includes('Materials Included')) n += 1
+      return n
+    }
+    if (isElectrical) {
+      return electricalType === 'Repair Wiring' ? 2 : 1
+    }
+    if (isAircon) {
+      if (airconUnits >= 5) return 3
+      if (airconUnits >= 3) return 2
+      return 1
+    }
     return 1
   })()
 
@@ -867,18 +985,35 @@ function Step1({ service, onContinue }) {
       return
     }
     if (service?.toLowerCase() === 'cleaning' && (!cleaningType || !cleaningArea)) {
-      setError('Please select a cleaning type and area size')
+      setError('Please complete all required task options before continuing.')
+      return
+    }
+    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem)) {
+      setError('Please complete all required task options before continuing.')
+      return
+    }
+    if (service?.toLowerCase() === 'electrical' && (!electricalType || !electricalUrgency)) {
+      setError('Please complete all required task options before continuing.')
+      return
+    }
+    if (service?.toLowerCase() === 'aircon cleaning' && (!airconType || !airconServiceType)) {
+      setError('Please complete all required task options before continuing.')
       return
     }
     setError('')
     const aiImageAnalysis = aiResult && aiResult !== 'error' ? aiResult : null
+    const isCleaning = service?.toLowerCase() === 'cleaning'
+    const isCarpentry = service?.toLowerCase() === 'carpentry'
+    const isElectrical = service?.toLowerCase() === 'electrical'
+    const isAircon = service?.toLowerCase() === 'aircon cleaning'
     onContinue({
       address: address.trim(),
       size,
       details: details.trim(),
       aiImageAnalysis,
-      ...(service?.toLowerCase() === 'cleaning' && cleaningType && cleaningArea ? {
+      ...(isCleaning && cleaningType && cleaningArea ? {
         taskOptions: {
+          service: 'Cleaning',
           type: cleaningType,
           area: cleaningArea,
           extras: cleaningExtras,
@@ -888,6 +1023,48 @@ function Step1({ service, onContinue }) {
         },
         taskersNeeded,
         estimatedTotal: finalPrice,
+      } : {}),
+      ...(isCarpentry && carpentryType && carpentryItem ? {
+        taskOptions: {
+          service: 'Carpentry',
+          type: carpentryType,
+          item: carpentryItem,
+          extras: carpentryExtras,
+          base_price: carpentryItemPrice,
+          extras_total: carpentryExtrasTotal,
+          final_price: carpentryFinalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: carpentryFinalPrice,
+      } : {}),
+      ...(isElectrical && electricalType && electricalUrgency ? {
+        taskOptions: {
+          service: 'Electrical',
+          type: electricalType,
+          urgency: electricalUrgency,
+          extras: electricalExtras,
+          base_price: electricalBasePrice,
+          urgency_surcharge: electricalUrgencySurcharge,
+          extras_total: electricalExtrasTotal,
+          final_price: electricalFinalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: electricalFinalPrice,
+      } : {}),
+      ...(isAircon && airconType && airconServiceType ? {
+        taskOptions: {
+          service: 'Aircon Maintenance',
+          aircon_type: airconType,
+          units: airconUnits,
+          service_type: airconServiceType,
+          extras: airconExtras,
+          price_per_unit: airconPricePerUnit,
+          base_price: airconBasePrice,
+          extras_total: airconExtrasTotal,
+          final_price: airconFinalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: airconFinalPrice,
       } : {}),
     })
   }
@@ -936,7 +1113,7 @@ function Step1({ service, onContinue }) {
         <div className="border border-gray-200 rounded-xl p-5 space-y-5">
           <p className="font-bold text-gray-800 text-base">Task Options</p>
 
-          {/* Type of Cleaning */}
+          {/* Section 1: Type of Cleaning — always visible */}
           <div>
             <p className="font-semibold text-gray-700 text-sm mb-2">Type of Cleaning <span className="text-red-400">*</span></p>
             <div className="space-y-2">
@@ -946,7 +1123,14 @@ function Step1({ service, onContinue }) {
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningType === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
-                    <input type="radio" name="cleaningType" value={opt.value} checked={cleaningType === opt.value} onChange={() => setCleaningType(opt.value)} className="accent-orange-500 w-4 h-4" />
+                    <input
+                      type="radio"
+                      name="cleaningType"
+                      value={opt.value}
+                      checked={cleaningType === opt.value}
+                      onChange={() => { setCleaningType(opt.value); setCleaningArea(''); setCleaningExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
                     <span className="text-sm font-medium text-gray-700">{opt.value}</span>
                   </div>
                   <span className="text-sm text-gray-500">{opt.price}</span>
@@ -955,21 +1139,28 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Area Size */}
-          <div>
+          {/* Section 2: Area Size — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: cleaningType ? '400px' : '0', opacity: cleaningType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {['Small (1 room)', 'Medium (2-3 rooms)', 'Large (whole house)'].map((area) => (
                 <label key={area} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input type="radio" name="cleaningArea" value={area} checked={cleaningArea === area} onChange={() => setCleaningArea(area)} className="accent-orange-500 w-4 h-4" />
+                  <input
+                    type="radio"
+                    name="cleaningArea"
+                    value={area}
+                    checked={cleaningArea === area}
+                    onChange={() => { setCleaningArea(area); setCleaningExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
                   <span className="text-sm font-medium text-gray-700">{area}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Extras */}
-          <div>
+          {/* Section 3: Extras — appears after area selected */}
+          <div style={{ overflow: 'hidden', maxHeight: cleaningArea ? '300px' : '0', opacity: cleaningArea ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -996,12 +1187,16 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown */}
-          {cleaningType && cleaningArea && (
+          {/* Price Breakdown — appears after area selected */}
+          <div style={{ overflow: 'hidden', maxHeight: cleaningArea ? '300px' : '0', opacity: cleaningArea ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{cleaningType}</span>
                 <span>₱{basePrice.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-gray-600">
+                <span>{cleaningArea}</span>
+                <span></span>
               </div>
               {cleaningExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
@@ -1015,15 +1210,374 @@ function Step1({ service, onContinue }) {
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
-          )}
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
-          {/* Taskers note */}
-          {taskersNeeded >= 2 && (
-            <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700">
-              <Info size={16} className="mt-0.5 flex-shrink-0" />
-              <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+      {service?.toLowerCase() === 'carpentry' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Section 1: Type of Work — always visible */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Type of Work <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {['Repair', 'Install', 'Custom Build'].map((type) => (
+                <label key={type} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryType === type ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="carpentryType"
+                    value={type}
+                    checked={carpentryType === type}
+                    onChange={() => { setCarpentryType(type); setCarpentryItem(''); setCarpentryExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{type}</span>
+                </label>
+              ))}
             </div>
-          )}
+          </div>
+
+          {/* Section 2: Item Selection — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryType ? '500px' : '0', opacity: carpentryType ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Item <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {(CARPENTRY_ITEMS[carpentryType] || []).map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryItem === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="carpentryItem"
+                      value={opt.value}
+                      checked={carpentryItem === opt.value}
+                      onChange={() => { setCarpentryItem(opt.value); setCarpentryExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">₱{opt.price.toLocaleString()}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 3: Extras — appears after item selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Materials Included', price: '+₱500' },
+                { value: 'Varnishing / Finishing', price: '+₱350' },
+                { value: 'Hauling / Debris Removal', price: '+₱200' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={carpentryExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setCarpentryExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown — appears after item selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{carpentryType}</span>
+                <span></span>
+              </div>
+              <div className="flex justify-between text-gray-700">
+                <span>{carpentryItem}</span>
+                <span>₱{carpentryItemPrice.toLocaleString()}</span>
+              </div>
+              {carpentryExtras.map((e) => (
+                <div key={e} className="flex justify-between text-gray-600">
+                  <span>{e}</span>
+                  <span>+₱{CARPENTRY_EXTRAS_PRICES[e].toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{carpentryFinalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {service?.toLowerCase() === 'electrical' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Section 1: Type of Work — always visible */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Type of Work <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {ELECTRICAL_TYPES.map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalType === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="electricalType"
+                      value={opt.value}
+                      checked={electricalType === opt.value}
+                      onChange={() => { setElectricalType(opt.value); setElectricalUrgency(''); setElectricalExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">₱{opt.price.toLocaleString()}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Urgency — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalType ? '300px' : '0', opacity: electricalType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Normal', label: 'Normal', sub: 'No extra charge' },
+                { value: 'Urgent', label: 'Urgent', sub: `+₱${Math.round(electricalBasePrice * 0.5).toLocaleString()} (50% surcharge)` },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalUrgency === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="electricalUrgency"
+                      value={opt.value}
+                      checked={electricalUrgency === opt.value}
+                      onChange={() => { setElectricalUrgency(opt.value); setElectricalExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                      <p className="text-xs text-gray-400">{opt.sub}</p>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 3: Extras — appears after urgency selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalUrgency ? '350px' : '0', opacity: electricalUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Materials Included', price: '+₱400' },
+                { value: 'Additional Outlet/Switch', price: '+₱300' },
+                { value: 'Circuit Breaker Check', price: '+₱250' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={electricalExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setElectricalExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown — appears after urgency selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalUrgency ? '350px' : '0', opacity: electricalUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{electricalType}</span>
+                <span>₱{electricalBasePrice.toLocaleString()}</span>
+              </div>
+              {electricalUrgencySurcharge > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Urgent surcharge</span>
+                  <span>+₱{electricalUrgencySurcharge.toLocaleString()}</span>
+                </div>
+              )}
+              {electricalExtras.map((e) => (
+                <div key={e} className="flex justify-between text-gray-600">
+                  <span>{e}</span>
+                  <span>+₱{ELECTRICAL_EXTRAS_PRICES[e].toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{electricalFinalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {service?.toLowerCase() === 'aircon cleaning' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Section 1: Aircon Type — always visible */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Aircon Type <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {['Window Type', 'Split Type'].map((type) => (
+                <label key={type} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconType === type ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="airconType"
+                    value={type}
+                    checked={airconType === type}
+                    onChange={() => { setAirconType(type); setAirconUnits(1); setAirconServiceType(''); setAirconExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Number of Units — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconType ? '150px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-3">Number of Units</p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setAirconUnits(u => Math.max(1, u - 1))}
+                className="w-9 h-9 rounded-lg border border-gray-300 text-gray-600 font-bold text-lg flex items-center justify-center hover:border-orange-400 hover:text-orange-500 transition-colors"
+              >
+                −
+              </button>
+              <span className="w-10 text-center text-base font-semibold text-gray-800">{airconUnits}</span>
+              <button
+                type="button"
+                onClick={() => setAirconUnits(u => Math.min(5, u + 1))}
+                className="w-9 h-9 rounded-lg border border-gray-300 text-gray-600 font-bold text-lg flex items-center justify-center hover:border-orange-400 hover:text-orange-500 transition-colors"
+              >
+                +
+              </button>
+              <span className="text-xs text-gray-400 ml-1">max 5 units</span>
+            </div>
+          </div>
+
+          {/* Section 3: Service Type — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconType ? '250px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Service Type <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {Object.entries(AIRCON_PRICES[airconType] ?? {}).map(([svc, price]) => (
+                <label key={svc} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconServiceType === svc ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="airconServiceType"
+                      value={svc}
+                      checked={airconServiceType === svc}
+                      onChange={() => { setAirconServiceType(svc); setAirconExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{svc}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">₱{price.toLocaleString()}/unit</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Extras — appears after service type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '300px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Freon Recharge', label: 'Freon Recharge', price: `+₱${(500 * airconUnits).toLocaleString()} (₱500 × ${airconUnits})` },
+                { value: 'Same Day Service', label: 'Same Day Service', price: '+₱300' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={airconExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setAirconExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown — appears after service type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '350px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{airconType} — {airconServiceType}</span>
+                <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{airconBasePrice.toLocaleString()}</span>
+              </div>
+              {airconExtras.includes('Freon Recharge') && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Freon Recharge</span>
+                  <span>₱500 × {airconUnits} = ₱{airconFreonTotal.toLocaleString()}</span>
+                </div>
+              )}
+              {airconExtras.includes('Same Day Service') && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Same Day Service</span>
+                  <span>+₱300</span>
+                </div>
+              )}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{airconFinalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
