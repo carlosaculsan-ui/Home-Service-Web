@@ -36,6 +36,8 @@ function TaskerApplications() {
   const [loading, setLoading] = useState(true)
   const [expandedDocs, setExpandedDocs] = useState({})
   const [editingRate, setEditingRate] = useState({}) // { [id]: string }
+  const [deleteErrors, setDeleteErrors] = useState({}) // { [id]: string }
+  const [deleteSuccess, setDeleteSuccess] = useState({}) // { [id]: bool }
 
   async function saveRate(id) {
     const val = parseFloat(editingRate[id])
@@ -66,6 +68,41 @@ function TaskerApplications() {
 
   function toggleDocs(id) {
     setExpandedDocs((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  async function handleDeleteTasker(tasker) {
+    setDeleteErrors((prev) => ({ ...prev, [tasker.id]: '' }))
+
+    // Step 1 — check for active bookings
+    const { data: activeBookings } = await supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('tasker_id', tasker.id)
+      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+
+    if (activeBookings && activeBookings.length > 0) {
+      setDeleteErrors((prev) => ({
+        ...prev,
+        [tasker.id]: 'This tasker has ongoing bookings and cannot be removed. Please wait until all active bookings are completed or cancelled before deleting.',
+      }))
+      return
+    }
+
+    if (!window.confirm(
+      'Are you sure you want to remove this tasker? All their records including bookings, reviews, and leave requests will be permanently deleted. This cannot be undone.'
+    )) return
+
+    try {
+      await supabase.from('reviews').delete().eq('tasker_id', tasker.id)
+      await supabase.from('bookings').delete().eq('tasker_id', tasker.id)
+      await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
+      const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
+      if (error) throw error
+      setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
+      setDeleteSuccess((prev) => ({ ...prev, [tasker.id]: true }))
+    } catch {
+      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete tasker. Please try again.' }))
+    }
   }
 
   if (loading) {
@@ -191,6 +228,19 @@ function TaskerApplications() {
                 )}
               </div>
             )}
+
+            {deleteErrors[t.id] && (
+              <p className="mt-2 text-xs text-red-500 border-t border-gray-100 pt-2">{deleteErrors[t.id]}</p>
+            )}
+            <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+              <button
+                onClick={() => handleDeleteTasker(t)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+              >
+                <Trash2 size={13} />
+                Delete Tasker
+              </button>
+            </div>
           </div>
         )
       })}
@@ -203,6 +253,7 @@ function TaskerApplications() {
 function BookingsPanel() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
+  const [deleteErrors, setDeleteErrors] = useState({})
 
   async function fetchBookings() {
     const { data } = await supabase
@@ -241,6 +292,16 @@ function BookingsPanel() {
   async function updateBookingStatus(id, status) {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
+  }
+
+  async function handleDeleteBooking(id) {
+    if (!window.confirm('Are you sure you want to delete this completed booking record? This cannot be undone.')) return
+    const { error } = await supabase.from('bookings').delete().eq('id', id)
+    if (error) {
+      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete booking. Please try again.' }))
+    } else {
+      setBookings((prev) => prev.filter((b) => b.id !== id))
+    }
   }
 
   if (loading) {
@@ -300,6 +361,22 @@ function BookingsPanel() {
           {b.ai_image_analysis && (
             <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
               <span className="font-semibold flex items-center gap-1"><Bot size={14} /> AI Analysis: </span>{b.ai_image_analysis}
+            </div>
+          )}
+          {b.status === 'completed' && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              {deleteErrors[b.id] && (
+                <p className="text-xs text-red-500 mb-2">{deleteErrors[b.id]}</p>
+              )}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleDeleteBooking(b.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+                >
+                  <Trash2 size={13} />
+                  Delete Record
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -789,6 +866,7 @@ function LeaveRequestsPanel() {
   const [leaves, setLeaves] = useState([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
+  const [deleteErrors, setDeleteErrors] = useState({})
 
   async function fetchLeaves() {
     const { data } = await supabase
@@ -806,6 +884,16 @@ function LeaveRequestsPanel() {
     await supabase.from('tasker_leaves').update({ status }).eq('id', id)
     setActionLoading(null)
     fetchLeaves()
+  }
+
+  async function handleDeleteLeave(id) {
+    if (!window.confirm('Are you sure you want to delete this leave request? This cannot be undone.')) return
+    const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
+    if (error) {
+      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete leave request. Please try again.' }))
+    } else {
+      setLeaves((prev) => prev.filter((l) => l.id !== id))
+    }
   }
 
   if (loading) {
@@ -863,6 +951,18 @@ function LeaveRequestsPanel() {
                   </button>
                 </div>
               )}
+            </div>
+            {deleteErrors[leave.id] && (
+              <p className="mt-2 text-xs text-red-500">{deleteErrors[leave.id]}</p>
+            )}
+            <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+              <button
+                onClick={() => handleDeleteLeave(leave.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+              >
+                <Trash2 size={13} />
+                Delete
+              </button>
             </div>
           </div>
         )
