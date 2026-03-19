@@ -91,6 +91,50 @@ function isSlotAvailable(slotHour, existingBookings) {
   return true
 }
 
+function buildPriceBreakdown(taskOptions) {
+  if (!taskOptions) return []
+  const { service } = taskOptions
+  const lines = []
+  const EXTRAS_LOOKUP = {
+    'Cleaning':          { 'With Laundry': 200, 'With Appliances': 250 },
+    'Carpentry':         { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 },
+    'Electrical':        { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 },
+    'Aircon Maintenance':{ 'Same Day Service': 300 },
+    'Painting':          { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 },
+    'Plumbing Repair':   { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 },
+  }
+
+  if (service === 'Cleaning') {
+    lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: taskOptions.base_price })
+  } else if (service === 'Carpentry') {
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: taskOptions.base_price })
+  } else if (service === 'Electrical') {
+    lines.push({ label: taskOptions.type, price: taskOptions.base_price })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  } else if (service === 'Aircon Maintenance') {
+    const u = taskOptions.units || 1
+    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
+  } else if (service === 'Painting') {
+    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: taskOptions.base_price })
+    if (taskOptions.paint_cost > 0) {
+      lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
+    }
+  } else if (service === 'Plumbing Repair') {
+    lines.push({ label: taskOptions.problem, price: taskOptions.base_price })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  }
+
+  const extrasMap = EXTRAS_LOOKUP[service] || {}
+  ;(taskOptions.extras || []).forEach((extra) => {
+    const p = service === 'Aircon Maintenance' && extra === 'Freon Recharge'
+      ? 500 * (taskOptions.units || 1)
+      : (extrasMap[extra] ?? 0)
+    lines.push({ label: extra, price: p, isExtra: true })
+  })
+
+  return lines
+}
+
 function formatReviews(n) {
   if (n >= 1000000000) return (n / 1000000000).toFixed(0) + 'B'
   if (n >= 1000000) return (n / 1000000).toFixed(0) + 'M'
@@ -737,7 +781,9 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const profileIncomplete = !profileLoading && (!userProfile?.full_name || !userProfile?.phone)
 
   const formattedDate = date
-    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
+    ? taskDuration >= 8
+      ? `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} (Full Day)`
+      : `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
     : ''
   const summaryDate = date
     ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${time?.toLowerCase()}`
@@ -761,7 +807,11 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-3">Booking Details</p>
         <DetailRow label="Service" value={service} valueClass="capitalize" />
-        <DetailRow label="Tasker" value={tasker?.name} />
+        <DetailRow label="Tasker" value={
+          taskersNeeded > 1
+            ? <>{tasker?.name} <span className="text-orange-500">({taskersNeeded} crew)</span></>
+            : tasker?.name
+        } />
         <DetailRow label="Date &amp; Time" value={formattedDate} />
         {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hrs + 1 hr buffer`} />}
         <DetailRow label="Task Size" value={taskSize} />
@@ -2296,8 +2346,12 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
       : `₱${(rate * 2).toLocaleString()} – ₱${(rate * 3).toLocaleString()}`
 
   const formattedDate = date
-    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
+    ? taskDuration >= 8
+      ? `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} (Full Day)`
+      : `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
     : ''
+
+  const priceBreakdown = buildPriceBreakdown(taskOptions)
 
   if (confirmed) {
     return (
@@ -2355,7 +2409,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Tasker</span>
-            <span>{tasker?.name}</span>
+            <span>
+              {taskersNeeded > 1
+                ? <>{tasker?.name} <span className="text-orange-500">({taskersNeeded} crew)</span></>
+                : tasker?.name}
+            </span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Date &amp; Time</span>
@@ -2363,20 +2421,18 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           </div>
         </div>
         <div className="border-t border-orange-200 pt-3 space-y-1 text-sm text-gray-700">
-          <div className="flex justify-between">
-            <span className="text-gray-500">Hourly Rate</span>
-            <span>{tasker?.price}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-500">Estimated Hours</span>
-            <span>{estHours}</span>
-          </div>
-          <div className="flex justify-between font-bold text-gray-800 text-base pt-1">
+          {priceBreakdown.map((line, i) => (
+            <div key={i} className="flex justify-between">
+              <span className="text-gray-500">{line.label}</span>
+              <span>{line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}</span>
+            </div>
+          ))}
+          <div className={`flex justify-between font-bold text-gray-800 text-base ${priceBreakdown.length > 0 ? 'border-t border-orange-200 mt-1 pt-2' : 'pt-1'}`}>
             <span>Estimated Total</span>
-            <span className="text-orange-500">{estTotal}</span>
+            <span className="text-orange-500">₱{(taskOptions?.final_price ?? estimatedTotal).toLocaleString()}</span>
           </div>
         </div>
-        <p className="text-xs text-gray-400">Final price may vary based on actual hours worked.</p>
+        <p className="text-xs text-gray-400">Price is fixed based on your selected options.</p>
       </div>
 
       {/* Section 2 – Payment Method */}
