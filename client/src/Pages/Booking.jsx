@@ -564,6 +564,25 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
+        {taskOptions && taskOptions.service === 'Painting' && (
+          <>
+            <DetailRow label="What to Paint" value={taskOptions.what_to_paint} />
+            <DetailRow label="Area Size" value={taskOptions.area} />
+            <DetailRow label="Paint Provided" value={taskOptions.paint_provided ? 'Yes' : 'No'} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
+        {taskOptions && taskOptions.service === 'Plumbing Repair' && (
+          <>
+            <DetailRow label="Problem" value={taskOptions.problem} />
+            <DetailRow label="Urgency" value={taskOptions.urgency} />
+            {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
+            <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
+          </>
+        )}
       </div>
 
       {/* Section 3 – Tasker Information */}
@@ -786,6 +805,13 @@ function Step1({ service, onContinue }) {
   const [airconUnits, setAirconUnits] = useState(1)
   const [airconServiceType, setAirconServiceType] = useState('')
   const [airconExtras, setAirconExtras] = useState([])
+  const [paintingWhat, setPaintingWhat] = useState('')
+  const [paintingArea, setPaintingArea] = useState('')
+  const [paintingPaintProvided, setPaintingPaintProvided] = useState('')
+  const [paintingExtras, setPaintingExtras] = useState([])
+  const [plumbingProblem, setPlumbingProblem] = useState('')
+  const [plumbingUrgency, setPlumbingUrgency] = useState('')
+  const [plumbingExtras, setPlumbingExtras] = useState([])
 
   const BASE_PRICES = {
     'Basic Cleaning':  { 'Small (1 room)': 750, 'Medium (2-3 rooms)': 1500, 'Large (whole house)': 2250 },
@@ -830,6 +856,21 @@ function Step1({ service, onContinue }) {
     'Split Type':  { 'Cleaning': 700, 'Cleaning + Checkup': 950 },
   }
 
+  const PLUMBING_PROBLEMS = [
+    { value: 'Leaking Faucet', price: 500 },
+    { value: 'Clogged Drain',  price: 600 },
+    { value: 'Pipe Repair',    price: 900 },
+  ]
+  const PLUMBING_EXTRAS_PRICES = { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 }
+
+  const PAINTING_BASE_PRICES = {
+    'Wall':      { 'Small': 800,  'Medium': 1500, 'Large': 2500 },
+    'Ceiling':   { 'Small': 900,  'Medium': 1700, 'Large': 2800 },
+    'Furniture': { 'Small': 600,  'Medium': 1000, 'Large': 1800 },
+  }
+  const PAINTING_PAINT_COSTS = { 'Small': 500, 'Medium': 1000, 'Large': 1800 }
+  const PAINTING_EXTRAS_PRICES = { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 }
+
   // Cleaning pricing
   const basePrice = cleaningType && cleaningArea ? BASE_PRICES[cleaningType]?.[cleaningArea] ?? 0 : 0
   const extrasTotal = cleaningExtras.reduce((sum, e) => sum + (EXTRAS_PRICES[e] ?? 0), 0)
@@ -856,6 +897,18 @@ function Step1({ service, onContinue }) {
   const airconExtrasTotal = airconFreonTotal + airconSameDayTotal
   const airconFinalPrice = airconBasePrice + airconExtrasTotal
 
+  // Plumbing pricing
+  const plumbingBasePrice = PLUMBING_PROBLEMS.find(p => p.value === plumbingProblem)?.price ?? 0
+  const plumbingUrgencySurcharge = plumbingUrgency === 'Urgent' ? 200 : 0
+  const plumbingExtrasTotal = plumbingExtras.reduce((sum, e) => sum + (PLUMBING_EXTRAS_PRICES[e] ?? 0), 0)
+  const plumbingFinalPrice = plumbingBasePrice + plumbingUrgencySurcharge + plumbingExtrasTotal
+
+  // Painting pricing
+  const paintingBasePrice = paintingWhat && paintingArea ? (PAINTING_BASE_PRICES[paintingWhat]?.[paintingArea] ?? 0) : 0
+  const paintingPaintCost = paintingPaintProvided === 'No' ? (PAINTING_PAINT_COSTS[paintingArea] ?? 0) : 0
+  const paintingExtrasTotal = paintingExtras.reduce((sum, e) => sum + (PAINTING_EXTRAS_PRICES[e] ?? 0), 0)
+  const paintingFinalPrice = paintingBasePrice + paintingPaintCost + paintingExtrasTotal
+
   const taskersNeeded = (() => {
     const isCleaning = service?.toLowerCase() === 'cleaning'
     const isCarpentry = service?.toLowerCase() === 'carpentry'
@@ -881,6 +934,16 @@ function Step1({ service, onContinue }) {
       if (airconUnits >= 5) return 3
       if (airconUnits >= 3) return 2
       return 1
+    }
+    const isPainting = service?.toLowerCase() === 'painting'
+    if (isPainting) {
+      if (paintingArea === 'Large') return 3
+      if (paintingArea === 'Medium') return 2
+      return 1
+    }
+    const isPlumbing = service?.toLowerCase() === 'plumbing repair'
+    if (isPlumbing) {
+      return plumbingProblem === 'Pipe Repair' ? 2 : 1
     }
     return 1
   })()
@@ -1000,12 +1063,22 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
+    if (service?.toLowerCase() === 'painting' && (!paintingWhat || !paintingArea || paintingPaintProvided === '')) {
+      setError('Please complete all required task options before continuing.')
+      return
+    }
+    if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingUrgency)) {
+      setError('Please complete all required task options before continuing.')
+      return
+    }
     setError('')
     const aiImageAnalysis = aiResult && aiResult !== 'error' ? aiResult : null
     const isCleaning = service?.toLowerCase() === 'cleaning'
     const isCarpentry = service?.toLowerCase() === 'carpentry'
     const isElectrical = service?.toLowerCase() === 'electrical'
     const isAircon = service?.toLowerCase() === 'aircon cleaning'
+    const isPainting = service?.toLowerCase() === 'painting'
+    const isPlumbing = service?.toLowerCase() === 'plumbing repair'
     onContinue({
       address: address.trim(),
       size,
@@ -1065,6 +1138,35 @@ function Step1({ service, onContinue }) {
         },
         taskersNeeded,
         estimatedTotal: airconFinalPrice,
+      } : {}),
+      ...(isPainting && paintingWhat && paintingArea && paintingPaintProvided !== '' ? {
+        taskOptions: {
+          service: 'Painting',
+          what_to_paint: paintingWhat,
+          area: paintingArea,
+          paint_provided: paintingPaintProvided === 'Yes',
+          extras: paintingExtras,
+          base_price: paintingBasePrice,
+          paint_cost: paintingPaintCost,
+          extras_total: paintingExtrasTotal,
+          final_price: paintingFinalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: paintingFinalPrice,
+      } : {}),
+      ...(isPlumbing && plumbingProblem && plumbingUrgency ? {
+        taskOptions: {
+          service: 'Plumbing Repair',
+          problem: plumbingProblem,
+          urgency: plumbingUrgency,
+          extras: plumbingExtras,
+          base_price: plumbingBasePrice,
+          urgency_surcharge: plumbingUrgencySurcharge,
+          extras_total: plumbingExtrasTotal,
+          final_price: plumbingFinalPrice,
+        },
+        taskersNeeded,
+        estimatedTotal: plumbingFinalPrice,
       } : {}),
     })
   }
@@ -1568,6 +1670,270 @@ function Step1({ service, onContinue }) {
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">₱{airconFinalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {service?.toLowerCase() === 'painting' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Section 1: What to Paint — always visible */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">What to Paint <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {['Wall', 'Ceiling', 'Furniture'].map((opt) => (
+                <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingWhat === opt ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="paintingWhat"
+                    value={opt}
+                    checked={paintingWhat === opt}
+                    onChange={() => { setPaintingWhat(opt); setPaintingArea(''); setPaintingPaintProvided(''); setPaintingExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{opt}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Area Size — appears after what selected */}
+          <div style={{ overflow: 'hidden', maxHeight: paintingWhat ? '350px' : '0', opacity: paintingWhat ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Small',  label: 'Small' },
+                { value: 'Medium', label: 'Medium' },
+                { value: 'Large',  label: 'Large' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingArea === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="paintingArea"
+                      value={opt.value}
+                      checked={paintingArea === opt.value}
+                      onChange={() => { setPaintingArea(opt.value); setPaintingPaintProvided(''); setPaintingExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    {paintingWhat ? `₱${(PAINTING_BASE_PRICES[paintingWhat]?.[opt.value] ?? 0).toLocaleString()}` : ''}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 3: Paint Provided — appears after area selected */}
+          <div style={{ overflow: 'hidden', maxHeight: paintingArea ? '350px' : '0', opacity: paintingArea ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Paint Provided? <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Yes', label: 'Yes (I will provide the paint)', sub: 'No extra charge' },
+                { value: 'No',  label: 'No (Hanap.ph provides paint)',   sub: `+₱${(PAINTING_PAINT_COSTS[paintingArea] ?? 0).toLocaleString()} extra` },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingPaintProvided === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="paintingPaintProvided"
+                      value={opt.value}
+                      checked={paintingPaintProvided === opt.value}
+                      onChange={() => { setPaintingPaintProvided(opt.value); setPaintingExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                      <p className="text-xs text-gray-400">{opt.sub}</p>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Extras — appears after paint provided selected */}
+          <div style={{ overflow: 'hidden', maxHeight: paintingPaintProvided ? '350px' : '0', opacity: paintingPaintProvided ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Primer Coat',           price: '+₱400' },
+                { value: 'Two Coats',             price: '+₱500' },
+                { value: 'Wall Putty / Patching', price: '+₱300' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={paintingExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setPaintingExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown — appears after paint provided selected */}
+          <div style={{ overflow: 'hidden', maxHeight: paintingPaintProvided ? '400px' : '0', opacity: paintingPaintProvided ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{paintingWhat} Painting ({paintingArea})</span>
+                <span>₱{paintingBasePrice.toLocaleString()}</span>
+              </div>
+              {paintingPaintCost > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Paint (not provided)</span>
+                  <span>+₱{paintingPaintCost.toLocaleString()}</span>
+                </div>
+              )}
+              {paintingExtras.map((e) => (
+                <div key={e} className="flex justify-between text-gray-600">
+                  <span>{e}</span>
+                  <span>+₱{PAINTING_EXTRAS_PRICES[e].toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{paintingFinalPrice.toLocaleString()}</span>
+              </div>
+              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {service?.toLowerCase() === 'plumbing repair' && (
+        <div className="border border-gray-200 rounded-xl p-5 space-y-5">
+          <p className="font-bold text-gray-800 text-base">Task Options</p>
+
+          {/* Section 1: Problem — always visible */}
+          <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Problem <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {PLUMBING_PROBLEMS.map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingProblem === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="plumbingProblem"
+                      value={opt.value}
+                      checked={plumbingProblem === opt.value}
+                      onChange={() => { setPlumbingProblem(opt.value); setPlumbingUrgency(''); setPlumbingExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">₱{opt.price.toLocaleString()}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Urgency — appears after problem selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingProblem ? '300px' : '0', opacity: plumbingProblem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Normal', label: 'Normal', sub: 'No extra charge' },
+                { value: 'Urgent', label: 'Urgent', sub: '+₱200 flat' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingUrgency === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="plumbingUrgency"
+                      value={opt.value}
+                      checked={plumbingUrgency === opt.value}
+                      onChange={() => { setPlumbingUrgency(opt.value); setPlumbingExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                      <p className="text-xs text-gray-400">{opt.sub}</p>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 3: Extras — appears after urgency selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingUrgency ? '350px' : '0', opacity: plumbingUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'Materials Included',                  price: '+₱400' },
+                { value: 'Multiple Points (2+ faucets/drains)', price: '+₱300' },
+                { value: 'Waterproofing',                       price: '+₱500' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={plumbingExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setPlumbingExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Price Breakdown — appears after urgency selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingUrgency ? '350px' : '0', opacity: plumbingUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{plumbingProblem}</span>
+                <span>₱{plumbingBasePrice.toLocaleString()}</span>
+              </div>
+              {plumbingUrgencySurcharge > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Urgent</span>
+                  <span>+₱{plumbingUrgencySurcharge.toLocaleString()}</span>
+                </div>
+              )}
+              {plumbingExtras.map((e) => (
+                <div key={e} className="flex justify-between text-gray-600">
+                  <span>{e}</span>
+                  <span>+₱{PLUMBING_EXTRAS_PRICES[e].toLocaleString()}</span>
+                </div>
+              ))}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">₱{plumbingFinalPrice.toLocaleString()}</span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
