@@ -875,33 +875,6 @@ function Step1({ onContinue }) {
       </div>
 
       <div className="border border-gray-200 rounded-xl p-5">
-        <p className="font-bold text-gray-800 mb-2 text-base">Task options</p>
-        <p className="font-semibold text-gray-700 text-base mb-3">How big is your task?</p>
-        <div className="space-y-3">
-          {[
-            { value: 'Small', label: 'Small', sub: 'Est. 1 hr' },
-            { value: 'Medium', label: 'Medium', sub: 'Est. 2-3 hrs' },
-            { value: 'Large', label: 'Large', sub: 'Est. 4+ hrs' },
-          ].map((opt) => (
-            <label key={opt.value} className="flex items-center gap-3 cursor-pointer">
-              <input
-                type="radio"
-                name="size"
-                value={opt.value}
-                checked={size === opt.value}
-                onChange={() => setSize(opt.value)}
-                className="accent-orange-500 w-5 h-5"
-              />
-              <span className="text-base text-gray-700">
-                <span className="font-medium">{opt.label}</span>
-                <span className="text-gray-400 ml-1">- {opt.sub}</span>
-              </span>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 mb-2 text-base">Tell us the details of your task</p>
         <p className="text-sm text-gray-400 italic mb-3">
           Start the conversation and tell your Tasker what you need done. This helps us show you only qualified and available Taskers for the job.
