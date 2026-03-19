@@ -28,6 +28,69 @@ const SHORT_MONTHS = [
   'Jul','Aug','Sep','Oct','Nov','Dec',
 ]
 
+const TIME_SLOTS = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00']
+const BUFFER_HOURS = 1
+const END_OF_DAY = 17
+
+function formatTimeSlot(slot) {
+  const h = parseInt(slot.split(':')[0])
+  const suffix = h < 12 ? 'AM' : 'PM'
+  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+  return `${hour}:00 ${suffix}`
+}
+
+function getTaskDuration(taskOptions) {
+  if (!taskOptions) return 8
+  const service = taskOptions.service
+  if (service === 'Cleaning') {
+    if (taskOptions.type === 'Deep Cleaning') return 8
+    if (taskOptions.area === 'Large (whole house)') return 8
+    if (taskOptions.area === 'Medium (2-3 rooms)') return 5
+    if (taskOptions.area === 'Small (1 room)') return 3
+    return 8
+  }
+  if (service === 'Carpentry') {
+    if (taskOptions.type === 'Custom Build') {
+      if (['Bed Frame', 'Ceiling / Wall Panel'].includes(taskOptions.item)) return 8
+      return 6
+    }
+    if (taskOptions.type === 'Install') return 4
+    if (taskOptions.type === 'Repair') return 3
+    return 8
+  }
+  if (service === 'Electrical') {
+    if (taskOptions.type === 'Repair Wiring') return 8
+    if (taskOptions.type === 'Install Lights') return 3
+    if (taskOptions.type === 'Install Outlet') return 2
+    return 8
+  }
+  if (service === 'Plumbing Repair') {
+    if (taskOptions.problem === 'Pipe Repair') return 8
+    if (taskOptions.problem === 'Clogged Drain') return 3
+    if (taskOptions.problem === 'Leaking Faucet') return 2
+    return 8
+  }
+  if (service === 'Painting') {
+    if (taskOptions.area === 'Small') return 4
+    return 8
+  }
+  if (service === 'Aircon Maintenance') {
+    if (taskOptions.units >= 5) return 8
+    if (taskOptions.units >= 3) return 6
+    return 3
+  }
+  return 8
+}
+
+function isSlotAvailable(slotHour, existingBookings) {
+  for (const booking of existingBookings) {
+    const bookedStart = parseInt(booking.scheduled_time.split(':')[0])
+    const bookedEnd = bookedStart + (booking.duration_hours || 8) + BUFFER_HOURS
+    if (slotHour >= bookedStart && slotHour < bookedEnd) return false
+  }
+  return true
+}
+
 function formatReviews(n) {
   if (n >= 1000000000) return (n / 1000000000).toFixed(0) + 'B'
   if (n >= 1000000) return (n / 1000000).toFixed(0) + 'M'
@@ -35,38 +98,23 @@ function formatReviews(n) {
   return n.toString()
 }
 
-function generateTimeOptions() {
-  const options = []
-  for (let h = 6; h <= 17; h++) {
-    const suffix = h < 12 ? 'AM' : 'PM'
-    const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
-    options.push(`${hour}:00 ${suffix}`)
-  }
-  return options
-}
 
-function getDefaultTime() {
-  const now = new Date()
-  let h = now.getHours() + 1
-  if (h > 17) h = 17
-  if (h < 6) h = 6
-  const suffix = h < 12 ? 'AM' : 'PM'
-  const hour = h === 12 ? 12 : h <= 12 ? h : h - 12
-  return `${hour}:00 ${suffix}`
-}
-
-function ScheduleModal({ tasker, onClose, onConfirm }) {
+function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const taskDuration = getTaskDuration(taskOptions)
+  const isFullDay = taskDuration >= 8
 
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [selectedDate, setSelectedDate] = useState(null)
-  const [selectedTime, setSelectedTime] = useState(getDefaultTime())
-  const [bookedDates, setBookedDates] = useState(new Set())
+  const [selectedSlot, setSelectedSlot] = useState(null)
+  const [leaveDates, setLeaveDates] = useState(new Set())
+  const [bookingsByDate, setBookingsByDate] = useState({})
+  const [loadingDates, setLoadingDates] = useState(true)
 
   useEffect(() => {
-    async function fetchBookedDates() {
+    async function fetchAvailability() {
       const { data: { session } } = await supabase.auth.getSession()
       const token = session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY
       const headers = {
@@ -76,7 +124,7 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
 
       const [bookingsRes, leavesRes] = await Promise.all([
         fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(accepted,in_progress)&select=scheduled_date`,
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(confirmed,accepted,on_the_way,in_progress)&select=scheduled_date,scheduled_time,duration_hours`,
           { headers }
         ),
         fetch(
@@ -87,26 +135,32 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
 
       const [bookingsData, leavesData] = await Promise.all([bookingsRes.json(), leavesRes.json()])
 
-      const dateSet = new Set()
-
+      // Group bookings by date
+      const byDate = {}
       if (Array.isArray(bookingsData)) {
-        bookingsData
-          .filter((r) => r.scheduled_date)
-          .forEach((r) => dateSet.add(r.scheduled_date.slice(0, 10)))
+        bookingsData.forEach((b) => {
+          const d = b.scheduled_date?.slice(0, 10)
+          if (!d) return
+          if (!byDate[d]) byDate[d] = []
+          byDate[d].push({ scheduled_time: b.scheduled_time, duration_hours: b.duration_hours || 8 })
+        })
       }
+      setBookingsByDate(byDate)
 
+      // Parse leave dates
+      const leaveSet = new Set()
       if (Array.isArray(leavesData)) {
         leavesData.forEach((r) => {
           try {
             const dates = JSON.parse(r.leave_dates)
-            if (Array.isArray(dates)) dates.forEach((d) => dateSet.add(d.slice(0, 10)))
+            if (Array.isArray(dates)) dates.forEach((d) => leaveSet.add(d.slice(0, 10)))
           } catch { /* skip malformed rows */ }
         })
       }
-
-      setBookedDates(dateSet)
+      setLeaveDates(leaveSet)
+      setLoadingDates(false)
     }
-    fetchBookedDates()
+    fetchAvailability()
   }, [tasker.id])
 
   useEffect(() => {
@@ -115,23 +169,34 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [onClose])
 
-  const timeOptions = generateTimeOptions()
-
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
-
   const cells = []
   for (let i = 0; i < firstDayOfMonth; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
 
+  const getDateKey = (d) => {
+    const mm = String(viewMonth + 1).padStart(2, '0')
+    const dd = String(d).padStart(2, '0')
+    return `${viewYear}-${mm}-${dd}`
+  }
+
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
   const isPast = (d) => getDateObj(d) < todayStart
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
-  const isBooked = (d) => {
-    const mm = String(viewMonth + 1).padStart(2, '0')
-    const dd = String(d).padStart(2, '0')
-    return bookedDates.has(`${viewYear}-${mm}-${dd}`)
+
+  const isBlocked = (d) => {
+    if (!d) return false
+    const dateKey = getDateKey(d)
+    if (leaveDates.has(dateKey)) return true
+    const dayBookings = bookingsByDate[dateKey] || []
+    // Existing full-day booking blocks the date for everyone
+    if (dayBookings.some((b) => b.duration_hours >= 8)) return true
+    // Full day task: any existing booking blocks the date
+    if (isFullDay && dayBookings.length > 0) return true
+    return false
   }
+
   const isSelected = (d) =>
     selectedDate &&
     selectedDate.getDate() === d &&
@@ -154,14 +219,24 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
   }
 
   const handleDayClick = (d) => {
-    if (!d || isPast(d) || isBooked(d)) return
+    if (!d || isPast(d) || isBlocked(d)) return
     setSelectedDate(getDateObj(d))
+    setSelectedSlot(null)
   }
+
+  const selectedDateKey = selectedDate
+    ? `${selectedDate.getFullYear()}-${String(selectedDate.getMonth() + 1).padStart(2, '0')}-${String(selectedDate.getDate()).padStart(2, '0')}`
+    : null
+  const selectedDateBookings = selectedDateKey ? (bookingsByDate[selectedDateKey] || []) : []
 
   const formatSummaryDate = () => {
     if (!selectedDate) return '—'
-    return `${SHORT_MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${selectedTime.toLowerCase()}`
+    if (isFullDay) return `${SHORT_MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}, 7:00 am`
+    if (!selectedSlot) return `${SHORT_MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}, —`
+    return `${SHORT_MONTHS[selectedDate.getMonth()]} ${selectedDate.getDate()}, ${formatTimeSlot(selectedSlot).toLowerCase()}`
   }
+
+  const canConfirm = selectedDate && (isFullDay || selectedSlot)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -181,147 +256,304 @@ function ScheduleModal({ tasker, onClose, onConfirm }) {
           <h2 className="text-base font-bold text-gray-800">{tasker.name}'s Availability</h2>
         </div>
 
-        <div className="flex items-center justify-between mb-3">
-          <button
-            onClick={goToPrevMonth}
-            disabled={!canGoPrev}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-30 text-lg"
-          >
-            ‹
-          </button>
-          <span className="font-bold text-gray-800">{MONTH_NAMES[viewMonth]} {viewYear}</span>
-          <button
-            onClick={goToNextMonth}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
-          >
-            ›
-          </button>
-        </div>
-
-        <div className="grid grid-cols-7 mb-1">
-          {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((d) => (
-            <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7 gap-y-1 mb-4">
-          {cells.map((d, i) => (
-            <div key={i} className="flex items-center justify-center">
-              {d ? (
-                <button
-                  onClick={() => handleDayClick(d)}
-                  disabled={isPast(d) || isBooked(d)}
-                  className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
-                    ${isSelected(d)
-                      ? 'bg-orange-500 text-white font-bold'
-                      : isBooked(d)
-                      ? 'bg-red-500 text-white cursor-not-allowed'
-                      : isToday(d)
-                      ? 'bg-orange-500 text-white font-bold'
-                      : isPast(d)
-                      ? 'text-gray-300 cursor-not-allowed'
-                      : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
-                    }`}
-                >
-                  {d}
-                </button>
-              ) : null}
+        {loadingDates ? (
+          <p className="text-sm text-gray-400 text-center py-6">Loading availability...</p>
+        ) : (
+          <>
+            {/* Calendar */}
+            <div className="flex items-center justify-between mb-3">
+              <button
+                onClick={goToPrevMonth}
+                disabled={!canGoPrev}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 disabled:opacity-30 text-lg"
+              >
+                ‹
+              </button>
+              <span className="font-bold text-gray-800">{MONTH_NAMES[viewMonth]} {viewYear}</span>
+              <button
+                onClick={goToNextMonth}
+                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-500 text-lg"
+              >
+                ›
+              </button>
             </div>
-          ))}
-        </div>
 
-        <select
-          value={selectedTime}
-          onChange={(e) => setSelectedTime(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-700 outline-none mb-3 focus:border-orange-400"
+            <div className="grid grid-cols-7 mb-1">
+              {['SUN','MON','TUE','WED','THU','FRI','SAT'].map((d) => (
+                <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-y-1 mb-4">
+              {cells.map((d, i) => (
+                <div key={i} className="flex items-center justify-center">
+                  {d ? (
+                    <button
+                      onClick={() => handleDayClick(d)}
+                      disabled={isPast(d) || isBlocked(d)}
+                      className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
+                        ${isSelected(d)
+                          ? 'bg-orange-500 text-white font-bold'
+                          : isBlocked(d)
+                          ? 'bg-red-100 text-red-300 cursor-not-allowed'
+                          : isToday(d)
+                          ? 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
+                          : isPast(d)
+                          ? 'text-gray-300 cursor-not-allowed'
+                          : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
+                        }`}
+                    >
+                      {d}
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+
+            {/* Time slots */}
+            {selectedDate && (
+              <div className="mb-4">
+                {isFullDay ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-2 text-sm text-blue-700">
+                    <Info size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>The tasker will be fully booked for this entire day. No other bookings will be accepted on this date.</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Select a Time</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {TIME_SLOTS.map((slot) => {
+                        const h = parseInt(slot.split(':')[0])
+                        const available = isSlotAvailable(h, selectedDateBookings)
+                        const isPickedSlot = selectedSlot === slot
+                        return (
+                          <button
+                            key={slot}
+                            disabled={!available}
+                            onClick={() => setSelectedSlot(slot)}
+                            className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors
+                              ${isPickedSlot
+                                ? 'bg-orange-500 text-white border-orange-500'
+                                : available
+                                ? 'bg-white text-gray-700 border-gray-200 hover:border-orange-400 hover:text-orange-500'
+                                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                              }`}
+                          >
+                            {formatTimeSlot(slot)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {selectedSlot && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Estimated duration: {taskDuration} hours (including {BUFFER_HOURS} hour buffer time)
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-gray-400 mb-4">
+              Choose your task date and start time. You can chat to adjust task details or change start time after confirming.
+            </p>
+
+            <div className="border-t border-gray-100 mb-3" />
+
+            <div className="flex items-center justify-between mb-5">
+              <span className="text-sm text-gray-500">Request for:</span>
+              <span className="text-sm font-semibold text-gray-700">{formatSummaryDate()}</span>
+            </div>
+
+            <button
+              onClick={() => {
+                if (!canConfirm) return
+                const displayTime = isFullDay ? '7:00 AM' : formatTimeSlot(selectedSlot)
+                onConfirm(tasker, selectedDate, displayTime, taskDuration)
+              }}
+              disabled={!canConfirm}
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+            >
+              Select &amp; Continue
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TeamDetailsModal({ tasker, taskersNeeded, onClose }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute inset-0 bg-black/50" />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-bold transition-colors"
         >
-          {timeOptions.map((t) => (
-            <option key={t} value={t}>{t}</option>
-          ))}
-        </select>
+          ✕
+        </button>
 
-        <p className="text-xs text-gray-400 mb-4">
-          Choose your task date and start time. You can chat to adjust task details or change start time after confirming.
-        </p>
-
-        <div className="border-t border-gray-100 mb-3" />
-
-        <div className="flex items-center justify-between mb-1">
-          <span className="text-sm text-gray-500">Request for:</span>
-          <span className="text-sm font-semibold text-gray-700">{formatSummaryDate()}</span>
+        <div className="flex items-center gap-2 mb-4">
+          <Users size={18} className="text-orange-500" />
+          <p className="font-bold text-gray-800 text-base">Team Details</p>
         </div>
-        <p className="text-right text-sm font-bold text-gray-800 mb-5">This Tasker requires 2 hour min</p>
+
+        <div className="border-t border-gray-100 pt-4 space-y-3">
+          <div className="flex items-center gap-3">
+            <User size={16} className="text-gray-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-gray-800">{tasker.name}</p>
+              <p className="text-xs text-orange-500">Lead Tasker</p>
+            </div>
+          </div>
+
+          {taskersNeeded >= 2 && (
+            <div className="flex items-center gap-3">
+              <User size={16} className="text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Hanap.ph Staff</p>
+                <p className="text-xs text-gray-400">Assistant{taskersNeeded >= 3 ? ' 1' : ''}</p>
+              </div>
+            </div>
+          )}
+
+          {taskersNeeded >= 3 && (
+            <div className="flex items-center gap-3">
+              <User size={16} className="text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Hanap.ph Staff</p>
+                <p className="text-xs text-gray-400">Assistant 2</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
+          {taskersNeeded === 1
+            ? 'This task only requires 1 tasker.'
+            : taskersNeeded === 2
+            ? 'This task requires 2 taskers. The lead tasker will be assisted by 1 Hanap.ph staff member.'
+            : 'This task requires 3 taskers. The lead tasker will be assisted by 2 Hanap.ph staff members.'}
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function getTaskOptionsSummary(taskOptions) {
+  if (!taskOptions) return null
+  const { service } = taskOptions
+  let label = ''
+  if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
+  else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}`
+  else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
+  else if (service === 'Aircon Maintenance') label = `${taskOptions.aircon_type} · ${taskOptions.service_type}`
+  else if (service === 'Painting')     label = `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
+  else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.urgency}`
+  return { label, extras: taskOptions.extras ?? [] }
+}
+
+function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptions }) {
+  const [expanded, setExpanded] = useState(false)
+  const [showTeamModal, setShowTeamModal] = useState(false)
+  const bio = tasker.bio ?? ''
+  const shortBio = bio.length > 90 ? bio.slice(0, 90) + '...' : bio
+  const summary = getTaskOptionsSummary(taskOptions)
+  const showPrice = estimatedTotal > 0
+
+  return (
+    <>
+      {showTeamModal && (
+        <TeamDetailsModal
+          tasker={tasker}
+          taskersNeeded={taskersNeeded ?? 1}
+          onClose={() => setShowTeamModal(false)}
+        />
+      )}
+
+      <div className="border border-gray-200 rounded-xl p-5 space-y-3">
+        <div className="flex gap-4">
+          <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+            <User size={28} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2">
+              <p className="font-bold text-gray-800 text-base leading-tight">{tasker.name}</p>
+              <button
+                onClick={() => setShowTeamModal(true)}
+                className="text-xs text-gray-400 underline hover:text-gray-600 whitespace-nowrap mt-0.5 flex-shrink-0"
+              >
+                details
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-1">{tasker.role}</p>
+            <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+              <span className="text-yellow-500">★</span>
+              <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
+              <span className="text-gray-400">({formatReviews(tasker.reviews ?? 0)} reviews)</span>
+              <span className="text-gray-300">•</span>
+              <span>{(tasker.tasks ?? 0).toLocaleString()} tasks</span>
+            </div>
+            <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full mt-1">
+              2 HOUR MINIMUM
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
+          {expanded ? bio : shortBio}
+          <button
+            onClick={() => setExpanded(!expanded)}
+            className="ml-1 text-orange-500 font-medium hover:underline"
+          >
+            {expanded ? 'Read Less' : 'Read More'}
+          </button>
+        </div>
+
+        {showPrice && (
+          <div className="flex justify-end">
+            <div className="text-right">
+              <p className="text-xs text-gray-400 mb-0.5">Estimated Total</p>
+              <p className="text-xl font-bold text-orange-500">₱{estimatedTotal.toLocaleString()}</p>
+              {summary && (
+                <div className="mt-1 space-y-0.5">
+                  <p className="text-xs text-gray-400">{summary.label}</p>
+                  {summary.extras.map((e) => (
+                    <p key={e} className="text-xs text-gray-400">+ {e}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         <button
-          onClick={() => { if (selectedDate) onConfirm(tasker, selectedDate, selectedTime) }}
-          disabled={!selectedDate}
-          className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+          onClick={() => onSelect(tasker)}
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
         >
           Select &amp; Continue
         </button>
+
+        <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
+          <ClipboardList size={16} className="mt-0.5 text-gray-400 flex-shrink-0" />
+          <p className="text-xs text-gray-500">
+            Next, confirm your details to get connected with your Tasker.
+          </p>
+        </div>
       </div>
-    </div>
+    </>
   )
 }
 
-function TaskerCard({ tasker, onSelect }) {
-  const [expanded, setExpanded] = useState(false)
-  const bio = tasker.bio ?? ''
-  const shortBio = bio.length > 90 ? bio.slice(0, 90) + '...' : bio
-
-  return (
-    <div className="border border-gray-200 rounded-xl p-5 space-y-3">
-      <div className="flex gap-4">
-        <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
-          <User size={28} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <p className="font-bold text-gray-800 text-base leading-tight">{tasker.name}</p>
-            <span className="text-orange-500 font-bold text-sm whitespace-nowrap">{tasker.price}</span>
-          </div>
-          <p className="text-sm text-gray-500 mb-1">{tasker.role}</p>
-          <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full">
-            2 HOUR MINIMUM
-          </span>
-          <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
-            <span className="text-yellow-500">★</span>
-            <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
-            <span className="text-gray-400">({formatReviews(tasker.reviews ?? 0)} reviews)</span>
-            <span className="text-gray-300">•</span>
-            <span>{(tasker.tasks ?? 0).toLocaleString()} tasks</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-600">
-        {expanded ? bio : shortBio}
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="ml-1 text-orange-500 font-medium hover:underline"
-        >
-          {expanded ? 'Read Less' : 'Read More'}
-        </button>
-      </div>
-
-      <button
-        onClick={() => onSelect(tasker)}
-        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
-      >
-        Select &amp; Continue
-      </button>
-
-      <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
-        <ClipboardList size={16} className="mt-0.5 text-gray-400 flex-shrink-0" />
-        <p className="text-xs text-gray-500">
-          Next, confirm your details to get connected with your Tasker.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded }) {
+function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions }) {
   return (
     <div className="space-y-4">
       {taskersNeeded >= 2 && (
@@ -367,7 +599,14 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
           <p className="text-sm text-red-400 text-center py-8">Failed to load taskers. Please try again.</p>
         )}
         {!loadingTaskers && !taskersError && taskers.map((tasker) => (
-          <TaskerCard key={tasker.name} tasker={tasker} onSelect={onSelect} />
+          <TaskerCard
+            key={tasker.name}
+            tasker={tasker}
+            onSelect={onSelect}
+            taskersNeeded={taskersNeeded}
+            estimatedTotal={estimatedTotal}
+            taskOptions={taskOptions}
+          />
         ))}
       </div>
 
@@ -390,7 +629,7 @@ function DetailRow({ label, value, valueClass = '' }) {
   )
 }
 
-function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, taskOptions, taskersNeeded, onBack, onContinue }) {
+function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, taskOptions, taskersNeeded, taskDuration, onBack, onContinue }) {
   const navigate = useNavigate()
 
   const [userProfile, setUserProfile] = useState(null)
@@ -524,6 +763,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         <DetailRow label="Service" value={service} valueClass="capitalize" />
         <DetailRow label="Tasker" value={tasker?.name} />
         <DetailRow label="Date &amp; Time" value={formattedDate} />
+        {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hrs + 1 hr buffer`} />}
         <DetailRow label="Task Size" value={taskSize} />
         <DetailRow label="Address" value={taskAddress} />
         <DetailRow label="Task Description" value={taskDetails} />
@@ -681,7 +921,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
                     type="tel"
                     value={formPhone}
                     onChange={(e) => { setFormPhone(e.target.value); setFormPhoneError('') }}
-                    onKeyPress={(e) => { if (!/[0-9+]/.test(e.key)) e.preventDefault() }}
+                    onKeyDown={(e) => { if (!/[0-9+]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab') e.preventDefault() }}
                     onBlur={() => {
                       if (formPhone && !validatePhone(formPhone))
                         setFormPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
@@ -753,7 +993,7 @@ function ProgressTracker({ step }) {
           style={{ width: step === 0 ? '0%' : `${(step / (STEPS.length - 1)) * 100}%` }}
         />
         <div className="relative flex justify-between w-full">
-          {STEPS.map((s, i) => (
+          {STEPS.map((_, i) => (
             <div key={i} className="flex flex-col items-center">
               {i < step ? (
                 <div className="w-3 h-3 rounded-full bg-orange-500 border-2 border-orange-500" />
@@ -783,7 +1023,7 @@ function ProgressTracker({ step }) {
 
 function Step1({ service, onContinue }) {
   const [address, setAddress] = useState('')
-  const [size, setSize] = useState('Medium')
+  const [size] = useState('Medium')
   const [details, setDetails] = useState('')
   const [error, setError] = useState('')
   const [imagePreview, setImagePreview] = useState(null)
@@ -2023,7 +2263,7 @@ function Step1({ service, onContinue }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, estimatedTotal: estimatedTotalProp, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('gcash')
   const [promoCode, setPromoCode] = useState('')
@@ -2258,6 +2498,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 task_options: taskOptions ? JSON.stringify(taskOptions) : null,
                 taskers_needed: taskersNeeded,
                 estimated_total: estimatedTotal,
+                duration_hours: taskDuration ?? 8,
               })
               if (error) {
                 paymentWindow.close()
@@ -2423,6 +2664,7 @@ function Booking() {
   const [selectedTasker, setSelectedTasker] = useState(null)
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedTime, setSelectedTime] = useState(null)
+  const [taskDuration, setTaskDuration] = useState(8)
 
   const handleStep1Continue = (data) => {
     setTaskAddress(data.address)
@@ -2438,10 +2680,11 @@ function Booking() {
   const handleOpenModal = (tasker) => setModalTasker(tasker)
   const handleCloseModal = () => setModalTasker(null)
 
-  const handleScheduleConfirm = (tasker, date, time) => {
+  const handleScheduleConfirm = (tasker, date, time, durationHours) => {
     setSelectedTasker(tasker)
     setSelectedDate(date)
     setSelectedTime(time)
+    setTaskDuration(durationHours ?? 8)
     setModalTasker(null)
     setStep(2)
   }
@@ -2459,6 +2702,7 @@ function Booking() {
       {modalTasker && (
         <ScheduleModal
           tasker={modalTasker}
+          taskOptions={taskOptions}
           onClose={handleCloseModal}
           onConfirm={handleScheduleConfirm}
         />
@@ -2487,6 +2731,8 @@ function Booking() {
             loadingTaskers={loadingTaskers}
             taskersError={taskersError}
             taskersNeeded={taskersNeeded}
+            estimatedTotal={estimatedTotal}
+            taskOptions={taskOptions}
           />
         )}
 
@@ -2501,6 +2747,7 @@ function Booking() {
             taskDetails={taskDetails}
             taskOptions={taskOptions}
             taskersNeeded={taskersNeeded}
+            taskDuration={taskDuration}
             onBack={() => setStep(1)}
             onContinue={() => setStep(3)}
           />
@@ -2518,6 +2765,7 @@ function Booking() {
             aiImageAnalysis={aiImageAnalysis}
             taskOptions={taskOptions}
             taskersNeeded={taskersNeeded}
+            taskDuration={taskDuration}
             estimatedTotal={estimatedTotal}
             onBack={() => setStep(2)}
           />
