@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import Navbar from '../Components/Navbar'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
-import { Bot, Star, Eye, Trash2, AlertTriangle, X } from 'lucide-react'
+import {
+  Bot, Star, Eye, Trash2, AlertTriangle, X,
+  LayoutDashboard, Users, UserCheck, ClipboardList,
+  CalendarDays, Wrench, Umbrella, LogOut, Menu,
+} from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
   pending:  'bg-yellow-100 text-yellow-700',
@@ -1028,44 +1032,156 @@ function LeaveRequestsPanel() {
 
 // ─── Admin Page ──────────────────────────────────────────────────────────────
 
+const NAV_ITEMS = [
+  { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
+  { key: 'customers',       label: 'Customer Accounts',   icon: Users },
+  { key: 'tasker-accounts', label: 'Tasker Accounts',     icon: UserCheck },
+  { key: 'applications',    label: 'Tasker Applications', icon: ClipboardList },
+  { key: 'bookings',        label: 'Bookings',            icon: CalendarDays },
+  { key: 'services',        label: 'Services',            icon: Wrench },
+  { key: 'reviews',         label: 'Reviews',             icon: Star },
+  { key: 'leave-requests',  label: 'Leave Requests',      icon: Umbrella },
+]
+
+function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
+  return (
+    <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
+
+      {/* Logo */}
+      <div className="px-6 py-5 border-b border-orange-400">
+        <div className="flex items-center gap-3">
+          <div className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <svg
+              className="absolute left-1/2 -translate-x-1/2"
+              style={{ top: 0 }}
+              width="40"
+              height="20"
+              viewBox="0 0 40 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <line x1="20" y1="2" x2="1" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="20" y1="2" x2="39" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <rect x="26" y="4" width="4" height="7" fill="white" rx="0.5" />
+            </svg>
+            <span className="text-white font-black text-3xl leading-none">h</span>
+          </div>
+          <div>
+            <p className="text-white font-bold text-lg leading-tight">Hanap.ph</p>
+            <p className="text-orange-200 text-xs">Admin Panel</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => { setTab(key); onClose?.() }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === key
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <Icon size={17} className="flex-shrink-0" />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Bottom */}
+      <div className="px-3 pt-4 pb-6 border-t border-orange-400">
+        {adminEmail && (
+          <p className="text-orange-200 text-xs px-4 mb-2 truncate">{adminEmail}</p>
+        )}
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-200 hover:bg-orange-600 hover:text-white transition-colors"
+        >
+          <LogOut size={17} className="flex-shrink-0" />
+          Logout
+        </button>
+      </div>
+
+    </div>
+  )
+}
+
 function Admin() {
   const [tab, setTab] = useState('applications')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [adminEmail, setAdminEmail] = useState('')
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setAdminEmail(user?.email ?? '')
+    })
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
+
+  const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <Navbar />
+    <div className="flex min-h-screen">
 
-      <div className="max-w-4xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-extrabold text-gray-800 mb-6">Admin Panel</h1>
+      {/* Desktop sidebar — fixed */}
+      <div className="hidden md:block fixed top-0 left-0 h-screen z-30 overflow-y-auto">
+        <AdminSidebar
+          tab={tab}
+          setTab={setTab}
+          adminEmail={adminEmail}
+          onLogout={handleLogout}
+        />
+      </div>
 
-        {/* Tabs */}
-        <div className="-mx-4 px-4 md:mx-0 md:px-0 flex overflow-x-auto gap-2 pb-2 mb-6" style={{ WebkitOverflowScrolling: 'touch' }}>
-          {[
-            { key: 'applications',   label: 'Tasker Applications' },
-            { key: 'bookings',       label: 'Bookings' },
-            { key: 'services',       label: 'Services' },
-            { key: 'reviews',        label: 'Reviews' },
-            { key: 'leave-requests', label: 'Leave Requests' },
-          ].map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`whitespace-nowrap flex-shrink-0 px-5 py-2 rounded-xl text-sm font-semibold transition-colors ${
-                tab === key
-                  ? 'bg-orange-500 text-white'
-                  : 'bg-white text-gray-600 hover:bg-orange-50 hover:text-orange-500 border border-gray-200'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <div className="fixed top-0 left-0 h-screen z-40 md:hidden overflow-y-auto">
+            <AdminSidebar
+              tab={tab}
+              setTab={setTab}
+              adminEmail={adminEmail}
+              onLogout={handleLogout}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 md:ml-[260px] bg-gray-50 min-h-screen">
+
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-20">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <Menu size={22} />
+          </button>
+          <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
         </div>
 
-        {tab === 'applications'   && <TaskerApplications />}
-        {tab === 'bookings'       && <BookingsPanel />}
-        {tab === 'services'       && <ServicesPanel />}
-        {tab === 'reviews'        && <ReviewsPanel />}
-        {tab === 'leave-requests' && <LeaveRequestsPanel />}
+        <div className="max-w-4xl mx-auto px-4 py-8">
+          {tab === 'applications'   && <TaskerApplications />}
+          {tab === 'bookings'       && <BookingsPanel />}
+          {tab === 'services'       && <ServicesPanel />}
+          {tab === 'reviews'        && <ReviewsPanel />}
+          {tab === 'leave-requests' && <LeaveRequestsPanel />}
+        </div>
+
       </div>
     </div>
   )
