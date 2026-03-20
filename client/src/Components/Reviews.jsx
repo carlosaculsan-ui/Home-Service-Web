@@ -1,14 +1,42 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
-import { ChevronLeft, ChevronRight, Camera } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Camera, X } from 'lucide-react'
 
 const PAGE_SIZE = 8
+
+function Lightbox({ src, onClose }) {
+  if (!src) return null
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-3xl w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white text-sm font-medium flex items-center gap-1 hover:text-orange-400 transition-colors"
+        >
+          <X size={18} /> Close
+        </button>
+        <img
+          src={src}
+          alt="Review photo"
+          className="w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
+        />
+      </div>
+    </div>
+  )
+}
 
 function Reviews() {
   const [reviews, setReviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [selectedReview, setSelectedReview] = useState(null)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   useEffect(() => {
     async function fetchReviews() {
@@ -57,24 +85,25 @@ function Reviews() {
             <p className="text-gray-700 text-sm mb-4">"{selectedReview.comment}"</p>
 
             {selectedReview.images?.length === 1 && (
-              <a href={selectedReview.images[0]} target="_blank" rel="noreferrer" className="block mb-4">
+              <div className="block mb-4">
                 <img
                   src={selectedReview.images[0]}
                   alt="Review photo"
-                  className="w-full rounded-xl object-cover max-h-64 hover:opacity-90 transition-opacity cursor-pointer"
+                  onClick={() => setLightboxSrc(selectedReview.images[0])}
+                  className="w-full rounded-xl object-cover max-h-64 hover:opacity-90 transition-opacity cursor-zoom-in"
                 />
-              </a>
+              </div>
             )}
             {selectedReview.images?.length >= 2 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                 {selectedReview.images.map((url, i) => (
-                  <a key={i} href={url} target="_blank" rel="noreferrer">
-                    <img
-                      src={url}
-                      alt="Review photo"
-                      className="w-full rounded-xl object-cover max-h-48 hover:opacity-90 transition-opacity cursor-pointer"
-                    />
-                  </a>
+                  <img
+                    key={i}
+                    src={url}
+                    alt="Review photo"
+                    onClick={() => setLightboxSrc(url)}
+                    className="w-full rounded-xl object-cover max-h-48 hover:opacity-90 transition-opacity cursor-zoom-in"
+                  />
                 ))}
               </div>
             )}
@@ -193,6 +222,7 @@ function Reviews() {
           </>
         )}
       </div>
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </>
   )
 }

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
-import { Bot, Star, Eye, Trash2, AlertTriangle } from 'lucide-react'
+import { Bot, Star, Eye, Trash2, AlertTriangle, X } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
   pending:  'bg-yellow-100 text-yellow-700',
@@ -38,6 +38,7 @@ function TaskerApplications() {
   const [editingRate, setEditingRate] = useState({}) // { [id]: string }
   const [deleteErrors, setDeleteErrors] = useState({}) // { [id]: string }
   const [deleteSuccess, setDeleteSuccess] = useState({}) // { [id]: bool }
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   async function saveRate(id) {
     const val = parseFloat(editingRate[id])
@@ -213,16 +214,15 @@ function TaskerApplications() {
                 {expandedDocs[t.id] && (
                   <div className="flex flex-wrap gap-3 mt-3">
                     {docs.map(({ key, label }) => (
-                      <a key={key} href={t[key]} target="_blank" rel="noreferrer" title={label}>
-                        <div className="text-center">
-                          <img
-                            src={t[key]}
-                            alt={label}
-                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-pointer"
-                          />
-                          <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
-                        </div>
-                      </a>
+                      <div key={key} className="text-center">
+                        <img
+                          src={t[key]}
+                          alt={label}
+                          onClick={() => setLightboxSrc(t[key])}
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
+                        />
+                        <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -244,6 +244,7 @@ function TaskerApplications() {
           </div>
         )
       })}
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   )
 }
@@ -686,6 +687,35 @@ function ServicesPanel() {
   )
 }
 
+// ─── Lightbox ────────────────────────────────────────────────────────────────
+
+function Lightbox({ src, onClose }) {
+  if (!src) return null
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="relative max-w-3xl w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute -top-10 right-0 text-white text-sm font-medium flex items-center gap-1 hover:text-orange-400 transition-colors"
+        >
+          <X size={18} /> Close
+        </button>
+        <img
+          src={src}
+          alt="Review photo"
+          className="w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
+        />
+      </div>
+    </div>
+  )
+}
+
 // ─── Reviews Tab ─────────────────────────────────────────────────────────────
 // NOTE: Run this SQL in Supabase if not already done:
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
@@ -697,6 +727,7 @@ function ReviewsPanel() {
   const [filter, setFilter] = useState('all')
   const [toast, setToast] = useState('')
   const [deleteErrors, setDeleteErrors] = useState({})
+  const [lightboxSrc, setLightboxSrc] = useState(null)
 
   function showToast(msg) {
     setToast(msg)
@@ -830,13 +861,13 @@ function ReviewsPanel() {
                   {r.images?.length > 0 && (
                     <div className="flex gap-2 mt-2 flex-wrap">
                       {r.images.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noreferrer">
-                          <img
-                            src={url}
-                            alt=""
-                            className="h-20 w-auto rounded-lg object-cover border border-gray-200 hover:border-orange-400 transition-colors cursor-pointer"
-                          />
-                        </a>
+                        <img
+                          key={i}
+                          src={url}
+                          alt=""
+                          onClick={() => setLightboxSrc(url)}
+                          className="h-20 w-auto rounded-lg object-cover border border-gray-200 hover:border-orange-400 transition-colors cursor-zoom-in"
+                        />
                       ))}
                     </div>
                   )}
@@ -879,6 +910,7 @@ function ReviewsPanel() {
           ))}
         </div>
       )}
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
   )
 }
