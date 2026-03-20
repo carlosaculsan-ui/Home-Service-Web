@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
-import { Bot, Star, Eye, Trash2 } from 'lucide-react'
+import { Bot, Star, Eye, Trash2, AlertTriangle } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
   pending:  'bg-yellow-100 text-yellow-700',
@@ -696,6 +696,7 @@ function ReviewsPanel() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [toast, setToast] = useState('')
+  const [deleteErrors, setDeleteErrors] = useState({})
 
   function showToast(msg) {
     setToast(msg)
@@ -726,17 +727,10 @@ function ReviewsPanel() {
   useEffect(() => { fetchReviews() }, [])
 
   async function toggleFeature(review) {
-    if (!review.featured) {
-      const { count } = await supabase
-        .from('reviews')
-        .select('*', { count: 'exact', head: true })
-        .eq('featured', true)
-      if ((count ?? 0) >= 5) {
-        showToast('Maximum 5 featured reviews reached.')
-        return
-      }
-    }
-    await supabase.from('reviews').update({ featured: !review.featured }).eq('id', review.id)
+    const update = review.featured
+      ? { featured: false }
+      : { featured: true, is_flagged: false, is_hidden: false }
+    await supabase.from('reviews').update(update).eq('id', review.id)
     fetchReviews()
   }
 
@@ -746,48 +740,29 @@ function ReviewsPanel() {
   }
 
   async function handleDelete(id) {
-    if (!window.confirm('Delete this review?')) return
-    await supabase.from('reviews').delete().eq('id', id)
-    fetchReviews()
-  }
-
-  async function handleApproveReview(reviewId) {
-    const { error } = await supabase
-      .from('reviews')
-      .update({ is_hidden: false, is_flagged: false })
-      .eq('id', reviewId)
-    if (!error) {
-      setReviews((prev) => prev.map((r) =>
-        r.id === reviewId ? { ...r, is_hidden: false, is_flagged: false } : r
-      ))
-    }
-  }
-
-  async function handleDeleteReview(reviewId) {
     if (!window.confirm('Are you sure you want to delete this review? This cannot be undone.')) return
-    const { error } = await supabase.from('reviews').delete().eq('id', reviewId)
-    if (!error) {
-      setReviews((prev) => prev.filter((r) => r.id !== reviewId))
+    const { error } = await supabase.from('reviews').delete().eq('id', id)
+    if (error) {
+      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete review. Please try again.' }))
+    } else {
+      fetchReviews()
     }
   }
 
   const allCount      = reviews.length
   const featuredCount = reviews.filter(r => r.featured).length
   const hiddenCount   = reviews.filter(r => r.is_hidden).length
-  const flaggedCount  = reviews.filter(r => r.is_flagged).length
 
   const visible = reviews.filter(r => {
     if (filter === 'featured') return r.featured
     if (filter === 'hidden')   return r.is_hidden
-    if (filter === 'flagged')  return r.is_flagged
     return true
   })
 
   const filterTabs = [
-    { key: 'all',      label: 'All',        count: allCount },
-    { key: 'featured', label: 'Featured',   count: featuredCount },
-    { key: 'hidden',   label: 'Hidden',     count: hiddenCount },
-    { key: 'flagged',  label: 'Flagged 🚩', count: flaggedCount },
+    { key: 'all',      label: 'All',      count: allCount },
+    { key: 'featured', label: 'Featured', count: featuredCount },
+    { key: 'hidden',   label: 'Hidden',   count: hiddenCount },
   ]
 
   if (loading) {
@@ -832,23 +807,39 @@ function ReviewsPanel() {
       ) : (
         <div className="space-y-4">
           {visible.map((r) => (
-            <div key={r.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${r.is_flagged ? 'border-red-200' : r.is_hidden ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
+            <div key={r.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${r.is_hidden ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
                     <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
-                    {r.is_flagged && (
-                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold">Flagged 🚩</span>
-                    )}
                     {r.featured && (
                       <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-semibold">Featured</span>
                     )}
-                    {r.is_hidden && !r.is_flagged && (
+                    {r.is_hidden && (
                       <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-semibold">Hidden</span>
                     )}
                   </div>
                   <p className="text-gray-600 text-sm">"{r.comment}"</p>
+                  {r.is_flagged && (
+                    <div className="flex items-center gap-1.5 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-2.5 py-1.5 mt-1">
+                      <AlertTriangle size={13} className="flex-shrink-0" />
+                      <span className="font-medium">AI Flagged — Possible inappropriate content</span>
+                    </div>
+                  )}
+                  {r.images?.length > 0 && (
+                    <div className="flex gap-2 mt-2 flex-wrap">
+                      {r.images.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer">
+                          <img
+                            src={url}
+                            alt=""
+                            className="h-20 w-auto rounded-lg object-cover border border-gray-200 hover:border-orange-400 transition-colors cursor-pointer"
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center gap-3 flex-wrap text-xs text-gray-400">
                     <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full font-medium">{r.service}</span>
                     {taskerMap[r.tasker_id] && (
@@ -858,44 +849,31 @@ function ReviewsPanel() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 flex-shrink-0">
-                  {r.is_flagged ? (
-                    <>
-                      <button
-                        onClick={() => handleApproveReview(r.id)}
-                        className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                      >
-                        ✅ Approve
-                      </button>
-                      <button
-                        onClick={() => handleDeleteReview(r.id)}
-                        className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                      >
-                        <Trash2 size={14} className="inline mr-1" />Delete
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => toggleFeature(r)}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
-                      >
-                        <Star size={14} className="inline mr-1" />{r.featured ? 'Unfeature' : 'Feature'}
-                      </button>
-                      <button
-                        onClick={() => toggleHide(r)}
-                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      >
-                        <Eye size={14} className="inline mr-1" />{r.is_hidden ? 'Show' : 'Hide'}
-                      </button>
-                      <button
-                        onClick={() => handleDelete(r.id)}
-                        className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                      >
-                        <Trash2 size={14} className="inline mr-1" />Delete
-                      </button>
-                    </>
-                  )}
+                  <button
+                    onClick={() => toggleFeature(r)}
+                    className={`px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
+                  >
+                    <Star size={14} className="inline mr-1" />{r.featured ? 'Unfeature' : 'Feature'}
+                  </button>
+                  <button
+                    onClick={() => toggleHide(r)}
+                    className={`px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                  >
+                    <Eye size={14} className="inline mr-1" />{r.is_hidden ? 'Show' : 'Hide'}
+                  </button>
                 </div>
+              </div>
+              {deleteErrors[r.id] && (
+                <p className="mt-2 text-xs text-red-500">{deleteErrors[r.id]}</p>
+              )}
+              <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+                <button
+                  onClick={() => handleDelete(r.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+                >
+                  <Trash2 size={13} />
+                  Delete Review
+                </button>
               </div>
             </div>
           ))}

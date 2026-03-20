@@ -6,7 +6,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import backgroundImg from '../Assets/Background.jpg'
-import { MapPin, Wrench } from 'lucide-react'
+import { MapPin, Wrench, Camera } from 'lucide-react'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
@@ -64,6 +64,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [comment, setComment] = useState('')
   const [status, setStatus] = useState('idle')
   const [submitMessage, setSubmitMessage] = useState('')
+  const [photos, setPhotos] = useState([])
 
   async function handleSubmit() {
     if (rating === 0 || !comment.trim()) return
@@ -79,6 +80,23 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
       .eq('id', userId)
       .single()
 
+    let publicUrls = []
+    if (photos.length > 0) {
+      setSubmitMessage('Uploading photos...')
+      for (const file of photos) {
+        const fileExt = file.name.split('.').pop()
+        const fileName = `${booking.id}_${Date.now()}.${fileExt}`
+        const { error: uploadError } = await supabase.storage
+          .from('review-images')
+          .upload(fileName, file)
+        if (uploadError) { setStatus('error'); setSubmitMessage(''); return }
+        const { data } = supabase.storage
+          .from('review-images')
+          .getPublicUrl(fileName)
+        publicUrls.push(data.publicUrl)
+      }
+    }
+
     const { error } = await supabase
       .from('reviews')
       .insert({
@@ -92,6 +110,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
         featured: false,
         is_hidden: isFlagged,
         is_flagged: isFlagged,
+        images: publicUrls.length > 0 ? publicUrls : null,
       })
 
     if (error) { setStatus('error'); setSubmitMessage(''); return }
@@ -139,6 +158,46 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
           rows={3}
           className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-3"
         />
+
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-gray-600 mb-2">
+            Add Photos <span className="text-xs text-gray-400 font-normal">(optional, max 2)</span>
+          </p>
+          {photos.length > 0 && (
+            <div className="flex gap-2 mb-2">
+              {photos.map((file, i) => (
+                <div key={i} className="relative">
+                  <img
+                    src={URL.createObjectURL(file)}
+                    alt=""
+                    className="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {photos.length < 2 && (
+            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:border-orange-400 hover:text-orange-500 transition-colors">
+              <Camera size={14} />
+              Add Photo
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) setPhotos((prev) => [...prev, file].slice(0, 2))
+                  e.target.value = ''
+                }}
+              />
+            </label>
+          )}
+        </div>
 
         {status === 'submitting' && submitMessage && (
           <p className="text-xs text-gray-500 mb-2">{submitMessage}</p>
