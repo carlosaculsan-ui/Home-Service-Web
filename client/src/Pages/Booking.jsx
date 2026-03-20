@@ -814,7 +814,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         } />
         <DetailRow label="Date &amp; Time" value={formattedDate} />
         {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hrs + 1 hr buffer`} />}
-        <DetailRow label="Task Size" value={taskSize} />
+        <DetailRow label="Task Size" value={taskOptions?.type || taskOptions?.problem || taskOptions?.what_to_paint || taskOptions?.aircon_type || taskSize} />
         <DetailRow label="Address" value={taskAddress} />
         <DetailRow label="Task Description" value={taskDetails} />
         {taskOptions && taskOptions.service === 'Cleaning' && (
@@ -2375,7 +2375,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             ['Service', service],
             ['Tasker', tasker?.name],
             ['Date & Time', formattedDate],
-            ['Task Size', taskSize],
+            ['Task Size', taskOptions?.type || taskOptions?.problem || taskOptions?.what_to_paint || taskOptions?.aircon_type || taskSize],
             ['Address', taskAddress],
           ].map(([label, val]) => (
             <div key={label} className="flex gap-3 text-sm">
@@ -2540,7 +2540,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 client_id,
                 tasker_id: tasker?.id,
                 service,
-                task_size: taskSize,
+                task_size: taskOptions
+                  ? (taskOptions.area || taskOptions.type || taskOptions.problem || taskOptions.what_to_paint || taskOptions.aircon_type || taskOptions.service_type || 'N/A')
+                  : taskSize,
                 task_description: taskDetails,
                 address: taskAddress,
                 scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
@@ -2657,7 +2659,7 @@ function Booking() {
 
   // Step 1 data
   const [taskAddress, setTaskAddress] = useState('')
-  const [taskSize, setTaskSize] = useState('Medium')
+  const [taskSize, setTaskSize] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
   const [taskOptions, setTaskOptions] = useState(null)

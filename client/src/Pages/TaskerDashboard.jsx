@@ -24,6 +24,12 @@ const STATUS_STYLES = {
   cancelled:   'bg-gray-100 text-gray-500',
 }
 
+const getTaskLabel = (booking) => {
+  const opts = booking.task_options
+  if (!opts) return booking.task_size || 'N/A'
+  return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || opts.service_type || booking.task_size || 'N/A'
+}
+
 function TaskCard({ booking, onStatusChange }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [statusError, setStatusError] = useState('')
@@ -59,7 +65,7 @@ function TaskCard({ booking, onStatusChange }) {
           ['Date & Time', booking.scheduled_date
             ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
             : '—'],
-          ['Task Size',   booking.task_size ?? '—'],
+          ['Task Size',   getTaskLabel(booking)],
           ['Address',     booking.address ?? '—'],
           ['Reference',   booking.reference_number ?? '—'],
         ].map(([label, val]) => (
@@ -410,7 +416,7 @@ function TaskerDashboard() {
 
     const { data: bookingRows, error: bookingError } = await supabase
       .from('bookings')
-      .select('*')
+      .select('*, task_options, task_size, taskers_needed, duration_hours, customer_name, customer_phone')
       .eq('tasker_id', tid)
       .order('created_at', { ascending: false })
 

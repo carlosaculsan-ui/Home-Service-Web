@@ -670,6 +670,12 @@ function CustomerAccountsPanel() {
 
 // ─── Bookings Tab ────────────────────────────────────────────────────────────
 
+const getTaskLabel = (booking) => {
+  const opts = booking.task_options
+  if (!opts) return booking.task_size || 'N/A'
+  return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || booking.task_size || 'N/A'
+}
+
 function BookingsPanel() {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -754,7 +760,7 @@ function BookingsPanel() {
                   ['Tasker',    b.taskerName],
                   ['Client',    b.clientEmail],
                   ['Date',      b.scheduled_date ? `${b.scheduled_date}${b.scheduled_time ? ' at ' + b.scheduled_time : ''}` : '—'],
-                  ['Task Size', b.task_size],
+                  ['Task',      getTaskLabel(b)],
                   ['Address',   b.address],
                 ].map(([label, val]) => (
                   <div key={label} className="flex gap-2">
