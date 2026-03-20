@@ -64,11 +64,18 @@ function TaskerApplications() {
 
   useEffect(() => { fetchTaskers() }, [])
 
-  async function updateStatus(id, status) {
+  async function updateStatus(tasker, status) {
     await supabase
       .from('taskers')
       .update({ status, ...(status === 'approved' ? { is_available: true } : {}) })
-      .eq('id', id)
+      .eq('id', tasker.id)
+
+    if (status === 'approved') {
+      await supabase.from('profiles').update({ role: 'tasker' }).eq('id', tasker.user_id)
+    } else if (status === 'rejected') {
+      await supabase.from('profiles').update({ role: 'customer' }).eq('id', tasker.user_id)
+    }
+
     fetchTaskers()
   }
 
@@ -172,13 +179,13 @@ function TaskerApplications() {
               {t.status === 'pending' && (
                 <div className="flex md:flex-col gap-2 md:flex-shrink-0">
                   <button
-                    onClick={() => updateStatus(t.id, 'approved')}
+                    onClick={() => updateStatus(t, 'approved')}
                     className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
                     Approve
                   </button>
                   <button
-                    onClick={() => updateStatus(t.id, 'rejected')}
+                    onClick={() => updateStatus(t, 'rejected')}
                     className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                   >
                     Reject
@@ -423,6 +430,241 @@ function TaskerAccountsPanel() {
       })}
       <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
     </div>
+  )
+}
+
+// ─── Customer Accounts Tab ────────────────────────────────────────────────────
+
+function CustomerAccountsPanel() {
+  const [customers, setCustomers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [deleteErrors, setDeleteErrors] = useState({})
+  const [viewingCustomer, setViewingCustomer] = useState(null)
+  const [customerBookings, setCustomerBookings] = useState([])
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+
+  async function fetchCustomers() {
+    const { data } = await supabase
+      .from('customer_profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setCustomers(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchCustomers() }, [])
+
+  async function handleViewBookings(customer) {
+    setViewingCustomer(customer)
+    setBookingsLoading(true)
+    setCustomerBookings([])
+
+    const { data } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('client_id', customer.id)
+      .order('created_at', { ascending: false })
+
+    const rows = data ?? []
+
+    // Resolve tasker names
+    const taskerIds = [...new Set(rows.map((b) => b.tasker_id).filter(Boolean))]
+    let taskerMap = {}
+    if (taskerIds.length > 0) {
+      const { data: taskers } = await supabase.from('taskers').select('id, name').in('id', taskerIds)
+      taskers?.forEach((t) => { taskerMap[t.id] = t.name })
+    }
+
+    setCustomerBookings(rows.map((b) => ({ ...b, taskerName: taskerMap[b.tasker_id] ?? '—' })))
+    setBookingsLoading(false)
+  }
+
+  async function handleDelete(customer) {
+    setDeleteErrors((prev) => ({ ...prev, [customer.id]: '' }))
+
+    const { data: activeBookings } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('client_id', customer.id)
+      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+
+    if (activeBookings && activeBookings.length > 0) {
+      setDeleteErrors((prev) => ({
+        ...prev,
+        [customer.id]: 'This customer has active bookings and cannot be deleted. Please wait until all bookings are completed or cancelled.',
+      }))
+      return
+    }
+
+    if (!window.confirm(
+      'Are you sure you want to delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.'
+    )) return
+
+    try {
+      await supabase.from('reviews').delete().eq('client_id', customer.id)
+      await supabase.from('bookings').delete().eq('client_id', customer.id)
+      const { error } = await supabase.from('profiles').delete().eq('id', customer.id)
+      if (error) throw error
+      setCustomers((prev) => prev.filter((c) => c.id !== customer.id))
+    } catch {
+      setDeleteErrors((prev) => ({ ...prev, [customer.id]: 'Failed to delete customer. Please try again.' }))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (customers.length === 0) {
+    return <p className="text-center text-gray-400 mt-16">No customer accounts found.</p>
+  }
+
+  return (
+    <>
+      {/* Bookings Modal */}
+      {viewingCustomer && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4 py-6"
+          onClick={() => setViewingCustomer(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <p className="font-bold text-gray-800 text-base">
+                  {viewingCustomer.full_name || 'No name'}
+                </p>
+                <p className="text-xs text-gray-400 mt-0.5">Booking history</p>
+              </div>
+              <button
+                onClick={() => setViewingCustomer(null)}
+                className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal body */}
+            <div className="overflow-y-auto flex-1 px-6 py-4">
+              {bookingsLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : customerBookings.length === 0 ? (
+                <p className="text-center text-gray-400 py-10">No bookings found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-400 border-b border-gray-100">
+                        <th className="pb-2 pr-4 font-medium">Service</th>
+                        <th className="pb-2 pr-4 font-medium">Tasker</th>
+                        <th className="pb-2 pr-4 font-medium">Date</th>
+                        <th className="pb-2 pr-4 font-medium">Status</th>
+                        <th className="pb-2 font-medium">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {customerBookings.map((b) => (
+                        <tr key={b.id} className="text-gray-700">
+                          <td className="py-2.5 pr-4 font-medium">{b.service ?? '—'}</td>
+                          <td className="py-2.5 pr-4 text-gray-500">{b.taskerName}</td>
+                          <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
+                            {b.scheduled_date ?? '—'}
+                          </td>
+                          <td className="py-2.5 pr-4">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                              {b.status?.replace('_', ' ') ?? '—'}
+                            </span>
+                          </td>
+                          <td className="py-2.5 text-gray-700">
+                            {b.total_price ? `₱${Number(b.total_price).toLocaleString()}` : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                <th className="px-4 py-3 font-medium w-8">#</th>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Phone</th>
+                <th className="px-4 py-3 font-medium">Address</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {customers.map((c, idx) => (
+                <>
+                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
+                      {c.full_name || 'No name'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {c.phone || 'Not provided'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
+                      {c.address || 'Not provided'}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                      {c.created_at
+                        ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                        : '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleViewBookings(c)}
+                          className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
+                        >
+                          View Bookings
+                        </button>
+                        <button
+                          onClick={() => handleDelete(c)}
+                          className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                  {deleteErrors[c.id] && (
+                    <tr key={`${c.id}-err`}>
+                      <td colSpan={7} className="px-4 pb-3 pt-0">
+                        <p className="text-xs text-red-500">{deleteErrors[c.id]}</p>
+                      </td>
+                    </tr>
+                  )}
+                </>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -1348,6 +1590,7 @@ function Admin() {
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8">
+          {tab === 'customers'       && <CustomerAccountsPanel />}
           {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
           {tab === 'applications'    && <TaskerApplications />}
           {tab === 'bookings'        && <BookingsPanel />}
