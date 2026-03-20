@@ -56,6 +56,7 @@ function TaskerApplications() {
     const { data } = await supabase
       .from('taskers')
       .select('*')
+      .in('status', ['pending', 'rejected'])
       .order('created_at', { ascending: false })
     setTaskers(data ?? [])
     setLoading(false)
@@ -76,37 +77,16 @@ function TaskerApplications() {
   }
 
   async function handleDeleteTasker(tasker) {
-    setDeleteErrors((prev) => ({ ...prev, [tasker.id]: '' }))
-
-    // Step 1 — check for active bookings
-    const { data: activeBookings } = await supabase
-      .from('bookings')
-      .select('id, status')
-      .eq('tasker_id', tasker.id)
-      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
-
-    if (activeBookings && activeBookings.length > 0) {
-      setDeleteErrors((prev) => ({
-        ...prev,
-        [tasker.id]: 'This tasker has ongoing bookings and cannot be removed. Please wait until all active bookings are completed or cancelled before deleting.',
-      }))
-      return
-    }
-
     if (!window.confirm(
-      'Are you sure you want to remove this tasker? All their records including bookings, reviews, and leave requests will be permanently deleted. This cannot be undone.'
+      'Are you sure you want to remove this applicant? This cannot be undone.'
     )) return
 
     try {
-      await supabase.from('reviews').delete().eq('tasker_id', tasker.id)
-      await supabase.from('bookings').delete().eq('tasker_id', tasker.id)
-      await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
       const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
       if (error) throw error
       setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
-      setDeleteSuccess((prev) => ({ ...prev, [tasker.id]: true }))
     } catch {
-      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete tasker. Please try again.' }))
+      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete. Please try again.' }))
     }
   }
 
@@ -119,7 +99,7 @@ function TaskerApplications() {
   }
 
   if (taskers.length === 0) {
-    return <p className="text-center text-gray-400 mt-16">No tasker applications yet.</p>
+    return <p className="text-center text-gray-400 mt-16">No pending or rejected applications.</p>
   }
 
   return (
@@ -205,6 +185,199 @@ function TaskerApplications() {
                   </button>
                 </div>
               )}
+            </div>
+
+            {docs.length > 0 && (
+              <div className="mt-3 border-t border-gray-100 pt-3">
+                <button
+                  onClick={() => toggleDocs(t.id)}
+                  className="text-sm font-semibold text-orange-500 hover:text-orange-600 flex items-center gap-1"
+                >
+                  {expandedDocs[t.id] ? '▲ Hide' : '▼ View'} Documents ({docs.length})
+                </button>
+                {expandedDocs[t.id] && (
+                  <div className="flex flex-wrap gap-3 mt-3">
+                    {docs.map(({ key, label }) => (
+                      <div key={key} className="text-center">
+                        <img
+                          src={t[key]}
+                          alt={label}
+                          onClick={() => setLightboxSrc(t[key])}
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
+                        />
+                        <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {deleteErrors[t.id] && (
+              <p className="mt-2 text-xs text-red-500 border-t border-gray-100 pt-2">{deleteErrors[t.id]}</p>
+            )}
+            <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+              <button
+                onClick={() => handleDeleteTasker(t)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+              >
+                <Trash2 size={13} />
+                Delete Tasker
+              </button>
+            </div>
+          </div>
+        )
+      })}
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+    </div>
+  )
+}
+
+// ─── Tasker Accounts Tab ─────────────────────────────────────────────────────
+
+function TaskerAccountsPanel() {
+  const [taskers, setTaskers] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [expandedDocs, setExpandedDocs] = useState({})
+  const [editingRate, setEditingRate] = useState({})
+  const [deleteErrors, setDeleteErrors] = useState({})
+  const [lightboxSrc, setLightboxSrc] = useState(null)
+
+  async function fetchTaskers() {
+    const { data } = await supabase
+      .from('taskers')
+      .select('*')
+      .eq('status', 'approved')
+      .order('created_at', { ascending: false })
+    setTaskers(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchTaskers() }, [])
+
+  async function saveRate(id) {
+    const val = parseFloat(editingRate[id])
+    if (isNaN(val) || val <= 0) return
+    await supabase.from('taskers').update({ hourly_rate: val }).eq('id', id)
+    setEditingRate((prev) => { const next = { ...prev }; delete next[id]; return next })
+    fetchTaskers()
+  }
+
+  function toggleDocs(id) {
+    setExpandedDocs((prev) => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  async function handleDeleteTasker(tasker) {
+    setDeleteErrors((prev) => ({ ...prev, [tasker.id]: '' }))
+
+    const { data: activeBookings } = await supabase
+      .from('bookings')
+      .select('id, status')
+      .eq('tasker_id', tasker.id)
+      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+
+    if (activeBookings && activeBookings.length > 0) {
+      setDeleteErrors((prev) => ({
+        ...prev,
+        [tasker.id]: 'This tasker has ongoing bookings and cannot be removed. Please wait until all active bookings are completed or cancelled before deleting.',
+      }))
+      return
+    }
+
+    if (!window.confirm(
+      'Are you sure you want to remove this tasker? All their records including bookings, reviews, and leave requests will be permanently deleted. This cannot be undone.'
+    )) return
+
+    try {
+      await supabase.from('reviews').delete().eq('tasker_id', tasker.id)
+      await supabase.from('bookings').delete().eq('tasker_id', tasker.id)
+      await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
+      const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
+      if (error) throw error
+      setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
+    } catch {
+      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete tasker. Please try again.' }))
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (taskers.length === 0) {
+    return <p className="text-center text-gray-400 mt-16">No approved taskers yet.</p>
+  }
+
+  return (
+    <div className="space-y-4">
+      {taskers.map((t) => {
+        const docs = DOC_FIELDS.filter(({ key }) => t[key])
+        return (
+          <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="font-bold text-gray-800 text-base">{t.name}</p>
+                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
+                    {t.status}
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
+                  {[
+                    ['Email',   t.email],
+                    ['Phone',   t.phone],
+                    ['Service', t.role],
+                    ['Area',    t.service_area],
+                    ['Joined',  t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex gap-2">
+                      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
+                      <span className="text-gray-700">{val ?? '—'}</span>
+                    </div>
+                  ))}
+                  <div className="flex gap-2 items-center">
+                    <span className="text-gray-400 w-24 flex-shrink-0">Hourly Rate</span>
+                    {editingRate[t.id] !== undefined ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-gray-500">₱</span>
+                        <input
+                          type="number"
+                          min="1"
+                          value={editingRate[t.id]}
+                          onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                          className="w-20 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:border-orange-400"
+                          autoFocus
+                        />
+                        <button
+                          onClick={() => saveRate(t.id)}
+                          className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
+                        >Save</button>
+                        <button
+                          onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
+                          className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
+                        >Cancel</button>
+                      </div>
+                    ) : (
+                      <span
+                        className="text-gray-700 cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
+                        onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
+                      >
+                        {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
+                        <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {t.bio && (
+                  <p className="text-sm text-gray-600 mt-2 border-t border-gray-100 pt-2">
+                    <span className="font-medium text-gray-500">Bio: </span>{t.bio}
+                  </p>
+                )}
+              </div>
             </div>
 
             {docs.length > 0 && (
@@ -1175,11 +1348,12 @@ function Admin() {
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8">
-          {tab === 'applications'   && <TaskerApplications />}
-          {tab === 'bookings'       && <BookingsPanel />}
-          {tab === 'services'       && <ServicesPanel />}
-          {tab === 'reviews'        && <ReviewsPanel />}
-          {tab === 'leave-requests' && <LeaveRequestsPanel />}
+          {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
+          {tab === 'applications'    && <TaskerApplications />}
+          {tab === 'bookings'        && <BookingsPanel />}
+          {tab === 'services'        && <ServicesPanel />}
+          {tab === 'reviews'         && <ReviewsPanel />}
+          {tab === 'leave-requests'  && <LeaveRequestsPanel />}
         </div>
 
       </div>
