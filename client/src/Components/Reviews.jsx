@@ -12,6 +12,7 @@ function Reviews() {
         .from('reviews')
         .select('*')
         .eq('is_hidden', false)
+        .eq('is_flagged', false)
         .order('featured', { ascending: false })
         .order('created_at', { ascending: false })
         .limit(8)

@@ -29,15 +29,49 @@ const STATUS_LABELS = {
   rejected:    'Rejected',
 }
 
+async function moderateReview(comment) {
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: 'llama-3.3-70b-versatile',
+        max_tokens: 10,
+        messages: [
+          {
+            role: 'system',
+            content: `You are a content moderator for a Philippine home services app. Analyze the given review comment and respond with ONLY one word: "clean" if the content is appropriate, or "flagged" if it contains any of the following: profanity or swear words in English or Filipino/Tagalog, hate speech or discrimination, threats or violent language, sexually explicit content, spam or gibberish, personal attacks or harassment. Respond with ONLY "clean" or "flagged". Nothing else.`,
+          },
+          { role: 'user', content: comment },
+        ],
+      }),
+    })
+    const data = await response.json()
+    const result = data.choices?.[0]?.message?.content?.trim()?.toLowerCase()
+    return result === 'flagged' ? 'flagged' : 'clean'
+  } catch (error) {
+    console.error('Moderation error:', error)
+    return 'clean'
+  }
+}
+
 function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
   const [comment, setComment] = useState('')
   const [status, setStatus] = useState('idle')
+  const [submitMessage, setSubmitMessage] = useState('')
 
   async function handleSubmit() {
     if (rating === 0 || !comment.trim()) return
     setStatus('submitting')
+    setSubmitMessage('Checking your review...')
+
+    const moderationResult = await moderateReview(comment.trim())
+    const isFlagged = moderationResult === 'flagged'
 
     const { data: profile } = await supabase
       .from('profiles')
@@ -56,12 +90,18 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
         comment: comment.trim(),
         service: booking.service,
         featured: false,
-        is_hidden: false,
+        is_hidden: isFlagged,
+        is_flagged: isFlagged,
       })
 
-    if (error) { setStatus('error'); return }
+    if (error) { setStatus('error'); setSubmitMessage(''); return }
     setStatus('success')
-    setTimeout(() => { onSuccess(); onClose() }, 1200)
+    setSubmitMessage(
+      isFlagged
+        ? 'Your review has been submitted and is currently under review by our team. It will be published once approved.'
+        : 'Your review has been published successfully!'
+    )
+    setTimeout(() => { onSuccess(); onClose() }, isFlagged ? 3000 : 1200)
   }
 
   return (
@@ -94,17 +134,20 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
         <p className="text-sm font-semibold text-gray-600 mb-1">Your Comment <span className="text-red-400">*</span></p>
         <textarea
           value={comment}
-          onChange={(e) => setComment(e.target.value)}
+          onChange={(e) => { setComment(e.target.value); if (status === 'error') setStatus('idle') }}
           placeholder="Share your experience..."
           rows={3}
           className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-3"
         />
 
+        {status === 'submitting' && submitMessage && (
+          <p className="text-xs text-gray-500 mb-2">{submitMessage}</p>
+        )}
         {status === 'error' && (
           <p className="text-xs text-red-500 mb-2">Failed to submit. Please try again.</p>
         )}
         {status === 'success' && (
-          <p className="text-sm font-semibold text-green-600 mb-2">Thank you for your review! ⭐</p>
+          <p className="text-sm font-semibold text-green-600 mb-2">{submitMessage}</p>
         )}
 
         <button

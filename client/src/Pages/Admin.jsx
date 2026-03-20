@@ -751,20 +751,43 @@ function ReviewsPanel() {
     fetchReviews()
   }
 
+  async function handleApproveReview(reviewId) {
+    const { error } = await supabase
+      .from('reviews')
+      .update({ is_hidden: false, is_flagged: false })
+      .eq('id', reviewId)
+    if (!error) {
+      setReviews((prev) => prev.map((r) =>
+        r.id === reviewId ? { ...r, is_hidden: false, is_flagged: false } : r
+      ))
+    }
+  }
+
+  async function handleDeleteReview(reviewId) {
+    if (!window.confirm('Are you sure you want to delete this review? This cannot be undone.')) return
+    const { error } = await supabase.from('reviews').delete().eq('id', reviewId)
+    if (!error) {
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId))
+    }
+  }
+
   const allCount      = reviews.length
   const featuredCount = reviews.filter(r => r.featured).length
   const hiddenCount   = reviews.filter(r => r.is_hidden).length
+  const flaggedCount  = reviews.filter(r => r.is_flagged).length
 
   const visible = reviews.filter(r => {
     if (filter === 'featured') return r.featured
     if (filter === 'hidden')   return r.is_hidden
+    if (filter === 'flagged')  return r.is_flagged
     return true
   })
 
   const filterTabs = [
-    { key: 'all',      label: 'All',      count: allCount },
-    { key: 'featured', label: 'Featured', count: featuredCount },
-    { key: 'hidden',   label: 'Hidden',   count: hiddenCount },
+    { key: 'all',      label: 'All',        count: allCount },
+    { key: 'featured', label: 'Featured',   count: featuredCount },
+    { key: 'hidden',   label: 'Hidden',     count: hiddenCount },
+    { key: 'flagged',  label: 'Flagged 🚩', count: flaggedCount },
   ]
 
   if (loading) {
@@ -809,16 +832,19 @@ function ReviewsPanel() {
       ) : (
         <div className="space-y-4">
           {visible.map((r) => (
-            <div key={r.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${r.is_hidden ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
+            <div key={r.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${r.is_flagged ? 'border-red-200' : r.is_hidden ? 'border-gray-200 opacity-60' : 'border-gray-100'}`}>
               <div className="flex items-start justify-between gap-4 flex-wrap">
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
                     <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
+                    {r.is_flagged && (
+                      <span className="text-xs bg-red-100 text-red-600 px-2 py-0.5 rounded-full font-semibold">Flagged 🚩</span>
+                    )}
                     {r.featured && (
                       <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-semibold">Featured</span>
                     )}
-                    {r.is_hidden && (
+                    {r.is_hidden && !r.is_flagged && (
                       <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-semibold">Hidden</span>
                     )}
                   </div>
@@ -832,24 +858,43 @@ function ReviewsPanel() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => toggleFeature(r)}
-                    className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
-                  >
-                    <Star size={14} className="inline mr-1" />{r.featured ? 'Unfeature' : 'Feature'}
-                  </button>
-                  <button
-                    onClick={() => toggleHide(r)}
-                    className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  >
-                    <Eye size={14} className="inline mr-1" />{r.is_hidden ? 'Show' : 'Hide'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(r.id)}
-                    className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    <Trash2 size={14} className="inline mr-1" />Delete
-                  </button>
+                  {r.is_flagged ? (
+                    <>
+                      <button
+                        onClick={() => handleApproveReview(r.id)}
+                        className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        ✅ Approve
+                      </button>
+                      <button
+                        onClick={() => handleDeleteReview(r.id)}
+                        className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        <Trash2 size={14} className="inline mr-1" />Delete
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => toggleFeature(r)}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.featured ? 'bg-gray-100 text-gray-600 hover:bg-gray-200' : 'bg-orange-500 text-white hover:bg-orange-600'}`}
+                      >
+                        <Star size={14} className="inline mr-1" />{r.featured ? 'Unfeature' : 'Feature'}
+                      </button>
+                      <button
+                        onClick={() => toggleHide(r)}
+                        className={`px-3 py-1.5 text-sm font-semibold rounded-lg transition-colors ${r.is_hidden ? 'bg-blue-500 text-white hover:bg-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      >
+                        <Eye size={14} className="inline mr-1" />{r.is_hidden ? 'Show' : 'Hide'}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(r.id)}
+                        className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                      >
+                        <Trash2 size={14} className="inline mr-1" />Delete
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
