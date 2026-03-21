@@ -166,7 +166,7 @@ function Navbar() {
                 <div className="px-4 py-3 border-b border-gray-100">
                   <p className="text-xs text-gray-400 truncate">{session.user.email}</p>
                 </div>
-                {!isAdmin && (
+                {!isAdmin && !isApprovedTasker && (
                   <Link
                     to="/become-a-tasker"
                     onClick={() => setDropdownOpen(false)}
@@ -235,7 +235,7 @@ function Navbar() {
           {session ? (
             <div className="flex flex-col px-8 py-4 gap-3">
               <p className="text-orange-200 text-xs truncate">{session.user.email}</p>
-              {!isAdmin && (
+              {!isAdmin && !isApprovedTasker && (
                 <Link
                   to="/become-a-tasker"
                   onClick={() => setMenuOpen(false)}
