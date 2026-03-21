@@ -386,7 +386,7 @@ function TaskerAccountsPanel() {
                           : '—'}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col gap-2">
                           {docs.length > 0 && (
                             <button
                               onClick={() => setDocsModalTasker({ tasker: t, docs })}
@@ -665,7 +665,7 @@ function CustomerAccountsPanel() {
                         : '—'}
                     </td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-col gap-2">
                         <button
                           onClick={() => handleViewBookings(c)}
                           className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
