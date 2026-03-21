@@ -82,11 +82,12 @@ function getTaskDuration(taskOptions) {
   return 8
 }
 
-function isSlotAvailable(slotHour, existingBookings) {
+function isSlotAvailable(slotHour, existingBookings, taskOptions) {
+  const newDuration = getTaskDuration(taskOptions) + BUFFER_HOURS
   for (const booking of existingBookings) {
-    const bookedStart = parseInt(booking.scheduled_time.split(':')[0])
-    const bookedEnd = bookedStart + (booking.duration_hours || 8) + BUFFER_HOURS
-    if (slotHour >= bookedStart && slotHour < bookedEnd) return false
+    const existingStart = parseInt(booking.scheduled_time.split(':')[0])
+    const existingDuration = (booking.duration_hours || 8) + BUFFER_HOURS
+    if (slotHour + newDuration > existingStart && slotHour < existingStart + existingDuration) return false
   }
   return true
 }
@@ -368,7 +369,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                     <div className="grid grid-cols-3 gap-2">
                       {TIME_SLOTS.map((slot) => {
                         const h = parseInt(slot.split(':')[0])
-                        const available = isSlotAvailable(h, selectedDateBookings)
+                        const available = isSlotAvailable(h, selectedDateBookings, taskOptions)
                         const isPickedSlot = selectedSlot === slot
                         return (
                           <button
