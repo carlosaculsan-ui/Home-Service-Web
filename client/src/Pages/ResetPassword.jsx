@@ -23,7 +23,13 @@ function ResetPassword() {
     if (error) {
       setError(error.message)
     } else {
-      navigate('/login')
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      navigate(profile?.role === 'tasker' ? '/tasker' : '/login')
     }
     setLoading(false)
   }

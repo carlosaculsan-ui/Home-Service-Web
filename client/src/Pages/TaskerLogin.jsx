@@ -105,6 +105,12 @@ function TaskerLogin() {
             </button>
           </div>
 
+          <div className="text-right mt-1">
+            <a href="/forgot-password" className="text-sm text-orange-300 hover:text-orange-200 hover:underline">
+              Forgot Password?
+            </a>
+          </div>
+
           {error && <p className="text-red-300 text-sm">{error}</p>}
 
           <button
