@@ -650,7 +650,7 @@ function CustomerAccountsPanel() {
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                     <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
-                      {c.full_name || 'No name'}
+                      {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
@@ -664,17 +664,17 @@ function CustomerAccountsPanel() {
                         ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
                         : '—'}
                     </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-col gap-2">
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <div className="flex flex-row gap-2 items-center">
                         <button
                           onClick={() => handleViewBookings(c)}
-                          className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
+                          className="text-sm font-medium px-3 py-1 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
                         >
                           View Bookings
                         </button>
                         <button
                           onClick={() => handleDelete(c)}
-                          className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors"
+                          className="flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors"
                         >
                           <Trash2 size={12} />
                           Delete
