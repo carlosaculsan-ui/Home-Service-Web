@@ -1487,8 +1487,8 @@ function LeaveRequestsPanel() {
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'customers',       label: 'Customer Accounts',   icon: Users },
-  { key: 'tasker-accounts', label: 'Tasker Accounts',     icon: UserCheck },
-  { key: 'applications',    label: 'Tasker Applications', icon: ClipboardList },
+  { key: 'tasker-accounts', label: 'Employee Accounts',   icon: UserCheck },
+  { key: 'applications',    label: 'Applicants',          icon: ClipboardList },
   { key: 'bookings',        label: 'Bookings',            icon: CalendarDays },
   { key: 'services',        label: 'Services',            icon: Wrench },
   { key: 'reviews',         label: 'Reviews',             icon: Star },
