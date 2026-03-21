@@ -38,7 +38,7 @@ function TaskerRoute({ children }) {
     )
   }
 
-  if (state === 'no_session') return <Navigate to="/login" replace />
+  if (state === 'no_session') return <Navigate to="/tasker" replace />
   if (state === 'no_row') return <Navigate to="/" replace />
 
   if (state === 'pending') {

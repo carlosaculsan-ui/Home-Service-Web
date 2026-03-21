@@ -22,6 +22,7 @@ import ProtectedRoute from './Components/ProtectedRoute'
 import AdminRoute from './Components/AdminRoute'
 import TaskerRoute from './Components/TaskerRoute'
 import TaskerDashboard from './Pages/TaskerDashboard'
+import TaskerLogin from './Pages/TaskerLogin'
 
 function Home() {
   return (
@@ -53,6 +54,7 @@ function App() {
       <Route path="/booking/:service" element={<Booking />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
+      <Route path="/tasker" element={<TaskerLogin />} />
       <Route path="/tasker-dashboard" element={<TaskerRoute><TaskerDashboard /></TaskerRoute>} />
     </Routes>
   )
