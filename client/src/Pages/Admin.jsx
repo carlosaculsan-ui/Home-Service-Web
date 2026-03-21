@@ -245,10 +245,10 @@ function TaskerApplications() {
 function TaskerAccountsPanel() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
-  const [expandedDocs, setExpandedDocs] = useState({})
   const [editingRate, setEditingRate] = useState({})
   const [deleteErrors, setDeleteErrors] = useState({})
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [docsModalTasker, setDocsModalTasker] = useState(null)
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -268,10 +268,6 @@ function TaskerAccountsPanel() {
     await supabase.from('taskers').update({ hourly_rate: val }).eq('id', id)
     setEditingRate((prev) => { const next = { ...prev }; delete next[id]; return next })
     fetchTaskers()
-  }
-
-  function toggleDocs(id) {
-    setExpandedDocs((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
   async function handleDeleteTasker(tasker) {
@@ -320,116 +316,151 @@ function TaskerAccountsPanel() {
   }
 
   return (
-    <div className="space-y-4">
-      {taskers.map((t) => {
-        const docs = DOC_FIELDS.filter(({ key }) => t[key])
-        return (
-          <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center gap-3">
-                  <p className="font-bold text-gray-800 text-base">{t.name}</p>
-                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
-                    {t.status}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
-                  {[
-                    ['Email',   t.email],
-                    ['Phone',   t.phone],
-                    ['Service', t.role],
-                    ['Area',    t.service_area],
-                    ['Joined',  t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
-                  ].map(([label, val]) => (
-                    <div key={label} className="flex gap-2">
-                      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
-                      <span className="text-gray-700">{val ?? '—'}</span>
-                    </div>
-                  ))}
-                  <div className="flex gap-2 items-center">
-                    <span className="text-gray-400 w-24 flex-shrink-0">Hourly Rate</span>
-                    {editingRate[t.id] !== undefined ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-500">₱</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={editingRate[t.id]}
-                          onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                          className="w-20 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:border-orange-400"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => saveRate(t.id)}
-                          className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
-                        >Save</button>
-                        <button
-                          onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
-                          className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
-                        >Cancel</button>
-                      </div>
-                    ) : (
-                      <span
-                        className="text-gray-700 cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
-                        onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
-                      >
-                        {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
-                        <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
-                      </span>
+    <>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                <th className="px-4 py-3 font-medium w-8">#</th>
+                <th className="px-4 py-3 font-medium">Name</th>
+                <th className="px-4 py-3 font-medium">Email</th>
+                <th className="px-4 py-3 font-medium">Phone</th>
+                <th className="px-4 py-3 font-medium">Service</th>
+                <th className="px-4 py-3 font-medium">Area</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Hourly Rate</th>
+                <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
+                <th className="px-4 py-3 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {taskers.map((t, idx) => {
+                const docs = DOC_FIELDS.filter(({ key }) => t[key])
+                return (
+                  <>
+                    <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                      <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
+                      <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
+                        {t.service_area
+                          ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {editingRate[t.id] !== undefined ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-500">₱</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={editingRate[t.id]}
+                              onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                              className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-orange-400"
+                              autoFocus
+                            />
+                            <button
+                              onClick={() => saveRate(t.id)}
+                              className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
+                            >Save</button>
+                            <button
+                              onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
+                              className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
+                            >Cancel</button>
+                          </div>
+                        ) : (
+                          <span
+                            className="cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
+                            onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
+                          >
+                            {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
+                            <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                        {t.created_at
+                          ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          {docs.length > 0 && (
+                            <button
+                              onClick={() => setDocsModalTasker({ tasker: t, docs })}
+                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
+                            >
+                              View Documents
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteTasker(t)}
+                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
+                          >
+                            <Trash2 size={12} />
+                            Delete Tasker
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    {deleteErrors[t.id] && (
+                      <tr key={`${t.id}-err`}>
+                        <td colSpan={9} className="px-4 pb-3 pt-0">
+                          <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
+                        </td>
+                      </tr>
                     )}
-                  </div>
-                </div>
-                {t.bio && (
-                  <p className="text-sm text-gray-600 mt-2 border-t border-gray-100 pt-2">
-                    <span className="font-medium text-gray-500">Bio: </span>{t.bio}
-                  </p>
-                )}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Documents Modal */}
+      {docsModalTasker && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4"
+          onClick={() => setDocsModalTasker(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <p className="font-bold text-gray-800 text-base">{docsModalTasker.tasker.name}</p>
+                <p className="text-xs text-gray-400 mt-0.5">Documents ({docsModalTasker.docs.length})</p>
               </div>
-            </div>
-
-            {docs.length > 0 && (
-              <div className="mt-3 border-t border-gray-100 pt-3">
-                <button
-                  onClick={() => toggleDocs(t.id)}
-                  className="text-sm font-semibold text-orange-500 hover:text-orange-600 flex items-center gap-1"
-                >
-                  {expandedDocs[t.id] ? '▲ Hide' : '▼ View'} Documents ({docs.length})
-                </button>
-                {expandedDocs[t.id] && (
-                  <div className="flex flex-wrap gap-3 mt-3">
-                    {docs.map(({ key, label }) => (
-                      <div key={key} className="text-center">
-                        <img
-                          src={t[key]}
-                          alt={label}
-                          onClick={() => setLightboxSrc(t[key])}
-                          className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
-                        />
-                        <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {deleteErrors[t.id] && (
-              <p className="mt-2 text-xs text-red-500 border-t border-gray-100 pt-2">{deleteErrors[t.id]}</p>
-            )}
-            <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
               <button
-                onClick={() => handleDeleteTasker(t)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+                onClick={() => setDocsModalTasker(null)}
+                className="w-9 h-9 flex items-center justify-center rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
               >
-                <Trash2 size={13} />
-                Delete Tasker
+                <X size={18} />
               </button>
             </div>
+            <div className="overflow-y-auto flex-1 px-6 py-5">
+              <div className="flex flex-wrap gap-4">
+                {docsModalTasker.docs.map(({ key, label }) => (
+                  <div key={key} className="text-center">
+                    <img
+                      src={docsModalTasker.tasker[key]}
+                      alt={label}
+                      onClick={() => setLightboxSrc(docsModalTasker.tasker[key])}
+                      className="w-24 h-24 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
+                    />
+                    <p className="text-xs text-gray-500 mt-1 w-24 truncate">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        )
-      })}
+        </div>
+      )}
       <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
-    </div>
+    </>
   )
 }
 
