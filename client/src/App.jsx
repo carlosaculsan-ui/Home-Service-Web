@@ -15,6 +15,7 @@ import Signup from './Pages/Signup'
 import ForgotPassword from './Pages/ForgotPassword'
 import ResetPassword from './Pages/ResetPassword'
 import BecomeATasker from './Pages/BecomeATasker'
+import BecomeATaskerLanding from './Pages/BecomeATaskerLanding'
 import Booking from './Pages/Booking'
 import Dashboard from './Pages/Dashboard'
 import Admin from './Pages/Admin'
@@ -50,7 +51,8 @@ function App() {
       <Route path="/signup" element={<Signup />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
-      <Route path="/become-a-tasker" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
+      <Route path="/become-a-tasker" element={<BecomeATaskerLanding />} />
+      <Route path="/become-a-tasker/apply" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
       <Route path="/booking/:service" element={<Booking />} />
       <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
