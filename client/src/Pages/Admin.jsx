@@ -1782,6 +1782,7 @@ function DashboardPanel({ setTab }) {
 
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
+  { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
   { key: 'customers',       label: 'Customer Accounts',   icon: Users },
   { key: 'tasker-accounts', label: 'Employee Accounts',   icon: UserCheck },
   { key: 'applications',    label: 'Applicants',          icon: ClipboardList },
@@ -1858,10 +1859,46 @@ function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
 }
 
 function Admin() {
-  const [tab, setTab] = useState('applications')
+  const [tab, setTab] = useState('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
+  const [calendarBookings, setCalendarBookings] = useState([])
+  const [calendarDate, setCalendarDate] = useState(new Date())
+  const [selectedDate, setSelectedDate] = useState(null)
+  const [events, setEvents] = useState(() => {
+    const saved = localStorage.getItem('admin_calendar_events')
+    return saved ? JSON.parse(saved) : {}
+  })
+  const [showEventModal, setShowEventModal] = useState(false)
+  const [eventInput, setEventInput] = useState('')
+  const [eventDate, setEventDate] = useState('')
   const navigate = useNavigate()
+
+  const saveEvent = () => {
+    if (!eventInput.trim() || !eventDate) return
+    const updated = { ...events, [eventDate]: [...(events[eventDate] || []), eventInput.trim()] }
+    setEvents(updated)
+    localStorage.setItem('admin_calendar_events', JSON.stringify(updated))
+    setEventInput('')
+    setShowEventModal(false)
+  }
+
+  const deleteEvent = (date, index) => {
+    const updated = { ...events }
+    updated[date] = updated[date].filter((_, i) => i !== index)
+    if (updated[date].length === 0) delete updated[date]
+    setEvents(updated)
+    localStorage.setItem('admin_calendar_events', JSON.stringify(updated))
+  }
+
+  useEffect(() => {
+    if (tab !== 'calendar') return
+    supabase
+      .from('bookings')
+      .select('id, customer_name, service, scheduled_date, scheduled_time, status, tasker_id')
+      .order('scheduled_date', { ascending: true })
+      .then(({ data }) => setCalendarBookings(data || []))
+  }, [tab])
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -1924,6 +1961,180 @@ function Admin() {
 
         {tab === 'dashboard' ? (
           <DashboardPanel setTab={setTab} />
+        ) : tab === 'calendar' ? (
+          <>
+          <div className="p-3 sm:p-6 w-full">
+            <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Bookings Calendar</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+
+              {/* Calendar Grid */}
+              <div className="lg:col-span-2 bg-white rounded-xl shadow-sm p-3 sm:p-7">
+                {/* Month nav row */}
+                <div className="flex items-center justify-between mb-3 sm:mb-4 gap-2">
+                  <button
+                    onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() - 1))}
+                    className="p-2 hover:bg-gray-100 rounded-lg text-gray-600 shrink-0"
+                  >←</button>
+                  <h3 className="text-sm sm:text-lg font-semibold text-gray-700 text-center">
+                    {calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </h3>
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEventDate(selectedDate || new Date().toISOString().split('T')[0])
+                        setShowEventModal(true)
+                      }}
+                      className="bg-orange-500 text-white text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-orange-600 transition whitespace-nowrap"
+                    >+ Add</button>
+                    <button
+                      onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))}
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+                    >→</button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-7 mb-1 sm:mb-2">
+                  {['S','M','T','W','T','F','S'].map((d, i) => (
+                    <div key={i} className="text-center text-xs font-semibold text-gray-400 py-1 sm:py-2">{d}</div>
+                  ))}
+                </div>
+
+                {(() => {
+                  const year = calendarDate.getFullYear()
+                  const month = calendarDate.getMonth()
+                  const firstDay = new Date(year, month, 1).getDay()
+                  const daysInMonth = new Date(year, month + 1, 0).getDate()
+                  const today = new Date()
+                  const cells = []
+                  for (let i = 0; i < firstDay; i++) cells.push(null)
+                  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+                  return (
+                    <div className="grid grid-cols-7 gap-1 sm:gap-2">
+                      {cells.map((day, i) => {
+                        if (!day) return <div key={i} />
+                        const dateStr = `${year}-${String(month + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+                        const dayBookings = calendarBookings.filter(b => b.scheduled_date === dateStr)
+                        const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year
+                        const isSelected = selectedDate === dateStr
+                        return (
+                          <div
+                            key={i}
+                            onClick={() => setSelectedDate(dateStr)}
+                            className={`relative p-1.5 sm:p-3 rounded-lg cursor-pointer text-center transition
+                              ${isSelected ? 'bg-orange-500 text-white' : ''}
+                              ${isToday && !isSelected ? 'border-2 border-orange-500 text-orange-500 font-bold' : ''}
+                              ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}
+                            `}
+                          >
+                            <span className="text-xs sm:text-base">{day}</span>
+                            {(dayBookings.length > 0 || events[dateStr]?.length > 0) && (
+                              <div className="flex justify-center gap-1 mt-1">
+                                {dayBookings.length > 0 && (
+                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
+                                )}
+                                {events[dateStr]?.length > 0 && (
+                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
+                })()}
+              </div>
+
+              {/* Bookings for Selected Date */}
+              <div className="bg-white rounded-xl shadow-sm p-5">
+                <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                  {selectedDate ? `Bookings on ${selectedDate}` : 'Select a date to view bookings'}
+                </h3>
+                {selectedDate ? (
+                  calendarBookings.filter(b => b.scheduled_date === selectedDate).length === 0 ? (
+                    <p className="text-gray-400 text-sm">No bookings on this date.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {calendarBookings
+                        .filter(b => b.scheduled_date === selectedDate)
+                        .map(booking => (
+                          <div key={booking.id} className="border border-gray-100 rounded-lg p-3">
+                            <p className="text-sm font-semibold text-gray-800">{booking.customer_name || 'Customer'}</p>
+                            <p className="text-xs text-gray-500">{booking.service}</p>
+                            <p className="text-xs text-gray-400">{booking.scheduled_time}</p>
+                            <span className={`text-xs font-semibold px-2 py-1 rounded-full mt-1 inline-block ${BOOKING_STATUS_STYLES[booking.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                              {booking.status?.replace('_', ' ') ?? '—'}
+                            </span>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  )
+                ) : (
+                  <p className="text-gray-400 text-sm">Click any highlighted date to see bookings.</p>
+                )}
+
+                {/* Reminders for selected date */}
+                {selectedDate && events[selectedDate]?.length > 0 && (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Reminders</h4>
+                    <div className="space-y-2">
+                      {events[selectedDate].map((event, i) => (
+                        <div key={i} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-blue-700">📌 {event}</span>
+                          <button
+                            onClick={() => deleteEvent(selectedDate, i)}
+                            className="text-red-400 hover:text-red-600 text-xs ml-2"
+                          >✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+
+          {/* Add Event Modal */}
+          {showEventModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex items-center justify-center">
+              <div className="bg-white rounded-xl p-6 w-full max-w-md shadow-xl">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Add Reminder</h3>
+                <div className="mb-4">
+                  <label className="text-sm text-gray-600 mb-1 block">Date</label>
+                  <input
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="mb-6">
+                  <label className="text-sm text-gray-600 mb-1 block">Reminder</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Team meeting at 3PM"
+                    value={eventInput}
+                    onChange={(e) => setEventInput(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && saveEvent()}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={saveEvent}
+                    className="flex-1 bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition text-sm font-medium"
+                  >Save</button>
+                  <button
+                    onClick={() => setShowEventModal(false)}
+                    className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 transition text-sm"
+                  >Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+          </>
         ) : (
           <div className="w-full px-4 py-8">
             {tab === 'customers'       && <CustomerAccountsPanel />}
