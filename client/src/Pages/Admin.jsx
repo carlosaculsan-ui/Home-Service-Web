@@ -1985,7 +1985,7 @@ function Admin() {
                         setShowEventModal(true)
                       }}
                       className="bg-orange-500 text-white text-xs sm:text-sm px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:bg-orange-600 transition whitespace-nowrap"
-                    >+ Add</button>
+                    >+ Add Event</button>
                     <button
                       onClick={() => setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + 1))}
                       className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
