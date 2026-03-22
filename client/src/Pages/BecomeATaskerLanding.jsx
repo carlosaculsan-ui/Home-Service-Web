@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import Footer from '../Components/Footer'
 import Chatbot from '../Components/Chatbot'
@@ -59,6 +59,10 @@ function FAQItem({ q, a }) {
 }
 
 function BecomeATaskerLanding() {
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   return (
     <div className="font-sans text-black">
 
@@ -195,10 +199,10 @@ function BecomeATaskerLanding() {
           {/* Left - Quote */}
           <div>
             <span className="text-6xl text-orange-500 font-serif leading-none">"</span>
-            <p className="text-xl md:text-2xl font-medium text-gray-800 mt-2 leading-relaxed">
-              Hanap.ph changed my life! I was able to earn extra income between games, provide for my family, and still have enough time to focus on my training.
+            <p className="text-2xl font-medium text-gray-800 mt-2 leading-relaxed">
+              Dati naghahanap pa ako ng trabaho, ngayon ang trabaho ang humahanap sa akin. Salamat Hanap.ph — nakatulong talaga ito sa pamilya ko.
             </p>
-            <p className="text-sm text-gray-500 mt-4">Random Guy, Almar Caloocan</p>
+            <p className="text-sm text-gray-500 mt-4">Juan dela Cruz, Quezon City</p>
           </div>
 
           {/* Right - Image */}

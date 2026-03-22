@@ -5,7 +5,7 @@ import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
 import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
-  CalendarDays, Wrench, Umbrella, LogOut, Menu,
+  CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -17,6 +17,8 @@ const TASKER_STATUS_STYLES = {
 const BOOKING_STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
   confirmed:   'bg-blue-100 text-blue-700',
+  accepted:    'bg-yellow-100 text-yellow-700',
+  on_the_way:  'bg-purple-100 text-purple-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
   cancelled:   'bg-red-100 text-red-600',
@@ -1482,6 +1484,230 @@ function LeaveRequestsPanel() {
   )
 }
 
+// ─── Dashboard Panel ─────────────────────────────────────────────────────────
+
+function DashboardPanel({ setTab }) {
+  const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0, revenue: 0 })
+  const [recentBookings, setRecentBookings] = useState([])
+  const [allBookings, setAllBookings] = useState([])
+  const [topServices, setTopServices] = useState([])
+  const [loading, setLoading] = useState(true)
+  const currentYear = new Date().getFullYear()
+
+  useEffect(() => {
+    async function fetchDashboard() {
+      // Stats
+      const [
+        { count: customers },
+        { count: taskers },
+        { count: bookings },
+        { data: completedBookings },
+        { data: recent },
+        { data: yearBookings },
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
+        supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }),
+        supabase.from('bookings').select('total_price').eq('status', 'completed'),
+        supabase.from('bookings').select('id, service, scheduled_date, total_price, status, client_id').order('created_at', { ascending: false }).limit(5),
+        supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
+      ])
+
+      const revenue = (completedBookings ?? []).reduce((sum, b) => sum + (Number(b.total_price) || 0), 0)
+      setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0, revenue })
+
+      // Enrich recent bookings with client email
+      if (recent && recent.length > 0) {
+        const clientIds = [...new Set(recent.map((b) => b.client_id).filter(Boolean))]
+        let clientMap = {}
+        if (clientIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, email').in('id', clientIds)
+          profiles?.forEach((p) => { clientMap[p.id] = p.email })
+        }
+        setRecentBookings(recent.map((b, i) => ({ ...b, customerName: clientMap[b.client_id] ?? '—', rowNum: i + 1 })))
+      }
+
+      setAllBookings(yearBookings ?? [])
+
+      // Top Services
+      const { data: bookingsData } = await supabase.from('bookings').select('service')
+      const serviceCounts = {}
+      bookingsData?.forEach((b) => {
+        if (b.service) serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1
+      })
+      const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
+      setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
+
+      setLoading(false)
+    }
+    fetchDashboard()
+  }, [])
+
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  const monthlyData = months.map((month, i) => ({
+    month,
+    count: allBookings.filter((b) => new Date(b.created_at).getMonth() === i).length,
+  }))
+  const maxCount = Math.max(...monthlyData.map((d) => d.count), 1)
+
+  const getPieSlices = (data) => {
+    const maxReal = Math.max(...data.map((s) => s.count), 1)
+    const minSlice = maxReal * 0.05
+    const normalized = data.map((s) => ({ ...s, displayCount: s.count > 0 ? s.count : minSlice }))
+    const total = normalized.reduce((sum, s) => sum + s.displayCount, 0) || 1
+    const colors = ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#14b8a6']
+    let cumulative = 0
+    return normalized.map((service, i) => {
+      const ratio = service.displayCount / total
+      const startAngle = cumulative * 2 * Math.PI
+      cumulative += ratio
+      const endAngle = cumulative * 2 * Math.PI
+      const x1 = Math.cos(startAngle - Math.PI / 2)
+      const y1 = Math.sin(startAngle - Math.PI / 2)
+      const x2 = Math.cos(endAngle - Math.PI / 2)
+      const y2 = Math.sin(endAngle - Math.PI / 2)
+      const largeArc = ratio > 0.5 ? 1 : 0
+      return {
+        path: `M 0 0 L ${x1} ${y1} A 1 1 0 ${largeArc} 1 ${x2} ${y2} Z`,
+        color: colors[i % colors.length],
+        name: service.name,
+        count: service.count,
+        percent: Math.round((service.count / Math.max(data.reduce((s, d) => s + d.count, 0), 1)) * 100),
+      }
+    })
+  }
+
+  const statCards = [
+    { label: 'Total Customers', value: stats.customers, icon: <Users className="w-8 h-8 text-blue-500" />,           accent: 'border-blue-500',   num: 'text-blue-600' },
+    { label: 'Total Taskers',   value: stats.taskers,   icon: <Wrench className="w-8 h-8 text-green-500" />,         accent: 'border-green-500',  num: 'text-green-600' },
+    { label: 'Total Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600' },
+    { label: 'Total Revenue',   value: `₱${stats.revenue.toLocaleString()}`, icon: <CircleDollarSign className="w-8 h-8 text-purple-500" />, accent: 'border-purple-500', num: 'text-purple-600' },
+  ]
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-20">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-8 p-6">
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {statCards.map(({ label, value, icon, accent, num }) => (
+          <div key={label} className={`bg-white rounded-xl shadow-sm p-5 py-6 border-l-4 ${accent}`}>
+            <div className="mb-2">{icon}</div>
+            <div className={`text-4xl font-bold ${num}`}>{value}</div>
+            <div className="text-sm text-gray-500 mt-1">{label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Chart + Recent Bookings */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+
+        {/* Monthly Bookings Chart */}
+        <div className="bg-white rounded-xl shadow-sm p-5 min-h-[400px] md:col-span-3">
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Monthly Bookings — {currentYear}</h3>
+          <div className="flex items-end gap-2 h-64 min-h-[200px]">
+            {monthlyData.map((item) => (
+              <div key={item.month} className="flex flex-col items-center gap-1 flex-1">
+                <span className="text-xs text-gray-500">{item.count}</span>
+                <div
+                  className="w-full bg-orange-500 rounded-t transition-all"
+                  style={{ height: `${(item.count / maxCount) * 200}px` }}
+                />
+                <span className="text-xs text-gray-400">{item.month}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Recent Bookings Table */}
+        <div className="bg-white rounded-xl shadow-sm p-5 min-h-[400px] md:col-span-2">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-gray-700">Recent Bookings</h3>
+            <button
+              onClick={() => setTab('bookings')}
+              className="text-xs text-orange-500 hover:text-orange-600 font-medium"
+            >
+              See all →
+            </button>
+          </div>
+          {recentBookings.length === 0 ? (
+            <p className="text-sm text-gray-400 py-6 text-center">No bookings yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-gray-400 border-b border-gray-100">
+                    <th className="pb-2 pr-2 font-medium">#</th>
+                    <th className="pb-2 pr-2 font-medium">Customer</th>
+                    <th className="pb-2 pr-2 font-medium">Service</th>
+                    <th className="pb-2 pr-2 font-medium">Date</th>
+                    <th className="pb-2 pr-2 font-medium">Price</th>
+                    <th className="pb-2 font-medium">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {recentBookings.map((b) => (
+                    <tr key={b.id} className="text-gray-700">
+                      <td className="py-2 pr-2 text-gray-400">{b.rowNum}</td>
+                      <td className="py-2 pr-2 truncate max-w-[80px]">{b.customerName}</td>
+                      <td className="py-2 pr-2 truncate max-w-[80px]">{b.service ?? '—'}</td>
+                      <td className="py-2 pr-2 whitespace-nowrap text-gray-500">{b.scheduled_date ?? '—'}</td>
+                      <td className="py-2 pr-2 whitespace-nowrap">{b.total_price ? `₱${Number(b.total_price).toLocaleString()}` : '—'}</td>
+                      <td className="py-2">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                          {b.status?.replace(/_/g, ' ') ?? '—'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+      </div>
+
+      {/* Top Services */}
+      <div className="bg-white rounded-xl shadow-sm p-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Top Services by Bookings</h3>
+        {topServices.every((s) => s.count === 0) ? (
+          <p className="text-gray-400 text-sm">No bookings yet.</p>
+        ) : (
+          <div className="flex items-center gap-8">
+            {/* Pie Chart */}
+            <svg viewBox="-1.2 -1.2 2.4 2.4" className="w-48 h-48 shrink-0">
+              {getPieSlices(topServices).map((slice, i) => (
+                <path key={i} d={slice.path} fill={slice.color} stroke="white" strokeWidth="0.02" />
+              ))}
+            </svg>
+            {/* Legend */}
+            <div className="space-y-2 flex-1">
+              {getPieSlices(topServices).map((slice, i) => (
+                <div key={i} className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
+                    <span className="text-sm text-gray-600">{slice.name}</span>
+                  </div>
+                  <span className="text-sm font-medium text-gray-700">{slice.count} ({slice.percent}%)</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
 // ─── Admin Page ──────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
@@ -1627,6 +1853,7 @@ function Admin() {
         </div>
 
         <div className="max-w-4xl mx-auto px-4 py-8">
+          {tab === 'dashboard'       && <DashboardPanel setTab={setTab} />}
           {tab === 'customers'       && <CustomerAccountsPanel />}
           {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
           {tab === 'applications'    && <TaskerApplications />}
