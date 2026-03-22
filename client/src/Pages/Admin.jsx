@@ -319,7 +319,8 @@ function TaskerAccountsPanel() {
 
   return (
     <>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Desktop Table - hidden on mobile */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-sm">
             <thead>
@@ -421,6 +422,47 @@ function TaskerAccountsPanel() {
           </table>
         </div>
       </div>
+
+      {/* Mobile Card List - hidden on desktop */}
+      <div className="block md:hidden space-y-3">
+        {taskers.map((t, idx) => {
+          const docs = DOC_FIELDS.filter(({ key }) => t[key])
+          return (
+            <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+              <div className="flex justify-between items-start mb-2">
+                <div>
+                  <p className="font-semibold text-gray-800">{t.name || '—'}</p>
+                  <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                </div>
+                <span className="text-xs text-gray-400">#{idx + 1}</span>
+              </div>
+              <div className="text-sm text-gray-500 space-y-1">
+                <p>📞 {t.phone || '—'}</p>
+                <p>🔧 {t.role || '—'}</p>
+                <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
+                <p>💰 {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}</p>
+                <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
+              </div>
+              {deleteErrors[t.id] && (
+                <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
+              )}
+              <div className="flex gap-2 mt-3">
+                {docs.length > 0 && (
+                  <button
+                    onClick={() => setDocsModalTasker({ tasker: t, docs })}
+                    className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
+                  >View Documents</button>
+                )}
+                <button
+                  onClick={() => handleDeleteTasker(t)}
+                  className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
+                >Delete Tasker</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       {/* Documents Modal */}
       {docsModalTasker && (
         <div
@@ -631,8 +673,8 @@ function CustomerAccountsPanel() {
         </div>
       )}
 
-      {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      {/* Desktop Table - hidden on mobile */}
+      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -696,6 +738,41 @@ function CustomerAccountsPanel() {
             </tbody>
           </table>
         </div>
+      </div>
+
+      {/* Mobile Card List - hidden on desktop */}
+      <div className="block md:hidden space-y-3">
+        {customers.map((c, idx) => (
+          <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="font-semibold text-gray-800">
+                  {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                </p>
+                <p className="text-sm text-gray-500">{c.email}</p>
+              </div>
+              <span className="text-xs text-gray-400">#{idx + 1}</span>
+            </div>
+            <div className="text-sm text-gray-500 space-y-1">
+              <p>📞 {c.phone || 'Not provided'}</p>
+              <p>📍 {c.address || 'Not provided'}</p>
+              <p>📅 Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
+            </div>
+            {deleteErrors[c.id] && (
+              <p className="text-xs text-red-500 mt-2">{deleteErrors[c.id]}</p>
+            )}
+            <div className="flex gap-2 mt-3">
+              <button
+                onClick={() => handleViewBookings(c)}
+                className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
+              >View Bookings</button>
+              <button
+                onClick={() => handleDelete(c)}
+                className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
+              >Delete</button>
+            </div>
+          </div>
+        ))}
       </div>
     </>
   )
