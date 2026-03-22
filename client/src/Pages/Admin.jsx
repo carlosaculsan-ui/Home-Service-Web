@@ -244,6 +244,17 @@ function TaskerApplications() {
 
 // ─── Tasker Accounts Tab ─────────────────────────────────────────────────────
 
+const getInitials = (name) => {
+  if (!name) return '?'
+  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+}
+
+const getAvatarColor = (name) => {
+  const colors = ['bg-orange-400', 'bg-blue-400', 'bg-green-400', 'bg-purple-400', 'bg-pink-400', 'bg-teal-400']
+  const index = (name?.charCodeAt(0) || 0) % colors.length
+  return colors[index]
+}
+
 function TaskerAccountsPanel() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -331,7 +342,6 @@ function TaskerAccountsPanel() {
                 <th className="px-4 py-3 font-medium">Phone</th>
                 <th className="px-4 py-3 font-medium">Service</th>
                 <th className="px-4 py-3 font-medium">Area</th>
-                <th className="px-4 py-3 font-medium whitespace-nowrap">Hourly Rate</th>
                 <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
                 <th className="px-4 py-3 font-medium">Actions</th>
               </tr>
@@ -343,7 +353,14 @@ function TaskerAccountsPanel() {
                   <>
                     <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                            {getInitials(t.name)}
+                          </div>
+                          <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
                       <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
@@ -351,37 +368,6 @@ function TaskerAccountsPanel() {
                         {t.service_area
                           ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
                           : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {editingRate[t.id] !== undefined ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-gray-500">₱</span>
-                            <input
-                              type="number"
-                              min="1"
-                              value={editingRate[t.id]}
-                              onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                              className="w-16 border border-gray-300 rounded px-1.5 py-0.5 text-xs focus:outline-none focus:border-orange-400"
-                              autoFocus
-                            />
-                            <button
-                              onClick={() => saveRate(t.id)}
-                              className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
-                            >Save</button>
-                            <button
-                              onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
-                              className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
-                            >Cancel</button>
-                          </div>
-                        ) : (
-                          <span
-                            className="cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
-                            onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
-                          >
-                            {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
-                            <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
-                          </span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
                         {t.created_at
@@ -430,9 +416,14 @@ function TaskerAccountsPanel() {
           return (
             <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
               <div className="flex justify-between items-start mb-2">
-                <div>
-                  <p className="font-semibold text-gray-800">{t.name || '—'}</p>
-                  <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                <div className="flex items-center gap-3">
+                  <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                    {getInitials(t.name)}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">{t.name || '—'}</p>
+                    <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                  </div>
                 </div>
                 <span className="text-xs text-gray-400">#{idx + 1}</span>
               </div>
@@ -440,7 +431,6 @@ function TaskerAccountsPanel() {
                 <p>📞 {t.phone || '—'}</p>
                 <p>🔧 {t.role || '—'}</p>
                 <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
-                <p>💰 {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}</p>
                 <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
               </div>
               {deleteErrors[t.id] && (
@@ -693,8 +683,15 @@ function CustomerAccountsPanel() {
                 <>
                   <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                    <td className="px-4 py-3 font-medium text-gray-800 whitespace-nowrap">
-                      {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                          {getInitials(c.full_name || c.email?.split('@')[0])}
+                        </div>
+                        <span className="font-medium text-gray-800 whitespace-nowrap">
+                          {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
                     <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
@@ -745,11 +742,16 @@ function CustomerAccountsPanel() {
         {customers.map((c, idx) => (
           <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
             <div className="flex justify-between items-start mb-2">
-              <div>
-                <p className="font-semibold text-gray-800">
-                  {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
-                </p>
-                <p className="text-sm text-gray-500">{c.email}</p>
+              <div className="flex items-center gap-3">
+                <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                  {getInitials(c.full_name || c.email?.split('@')[0])}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-800">
+                    {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                  </p>
+                  <p className="text-sm text-gray-500">{c.email}</p>
+                </div>
               </div>
               <span className="text-xs text-gray-400">#{idx + 1}</span>
             </div>
@@ -1907,7 +1909,7 @@ function Admin() {
       )}
 
       {/* Main content */}
-      <div className="flex-1 md:ml-[260px] bg-gray-50 min-h-screen">
+      <div className="flex-1 min-w-0 md:ml-[260px] bg-gray-50 min-h-screen">
 
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-20">
@@ -1923,7 +1925,7 @@ function Admin() {
         {tab === 'dashboard' ? (
           <DashboardPanel setTab={setTab} />
         ) : (
-          <div className="max-w-4xl mx-auto px-4 py-8">
+          <div className="w-full px-4 py-8">
             {tab === 'customers'       && <CustomerAccountsPanel />}
             {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
             {tab === 'applications'    && <TaskerApplications />}
