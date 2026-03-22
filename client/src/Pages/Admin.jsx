@@ -1487,8 +1487,10 @@ function LeaveRequestsPanel() {
 // ─── Dashboard Panel ─────────────────────────────────────────────────────────
 
 function DashboardPanel({ setTab }) {
-  const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0, revenue: 0 })
-  const [recentBookings, setRecentBookings] = useState([])
+  const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0 })
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [monthlyRevenue, setMonthlyRevenue] = useState(0)
+  const [bookingsInQueue, setBookingsInQueue] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1502,30 +1504,32 @@ function DashboardPanel({ setTab }) {
         { count: taskers },
         { count: bookings },
         { data: completedBookings },
-        { data: recent },
         { data: yearBookings },
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }),
-        supabase.from('bookings').select('total_price').eq('status', 'completed'),
-        supabase.from('bookings').select('id, service, scheduled_date, total_price, status, client_id').order('created_at', { ascending: false }).limit(5),
+        supabase.from('bookings').select('estimated_total, created_at').eq('status', 'completed'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
 
-      const revenue = (completedBookings ?? []).reduce((sum, b) => sum + (Number(b.total_price) || 0), 0)
-      setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0, revenue })
+      const currentMonth = new Date().getMonth()
+      const allRevenue = (completedBookings ?? []).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+      const thisMonthRevenue = (completedBookings ?? []).filter((b) => {
+        const d = new Date(b.created_at)
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+      }).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+      setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0 })
+      setTotalRevenue(allRevenue)
+      setMonthlyRevenue(thisMonthRevenue)
 
-      // Enrich recent bookings with client email
-      if (recent && recent.length > 0) {
-        const clientIds = [...new Set(recent.map((b) => b.client_id).filter(Boolean))]
-        let clientMap = {}
-        if (clientIds.length > 0) {
-          const { data: profiles } = await supabase.from('profiles').select('id, email').in('id', clientIds)
-          profiles?.forEach((p) => { clientMap[p.id] = p.email })
-        }
-        setRecentBookings(recent.map((b, i) => ({ ...b, customerName: clientMap[b.client_id] ?? '—', rowNum: i + 1 })))
-      }
+      // Bookings in Queue
+      const { data: queueData } = await supabase
+        .from('bookings')
+        .select('id, customer_name, service, scheduled_date, scheduled_time, taskers_needed')
+        .eq('status', 'confirmed')
+        .order('created_at', { ascending: true })
+      setBookingsInQueue(queueData || [])
 
       setAllBookings(yearBookings ?? [])
 
@@ -1581,7 +1585,6 @@ function DashboardPanel({ setTab }) {
     { label: 'Total Customers', value: stats.customers, icon: <Users className="w-8 h-8 text-blue-500" />,           accent: 'border-blue-500',   num: 'text-blue-600' },
     { label: 'Total Taskers',   value: stats.taskers,   icon: <Wrench className="w-8 h-8 text-green-500" />,         accent: 'border-green-500',  num: 'text-green-600' },
     { label: 'Total Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600' },
-    { label: 'Total Revenue',   value: `₱${stats.revenue.toLocaleString()}`, icon: <CircleDollarSign className="w-8 h-8 text-purple-500" />, accent: 'border-purple-500', num: 'text-purple-600' },
   ]
 
   if (loading) {
@@ -1593,24 +1596,31 @@ function DashboardPanel({ setTab }) {
   }
 
   return (
-    <div className="space-y-8 p-6">
+    <div className="space-y-6 p-3 md:p-6 w-full">
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon, accent, num }) => (
-          <div key={label} className={`bg-white rounded-xl shadow-sm p-5 py-6 border-l-4 ${accent}`}>
+          <div key={label} className={`bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 ${accent}`}>
             <div className="mb-2">{icon}</div>
-            <div className={`text-4xl font-bold ${num}`}>{value}</div>
-            <div className="text-sm text-gray-500 mt-1">{label}</div>
+            <div className={`text-2xl md:text-4xl font-bold ${num}`}>{value}</div>
+            <div className="text-xs md:text-sm text-gray-500 mt-1">{label}</div>
           </div>
         ))}
+        {/* Revenue card */}
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-purple-500">
+          <div className="mb-2"><CircleDollarSign className="w-8 h-8 text-purple-500" /></div>
+          <div className="text-2xl md:text-4xl font-bold text-purple-600">₱{totalRevenue.toLocaleString()}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Revenue (All-time)</div>
+          <div className="text-xs text-gray-400 mt-1">₱{monthlyRevenue.toLocaleString()} this month</div>
+        </div>
       </div>
 
       {/* Chart + Recent Bookings */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
 
         {/* Monthly Bookings Chart */}
-        <div className="bg-white rounded-xl shadow-sm p-5 min-h-[400px] md:col-span-3">
+        <div className="bg-white rounded-xl shadow-sm p-5 md:min-h-[400px] md:col-span-3">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Monthly Bookings — {currentYear}</h3>
           <div className="flex items-end gap-2 h-64 min-h-[200px]">
             {monthlyData.map((item) => (
@@ -1626,49 +1636,30 @@ function DashboardPanel({ setTab }) {
           </div>
         </div>
 
-        {/* Recent Bookings Table */}
-        <div className="bg-white rounded-xl shadow-sm p-5 min-h-[400px] md:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">Recent Bookings</h3>
-            <button
-              onClick={() => setTab('bookings')}
-              className="text-xs text-orange-500 hover:text-orange-600 font-medium"
-            >
-              See all →
-            </button>
+        {/* Bookings in Queue */}
+        <div className="bg-white rounded-xl shadow-sm p-5 md:min-h-[400px] md:col-span-2">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-sm font-semibold text-gray-700">Bookings in Queue</h3>
+            <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-1 rounded-full">
+              {bookingsInQueue.length} pending
+            </span>
           </div>
-          {recentBookings.length === 0 ? (
-            <p className="text-sm text-gray-400 py-6 text-center">No bookings yet.</p>
+          {bookingsInQueue.length === 0 ? (
+            <p className="text-gray-400 text-sm">No bookings in queue.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-gray-400 border-b border-gray-100">
-                    <th className="pb-2 pr-2 font-medium">#</th>
-                    <th className="pb-2 pr-2 font-medium">Customer</th>
-                    <th className="pb-2 pr-2 font-medium">Service</th>
-                    <th className="pb-2 pr-2 font-medium">Date</th>
-                    <th className="pb-2 pr-2 font-medium">Price</th>
-                    <th className="pb-2 font-medium">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {recentBookings.map((b) => (
-                    <tr key={b.id} className="text-gray-700">
-                      <td className="py-2 pr-2 text-gray-400">{b.rowNum}</td>
-                      <td className="py-2 pr-2 truncate max-w-[80px]">{b.customerName}</td>
-                      <td className="py-2 pr-2 truncate max-w-[80px]">{b.service ?? '—'}</td>
-                      <td className="py-2 pr-2 whitespace-nowrap text-gray-500">{b.scheduled_date ?? '—'}</td>
-                      <td className="py-2 pr-2 whitespace-nowrap">{b.total_price ? `₱${Number(b.total_price).toLocaleString()}` : '—'}</td>
-                      <td className="py-2">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                          {b.status?.replace(/_/g, ' ') ?? '—'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="space-y-3 overflow-y-auto max-h-80">
+              {bookingsInQueue.map((booking) => (
+                <div key={booking.id} className="flex items-start justify-between border border-gray-100 rounded-lg p-3">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">{booking.customer_name || 'Customer'}</p>
+                    <p className="text-xs text-gray-500">{booking.service}</p>
+                    <p className="text-xs text-gray-400">{booking.scheduled_date} at {booking.scheduled_time}</p>
+                  </div>
+                  <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full whitespace-nowrap">
+                    Awaiting Tasker
+                  </span>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1681,22 +1672,22 @@ function DashboardPanel({ setTab }) {
         {topServices.every((s) => s.count === 0) ? (
           <p className="text-gray-400 text-sm">No bookings yet.</p>
         ) : (
-          <div className="flex items-center gap-8">
+          <div className="flex flex-col md:flex-row items-center gap-6">
             {/* Pie Chart */}
-            <svg viewBox="-1.2 -1.2 2.4 2.4" className="w-48 h-48 shrink-0">
+            <svg viewBox="-1.2 -1.2 2.4 2.4" className="w-40 h-40 md:w-48 md:h-48 shrink-0">
               {getPieSlices(topServices).map((slice, i) => (
                 <path key={i} d={slice.path} fill={slice.color} stroke="white" strokeWidth="0.02" />
               ))}
             </svg>
             {/* Legend */}
-            <div className="space-y-2 flex-1">
+            <div className="grid grid-cols-2 md:grid-cols-1 gap-2 w-full md:w-auto md:flex-1">
               {getPieSlices(topServices).map((slice, i) => (
                 <div key={i} className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
                     <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: slice.color }} />
-                    <span className="text-sm text-gray-600">{slice.name}</span>
+                    <span className="text-xs md:text-sm text-gray-600 truncate">{slice.name}</span>
                   </div>
-                  <span className="text-sm font-medium text-gray-700">{slice.count} ({slice.percent}%)</span>
+                  <span className="text-xs md:text-sm font-medium text-gray-700 whitespace-nowrap">{slice.count} ({slice.percent}%)</span>
                 </div>
               ))}
             </div>
@@ -1852,16 +1843,19 @@ function Admin() {
           <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
         </div>
 
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          {tab === 'dashboard'       && <DashboardPanel setTab={setTab} />}
-          {tab === 'customers'       && <CustomerAccountsPanel />}
-          {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
-          {tab === 'applications'    && <TaskerApplications />}
-          {tab === 'bookings'        && <BookingsPanel />}
-          {tab === 'services'        && <ServicesPanel />}
-          {tab === 'reviews'         && <ReviewsPanel />}
-          {tab === 'leave-requests'  && <LeaveRequestsPanel />}
-        </div>
+        {tab === 'dashboard' ? (
+          <DashboardPanel setTab={setTab} />
+        ) : (
+          <div className="max-w-4xl mx-auto px-4 py-8">
+            {tab === 'customers'       && <CustomerAccountsPanel />}
+            {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
+            {tab === 'applications'    && <TaskerApplications />}
+            {tab === 'bookings'        && <BookingsPanel />}
+            {tab === 'services'        && <ServicesPanel />}
+            {tab === 'reviews'         && <ReviewsPanel />}
+            {tab === 'leave-requests'  && <LeaveRequestsPanel />}
+          </div>
+        )}
 
       </div>
     </div>

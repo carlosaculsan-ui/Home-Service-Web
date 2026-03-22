@@ -2510,7 +2510,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         </button>
         <button
           onClick={async () => {
-            const paymentWindow = window.open('', '_blank')
             setSaving(true)
             setSaveError('')
             try {
@@ -2531,13 +2530,13 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               }
 
               const ref = 'VE-' + Date.now()
+              const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|Windows Phone/i.test(navigator.userAgent)
 
               // SQL to run in Supabase if not already done:
               // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_name text;
               // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_phone text;
 
-              // Save booking to Supabase first
-              const { error } = await supabase.from('bookings').insert({
+              const bookingData = {
                 client_id,
                 tasker_id: tasker?.id,
                 service,
@@ -2549,7 +2548,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
                 scheduled_time: time,
                 payment_method: paymentMethod,
-                status: 'pending_payment',
                 reference_number: ref,
                 ai_image_analysis: aiImageAnalysis ?? null,
                 customer_name: customerName,
@@ -2558,9 +2556,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 taskers_needed: taskersNeeded,
                 estimated_total: estimatedTotal,
                 duration_hours: taskDuration ?? 8,
-              })
+              }
+
+              // Save booking as pending_payment
+              const { error } = await supabase.from('bookings').insert({ ...bookingData, status: 'pending_payment' })
               if (error) {
-                paymentWindow.close()
                 setSaveError(`Error saving booking: ${error.message}`)
                 setSaving(false)
                 return
@@ -2588,18 +2588,21 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const pmData = await pmResponse.json()
               if (!pmResponse.ok) {
-                paymentWindow.close()
                 const errMsg = pmData?.errors?.[0]?.detail || 'Payment setup failed. Please try again.'
                 setSaveError(errMsg)
                 setSaving(false)
                 return
               }
               const checkoutUrl = pmData.data.attributes.checkout_url
-              paymentWindow.location.href = checkoutUrl
+              if (isMobile) {
+                window.location.href = checkoutUrl
+              } else {
+                window.open(checkoutUrl, '_blank')
+              }
               setSaving(false)
               setPaymentPending(true)
             } catch (err) {
-              paymentWindow.close()
+
               setSaveError('Payment setup failed. Please try again.')
               setSaving(false)
             }
