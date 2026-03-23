@@ -512,6 +512,8 @@ function TaskerAccountsPanel() {
 
 function CustomerAccountsPanel() {
   const [customers, setCustomers] = useState([])
+  const [archivedCustomers, setArchivedCustomers] = useState([])
+  const [customerSubTab, setCustomerSubTab] = useState('active')
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
   const [viewingCustomer, setViewingCustomer] = useState(null)
@@ -519,11 +521,13 @@ function CustomerAccountsPanel() {
   const [bookingsLoading, setBookingsLoading] = useState(false)
 
   async function fetchCustomers() {
-    const { data } = await supabase
+    const { data: customersData } = await supabase
       .from('customer_profiles')
       .select('*')
-      .order('created_at', { ascending: false })
-    setCustomers(data ?? [])
+      .eq('role', 'customer')
+
+    setCustomers(customersData?.filter(c => !c.is_archived) ?? [])
+    setArchivedCustomers(customersData?.filter(c => c.is_archived) ?? [])
     setLoading(false)
   }
 
@@ -554,38 +558,78 @@ function CustomerAccountsPanel() {
     setBookingsLoading(false)
   }
 
-  async function handleDelete(customer) {
-    setDeleteErrors((prev) => ({ ...prev, [customer.id]: '' }))
+  async function handleArchiveCustomer(customer) {
+    if (!window.confirm('Archive this customer?')) return
 
-    const { data: activeBookings } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('client_id', customer.id)
-      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+    console.log('Customer object:', customer)
 
-    if (activeBookings && activeBookings.length > 0) {
-      setDeleteErrors((prev) => ({
-        ...prev,
-        [customer.id]: 'This customer has active bookings and cannot be deleted. Please wait until all bookings are completed or cancelled.',
-      }))
+    const profileId = customer.id || customer.user_id || customer.profile_id
+    console.log('Using profileId:', profileId)
+
+    if (!profileId) {
+      alert('Cannot archive: missing customer ID')
       return
     }
 
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ is_archived: true })
+      .eq('id', profileId)
+      .select()
+
+    console.log('Archive result:', data, error)
+
+    if (error) {
+      alert('Failed: ' + error.message)
+      return
+    }
+
+    if (!data || data.length === 0) {
+      alert('No rows updated — id may not match profiles table')
+      return
+    }
+
+    setCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
+    setArchivedCustomers(prev => [...prev, customer])
+  }
+
+  async function handleRestoreCustomer(customer) {
+    if (!window.confirm('Restore this customer?')) return
+
+    const profileId = customer.id || customer.user_id || customer.profile_id
+
+    const { data, error } = await supabase
+      .from('profiles')
+      .update({ is_archived: false })
+      .eq('id', profileId)
+      .select()
+
+    if (error) { alert('Failed: ' + error.message); return }
+    if (!data || data.length === 0) { alert('No rows updated'); return }
+
+    setArchivedCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
+    setCustomers(prev => [...prev, customer])
+  }
+
+  async function handleDeleteCustomer(id) {
+    setDeleteErrors((prev) => ({ ...prev, [id]: '' }))
+    const customer = archivedCustomers.find(c => c.id === id)
+
     if (!window.confirm(
-      'Are you sure you want to delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.'
+      'Are you sure you want to permanently delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.'
     )) return
 
     try {
-      await supabase.from('reviews').delete().eq('client_id', customer.id)
-      await supabase.from('bookings').delete().eq('client_id', customer.id)
-      const { error } = await supabase.from('profiles').delete().eq('id', customer.id)
+      await supabase.from('reviews').delete().eq('client_id', id)
+      await supabase.from('bookings').delete().eq('client_id', id)
+      const { error } = await supabase.from('profiles').delete().eq('id', id)
       if (error) {
         console.error('Delete error:', error)
         throw error
       }
-      setCustomers((prev) => prev.filter((c) => c.id !== customer.id))
+      setArchivedCustomers((prev) => prev.filter((c) => c.id !== id))
     } catch (err) {
-      setDeleteErrors((prev) => ({ ...prev, [customer.id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
+      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
     }
   }
 
@@ -597,7 +641,9 @@ function CustomerAccountsPanel() {
     )
   }
 
-  if (customers.length === 0) {
+  const displayList = customerSubTab === 'active' ? customers : archivedCustomers
+
+  if (displayList.length === 0 && customers.length === 0 && archivedCustomers.length === 0) {
     return <p className="text-center text-gray-400 mt-16">No customer accounts found.</p>
   }
 
@@ -676,119 +722,172 @@ function CustomerAccountsPanel() {
         </div>
       )}
 
-      {/* Desktop Table - hidden on mobile */}
-      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
-                <th className="px-4 py-3 font-medium w-8">#</th>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-                <th className="px-4 py-3 font-medium">Address</th>
-                <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {customers.map((c, idx) => (
-                <>
-                  <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                          {getInitials(c.full_name || c.email?.split('@')[0])}
-                        </div>
-                        <span className="font-medium text-gray-800 whitespace-nowrap">
-                          {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {c.phone || 'Not provided'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
-                      {c.address || 'Not provided'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                      {c.created_at
-                        ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex flex-row gap-2 items-center">
-                        <button
-                          onClick={() => handleViewBookings(c)}
-                          className="text-sm font-medium px-3 py-1 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
-                        >
-                          View Bookings
-                        </button>
-                        <button
-                          onClick={() => handleDelete(c)}
-                          className="flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors"
-                        >
-                          <Trash2 size={12} />
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                  {deleteErrors[c.id] && (
-                    <tr key={`${c.id}-err`}>
-                      <td colSpan={7} className="px-4 pb-3 pt-0">
-                        <p className="text-xs text-red-500">{deleteErrors[c.id]}</p>
-                      </td>
-                    </tr>
-                  )}
-                </>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Sub-tab toggle */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setCustomerSubTab('active')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${customerSubTab === 'active' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          Active ({customers.length})
+        </button>
+        <button
+          onClick={() => setCustomerSubTab('archived')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${customerSubTab === 'archived' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'}`}
+        >
+          Archived ({archivedCustomers.length})
+        </button>
       </div>
 
-      {/* Mobile Card List - hidden on desktop */}
-      <div className="block md:hidden space-y-3">
-        {customers.map((c, idx) => (
-          <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex items-center gap-3">
-                <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                  {getInitials(c.full_name || c.email?.split('@')[0])}
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-800">
-                    {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
-                  </p>
-                  <p className="text-sm text-gray-500">{c.email}</p>
-                </div>
-              </div>
-              <span className="text-xs text-gray-400">#{idx + 1}</span>
-            </div>
-            <div className="text-sm text-gray-500 space-y-1">
-              <p>📞 {c.phone || 'Not provided'}</p>
-              <p>📍 {c.address || 'Not provided'}</p>
-              <p>📅 Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
-            </div>
-            {deleteErrors[c.id] && (
-              <p className="text-xs text-red-500 mt-2">{deleteErrors[c.id]}</p>
-            )}
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={() => handleViewBookings(c)}
-                className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
-              >View Bookings</button>
-              <button
-                onClick={() => handleDelete(c)}
-                className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
-              >Delete</button>
+      {displayList.length === 0 ? (
+        <p className="text-center text-gray-400 mt-8">
+          {customerSubTab === 'active' ? 'No active customers.' : 'No archived customers.'}
+        </p>
+      ) : (
+        <>
+          {/* Desktop Table - hidden on mobile */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                    <th className="px-4 py-3 font-medium w-8">#</th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium">Phone</th>
+                    <th className="px-4 py-3 font-medium">Address</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {displayList.map((c, idx) => (
+                    <>
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                              {getInitials(c.full_name || c.email?.split('@')[0])}
+                            </div>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">
+                              {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {c.phone || 'Not provided'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
+                          {c.address || 'Not provided'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {c.created_at
+                            ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <div className="flex flex-row gap-2 items-center">
+                            <button
+                              onClick={() => handleViewBookings(c)}
+                              className="text-sm font-medium px-3 py-1 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                            >
+                              View Bookings
+                            </button>
+                            {customerSubTab === 'active' ? (
+                              <button
+                                onClick={() => handleArchiveCustomer(c)}
+                                className="text-sm border border-orange-400 text-orange-500 px-3 py-1 rounded hover:bg-orange-50"
+                              >
+                                Archive
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleRestoreCustomer(c)}
+                                  className="text-sm bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
+                                >
+                                  Restore
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCustomer(c.id)}
+                                  className="text-sm border border-red-400 text-red-500 px-3 py-1 rounded hover:bg-red-50"
+                                >
+                                  Delete
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {deleteErrors[c.id] && (
+                        <tr key={`${c.id}-err`}>
+                          <td colSpan={7} className="px-4 pb-3 pt-0">
+                            <p className="text-xs text-red-500">{deleteErrors[c.id]}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
-        ))}
-      </div>
+
+          {/* Mobile Card List - hidden on desktop */}
+          <div className="block md:hidden space-y-3">
+            {displayList.map((c, idx) => (
+              <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                      {getInitials(c.full_name || c.email?.split('@')[0])}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-800">
+                        {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                      </p>
+                      <p className="text-sm text-gray-500">{c.email}</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-gray-400">#{idx + 1}</span>
+                </div>
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p>📞 {c.phone || 'Not provided'}</p>
+                  <p>📍 {c.address || 'Not provided'}</p>
+                  <p>📅 Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
+                </div>
+                {deleteErrors[c.id] && (
+                  <p className="text-xs text-red-500 mt-2">{deleteErrors[c.id]}</p>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleViewBookings(c)}
+                    className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
+                  >View Bookings</button>
+                  {customerSubTab === 'active' ? (
+                    <button
+                      onClick={() => handleArchiveCustomer(c)}
+                      className="flex-1 text-sm border border-orange-400 text-orange-500 py-2 rounded-lg"
+                    >Archive</button>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => handleRestoreCustomer(c)}
+                        className="flex-1 text-sm bg-green-500 text-white py-2 rounded-lg"
+                      >Restore</button>
+                      <button
+                        onClick={() => handleDeleteCustomer(c.id)}
+                        className="flex-1 text-sm border border-red-400 text-red-500 py-2 rounded-lg"
+                      >Delete</button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </>
   )
 }
