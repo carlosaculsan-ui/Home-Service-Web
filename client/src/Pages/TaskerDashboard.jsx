@@ -411,6 +411,7 @@ function TaskerDashboard() {
   const [taskerId, setTaskerId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState(null)
+  const [taskerName, setTaskerName] = useState('')
 
   async function load(tid) {
     console.log('load() called with tasker_id:', tid)
@@ -450,6 +451,7 @@ function TaskerDashboard() {
         if (!tasker) { setLoading(false); return }
 
         setTaskerId(tasker.id)
+        setTaskerName(tasker.name || '')
         await load(tasker.id)
       } catch (err) {
         console.error('TaskerDashboard init error:', err)
@@ -473,7 +475,7 @@ function TaskerDashboard() {
         if (status === 'SUBSCRIBED') {
           await channel.track({
             user_id: user.id,
-            name: profile?.full_name || 'Tasker',
+            name: taskerName || 'Tasker',
             online_at: new Date().toISOString()
           })
         }
@@ -482,7 +484,7 @@ function TaskerDashboard() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [user, profile])
+  }, [user, taskerName])
 
   return (
     <div
