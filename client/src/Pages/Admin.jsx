@@ -6,6 +6,7 @@ import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
+  Wifi, WifiOff, Archive, RotateCcw,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -257,6 +258,9 @@ const getAvatarColor = (name) => {
 
 function TaskerAccountsPanel() {
   const [taskers, setTaskers] = useState([])
+  const [archivedTaskers, setArchivedTaskers] = useState([])
+  const [employeeSubTab, setEmployeeSubTab] = useState('active')
+  const [onlineTaskers, setOnlineTaskers] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingRate, setEditingRate] = useState({})
   const [deleteErrors, setDeleteErrors] = useState({})
@@ -269,11 +273,36 @@ function TaskerAccountsPanel() {
       .select('*')
       .eq('status', 'approved')
       .order('created_at', { ascending: false })
-    setTaskers(data ?? [])
+
+    const rows = data ?? []
+    const userIds = rows.map((t) => t.user_id).filter(Boolean)
+
+    let archivedSet = new Set()
+    if (userIds.length > 0) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, is_archived')
+        .in('id', userIds)
+      archivedSet = new Set(profileData?.filter((p) => p.is_archived).map((p) => p.id) ?? [])
+    }
+
+    setTaskers(rows.filter((t) => !archivedSet.has(t.user_id)))
+    setArchivedTaskers(rows.filter((t) => archivedSet.has(t.user_id)))
     setLoading(false)
   }
 
   useEffect(() => { fetchTaskers() }, [])
+
+  useEffect(() => {
+    const channel = supabase.channel('online-taskers')
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        setOnlineTaskers(Object.values(state).flat())
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   async function saveRate(id) {
     const val = parseFloat(editingRate[id])
@@ -281,6 +310,29 @@ function TaskerAccountsPanel() {
     await supabase.from('taskers').update({ hourly_rate: val }).eq('id', id)
     setEditingRate((prev) => { const next = { ...prev }; delete next[id]; return next })
     fetchTaskers()
+  }
+
+  async function handleArchiveTasker(tasker) {
+    if (!window.confirm('Archive this employee?')) return
+    const profileId = tasker.user_id
+    if (!profileId) { alert('Cannot archive: missing user_id'); return }
+    const { data, error } = await supabase
+      .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
+    if (error) { alert('Failed: ' + error.message); return }
+    if (!data || data.length === 0) { alert('No rows updated'); return }
+    setTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
+    setArchivedTaskers((prev) => [...prev, tasker])
+  }
+
+  async function handleRestoreTasker(tasker) {
+    if (!window.confirm('Restore this employee?')) return
+    const profileId = tasker.user_id
+    const { data, error } = await supabase
+      .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
+    if (error) { alert('Failed: ' + error.message); return }
+    if (!data || data.length === 0) { alert('No rows updated'); return }
+    setArchivedTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
+    setTaskers((prev) => [...prev, tasker])
   }
 
   async function handleDeleteTasker(tasker) {
@@ -320,7 +372,7 @@ function TaskerAccountsPanel() {
         throw profileError
       }
 
-      setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
+      setArchivedTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
     } catch (err) {
       setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete employee: ' + (err?.message || 'Please try again.') }))
     }
@@ -334,134 +386,226 @@ function TaskerAccountsPanel() {
     )
   }
 
-  if (taskers.length === 0) {
-    return <p className="text-center text-gray-400 mt-16">No approved taskers yet.</p>
-  }
+  const displayList = employeeSubTab === 'active' ? taskers : archivedTaskers
 
   return (
     <>
-      {/* Desktop Table - hidden on mobile */}
-      <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                <th className="px-4 py-3 font-medium w-8">#</th>
-                <th className="px-4 py-3 font-medium">Name</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Phone</th>
-                <th className="px-4 py-3 font-medium">Service</th>
-                <th className="px-4 py-3 font-medium">Area</th>
-                <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
-                <th className="px-4 py-3 font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {taskers.map((t, idx) => {
-                const docs = DOC_FIELDS.filter(({ key }) => t[key])
-                return (
-                  <>
-                    <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                            {getInitials(t.name)}
-                          </div>
-                          <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
-                      <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
-                        {t.service_area
-                          ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                        {t.created_at
-                          ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                          : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-col gap-2">
-                          {docs.length > 0 && (
-                            <button
-                              onClick={() => setDocsModalTasker({ tasker: t, docs })}
-                              className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
-                            >
-                              View Documents
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteTasker(t)}
-                            className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
-                          >
-                            <Trash2 size={12} />
-                            Delete Tasker
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                    {deleteErrors[t.id] && (
-                      <tr key={`${t.id}-err`}>
-                        <td colSpan={9} className="px-4 pb-3 pt-0">
-                          <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                )
-              })}
-            </tbody>
-          </table>
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+          <div className="flex items-center gap-3 mb-2">
+            <Wifi className="w-6 h-6 text-green-500" />
+            <span className="text-sm font-semibold text-gray-600">Active Taskers</span>
+          </div>
+          <p className="text-4xl font-bold text-green-600">{onlineTaskers.length}</p>
+          <p className="text-xs text-gray-400 mt-1">Currently online</p>
+          {onlineTaskers.length > 0 && (
+            <div className="mt-3 space-y-1">
+              {onlineTaskers.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="w-2 h-2 bg-green-400 rounded-full inline-block animate-pulse" />
+                  {t.name}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-gray-300">
+          <div className="flex items-center gap-3 mb-2">
+            <WifiOff className="w-6 h-6 text-gray-400" />
+            <span className="text-sm font-semibold text-gray-600">Offline Taskers</span>
+          </div>
+          <p className="text-4xl font-bold text-gray-500">{taskers.length - onlineTaskers.length}</p>
+          <p className="text-xs text-gray-400 mt-1">Not currently online</p>
         </div>
       </div>
 
-      {/* Mobile Card List - hidden on desktop */}
-      <div className="block md:hidden space-y-3">
-        {taskers.map((t, idx) => {
-          const docs = DOC_FIELDS.filter(({ key }) => t[key])
-          return (
-            <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-3">
-                  <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                    {getInitials(t.name)}
+      {/* Sub-tabs */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => setEmployeeSubTab('active')}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            employeeSubTab === 'active'
+              ? 'bg-orange-500 text-white'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          Active ({taskers.length})
+        </button>
+        <button
+          onClick={() => setEmployeeSubTab('archived')}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+            employeeSubTab === 'archived'
+              ? 'bg-orange-500 text-white'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          Archived ({archivedTaskers.length})
+        </button>
+      </div>
+
+      {displayList.length === 0 ? (
+        <p className="text-center text-gray-400 mt-16">
+          {employeeSubTab === 'active' ? 'No approved taskers yet.' : 'No archived employees.'}
+        </p>
+      ) : (
+        <>
+          {/* Desktop Table */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                    <th className="px-4 py-3 font-medium w-8">#</th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium">Phone</th>
+                    <th className="px-4 py-3 font-medium">Service</th>
+                    <th className="px-4 py-3 font-medium">Area</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
+                    <th className="px-4 py-3 font-medium">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {displayList.map((t, idx) => {
+                    const docs = DOC_FIELDS.filter(({ key }) => t[key])
+                    return (
+                      <>
+                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                                {getInitials(t.name)}
+                              </div>
+                              <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
+                          <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
+                            {t.service_area
+                              ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                            {t.created_at
+                              ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                              : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-col gap-2">
+                              {docs.length > 0 && (
+                                <button
+                                  onClick={() => setDocsModalTasker({ tasker: t, docs })}
+                                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
+                                >
+                                  View Documents
+                                </button>
+                              )}
+                              {employeeSubTab === 'active' ? (
+                                <button
+                                  onClick={() => handleArchiveTasker(t)}
+                                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-orange-500 border border-gray-200 hover:border-orange-300 transition-colors whitespace-nowrap"
+                                >
+                                  <Archive size={12} />
+                                  Archive
+                                </button>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => handleRestoreTasker(t)}
+                                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
+                                  >
+                                    <RotateCcw size={12} />
+                                    Restore
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeleteTasker(t)}
+                                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
+                                  >
+                                    <Trash2 size={12} />
+                                    Delete
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        {deleteErrors[t.id] && (
+                          <tr key={`${t.id}-err`}>
+                            <td colSpan={8} className="px-4 pb-3 pt-0">
+                              <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Mobile Card List */}
+          <div className="block md:hidden space-y-3">
+            {displayList.map((t, idx) => {
+              const docs = DOC_FIELDS.filter(({ key }) => t[key])
+              return (
+                <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                        {getInitials(t.name)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800">{t.name || '—'}</p>
+                        <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                      </div>
+                    </div>
+                    <span className="text-xs text-gray-400">#{idx + 1}</span>
                   </div>
-                  <div>
-                    <p className="font-semibold text-gray-800">{t.name || '—'}</p>
-                    <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                  <div className="text-sm text-gray-500 space-y-1">
+                    <p>📞 {t.phone || '—'}</p>
+                    <p>🔧 {t.role || '—'}</p>
+                    <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
+                    <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
+                  </div>
+                  {deleteErrors[t.id] && (
+                    <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
+                  )}
+                  <div className="flex gap-2 mt-3">
+                    {docs.length > 0 && (
+                      <button
+                        onClick={() => setDocsModalTasker({ tasker: t, docs })}
+                        className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
+                      >View Documents</button>
+                    )}
+                    {employeeSubTab === 'active' ? (
+                      <button
+                        onClick={() => handleArchiveTasker(t)}
+                        className="flex-1 text-sm border border-orange-400 text-orange-500 py-2 rounded-lg"
+                      >Archive</button>
+                    ) : (
+                      <>
+                        <button
+                          onClick={() => handleRestoreTasker(t)}
+                          className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg"
+                        >Restore</button>
+                        <button
+                          onClick={() => handleDeleteTasker(t)}
+                          className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
+                        >Delete</button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <span className="text-xs text-gray-400">#{idx + 1}</span>
-              </div>
-              <div className="text-sm text-gray-500 space-y-1">
-                <p>📞 {t.phone || '—'}</p>
-                <p>🔧 {t.role || '—'}</p>
-                <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
-                <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
-              </div>
-              {deleteErrors[t.id] && (
-                <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
-              )}
-              <div className="flex gap-2 mt-3">
-                {docs.length > 0 && (
-                  <button
-                    onClick={() => setDocsModalTasker({ tasker: t, docs })}
-                    className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
-                  >View Documents</button>
-                )}
-                <button
-                  onClick={() => handleDeleteTasker(t)}
-                  className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
-                >Delete Tasker</button>
-              </div>
-            </div>
-          )
-        })}
-      </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {/* Documents Modal */}
       {docsModalTasker && (

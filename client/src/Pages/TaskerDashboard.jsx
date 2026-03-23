@@ -410,6 +410,7 @@ function TaskerDashboard() {
   const [bookings, setBookings] = useState([])
   const [taskerId, setTaskerId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState(null)
 
   async function load(tid) {
     console.log('load() called with tasker_id:', tid)
@@ -435,6 +436,7 @@ function TaskerDashboard() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { setLoading(false); return }
+        setUser(session.user)
         console.log('session user id:', session.user.id)
 
         const { data: tasker, error: taskerError } = await supabase
@@ -457,6 +459,30 @@ function TaskerDashboard() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!user) return
+
+    const channel = supabase.channel('online-taskers', {
+      config: { presence: { key: user.id } }
+    })
+
+    channel
+      .on('presence', { event: 'sync' }, () => {})
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: user.id,
+            name: profile?.full_name || 'Tasker',
+            online_at: new Date().toISOString()
+          })
+        }
+      })
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user, profile])
 
   return (
     <div
