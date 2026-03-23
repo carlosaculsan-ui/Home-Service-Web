@@ -308,11 +308,21 @@ function TaskerAccountsPanel() {
       await supabase.from('reviews').delete().eq('tasker_id', tasker.id)
       await supabase.from('bookings').delete().eq('tasker_id', tasker.id)
       await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
-      const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
-      if (error) throw error
+
+      const { error: taskerError } = await supabase.from('taskers').delete().eq('id', tasker.id)
+      if (taskerError) {
+        console.error('Tasker delete error:', taskerError)
+      }
+
+      const { error: profileError } = await supabase.from('profiles').delete().eq('id', tasker.user_id)
+      if (profileError) {
+        console.error('Profile delete error:', profileError)
+        throw profileError
+      }
+
       setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
-    } catch {
-      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete tasker. Please try again.' }))
+    } catch (err) {
+      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete employee: ' + (err?.message || 'Please try again.') }))
     }
   }
 
@@ -569,10 +579,13 @@ function CustomerAccountsPanel() {
       await supabase.from('reviews').delete().eq('client_id', customer.id)
       await supabase.from('bookings').delete().eq('client_id', customer.id)
       const { error } = await supabase.from('profiles').delete().eq('id', customer.id)
-      if (error) throw error
+      if (error) {
+        console.error('Delete error:', error)
+        throw error
+      }
       setCustomers((prev) => prev.filter((c) => c.id !== customer.id))
-    } catch {
-      setDeleteErrors((prev) => ({ ...prev, [customer.id]: 'Failed to delete customer. Please try again.' }))
+    } catch (err) {
+      setDeleteErrors((prev) => ({ ...prev, [customer.id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
     }
   }
 
