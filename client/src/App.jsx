@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { supabase } from './supabase'
 import Navbar from './Components/Navbar'
 import Hero from './Components/Hero'
 import Services from './Components/Services'
@@ -44,6 +46,64 @@ function Home() {
 }
 
 function App() {
+  const [user, setUser] = useState(null)
+  const [profile, setProfile] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+    })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!user) { setProfile(null); return }
+    supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
+      .then(({ data }) => setProfile(data))
+  }, [user])
+
+  useEffect(() => {
+    if (!user || profile?.role !== 'tasker') return
+
+    let channel
+    try {
+      channel = supabase.channel('online-taskers', {
+        config: { presence: { key: user.id } }
+      })
+      channel
+        .on('presence', { event: 'sync' }, () => {})
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              user_id: user.id,
+              name: profile?.full_name || user.email?.split('@')[0] || 'Tasker',
+              online_at: new Date().toISOString()
+            })
+            await supabase
+              .from('profiles')
+              .update({ last_time_in: new Date().toISOString(), last_time_out: null })
+              .eq('id', user.id)
+          }
+        })
+    } catch (err) {
+      console.error('Presence error:', err)
+    }
+
+    return () => {
+      if (channel) {
+        supabase
+          .from('profiles')
+          .update({ last_time_out: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(() => {})
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, profile])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />

@@ -280,16 +280,19 @@ function TaskerAccountsPanel() {
     const userIds = rows.map((t) => t.user_id).filter(Boolean)
 
     let archivedSet = new Set()
+    let profileMap = {}
     if (userIds.length > 0) {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, is_archived')
+        .select('id, is_archived, last_time_in, last_time_out')
         .in('id', userIds)
       archivedSet = new Set(profileData?.filter((p) => p.is_archived).map((p) => p.id) ?? [])
+      profileData?.forEach((p) => { profileMap[p.id] = p })
     }
 
-    setTaskers(rows.filter((t) => !archivedSet.has(t.user_id)))
-    setArchivedTaskers(rows.filter((t) => archivedSet.has(t.user_id)))
+    const enriched = rows.map((t) => ({ ...t, ...profileMap[t.user_id] }))
+    setTaskers(enriched.filter((t) => !archivedSet.has(t.user_id)))
+    setArchivedTaskers(enriched.filter((t) => archivedSet.has(t.user_id)))
     setLoading(false)
   }
 
@@ -301,6 +304,17 @@ function TaskerAccountsPanel() {
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState()
         setOnlineTaskers(Object.values(state).flat())
+      })
+      .on('presence', { event: 'leave' }, async ({ leftPresences }) => {
+        for (const p of leftPresences) {
+          if (p.user_id) {
+            await supabase
+              .from('profiles')
+              .update({ last_time_out: new Date().toISOString() })
+              .eq('id', p.user_id)
+          }
+        }
+        fetchTaskers()
       })
       .subscribe()
     return () => supabase.removeChannel(channel)
@@ -390,9 +404,12 @@ function TaskerAccountsPanel() {
 
   const displayList = employeeSubTab === 'active' ? taskers : archivedTaskers
 
+  console.log('onlineTaskers:', onlineTaskers.map(o => o.user_id))
+  console.log('taskers user_ids:', displayList.map(t => t.user_id))
+
   const sortedTaskers = [...displayList].sort((a, b) => {
-    const aOnline = onlineTaskers.some(o => o.user_id === a.id) ? 1 : 0
-    const bOnline = onlineTaskers.some(o => o.user_id === b.id) ? 1 : 0
+    const aOnline = onlineTaskers.some(o => o.user_id === a.user_id) ? 1 : 0
+    const bOnline = onlineTaskers.some(o => o.user_id === b.user_id) ? 1 : 0
     return bOnline - aOnline
   })
 
@@ -498,9 +515,15 @@ function TaskerAccountsPanel() {
                         <td className="px-4 py-3 text-sm text-gray-600">
                           {isOnline && onlineInfo?.online_at
                             ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : t.last_time_in
+                            ? new Date(t.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">—</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {!isOnline && t.last_time_out
+                            ? new Date(t.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : '—'}
+                        </td>
                         <td className="px-4 py-3">
                           <button
                             onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}

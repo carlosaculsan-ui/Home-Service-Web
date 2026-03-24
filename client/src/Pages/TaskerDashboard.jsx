@@ -462,29 +462,6 @@ function TaskerDashboard() {
     init()
   }, [])
 
-  useEffect(() => {
-    if (!user) return
-
-    const channel = supabase.channel('online-taskers', {
-      config: { presence: { key: user.id } }
-    })
-
-    channel
-      .on('presence', { event: 'sync' }, () => {})
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            user_id: user.id,
-            name: taskerName || 'Tasker',
-            online_at: new Date().toISOString()
-          })
-        }
-      })
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [user, taskerName])
 
   return (
     <div
