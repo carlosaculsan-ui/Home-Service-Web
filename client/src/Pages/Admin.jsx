@@ -545,16 +545,24 @@ function TaskerAccountsPanel() {
             {sortedTaskers.map((t) => {
               const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
               const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
+              const timeIn = isOnline && onlineInfo?.online_at
+                ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : t.last_time_in
+                ? new Date(t.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—'
+              const timeOut = !isOnline && t.last_time_out
+                ? new Date(t.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—'
               return (
                 <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                  <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                      <div className={`w-10 h-10 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white font-bold shrink-0`}>
                         {getInitials(t.name)}
                       </div>
                       <div>
                         <p className="font-semibold text-gray-800">{t.name || '—'}</p>
-                        <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                        <p className="text-xs text-gray-500">{t.email || '—'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -564,14 +572,13 @@ function TaskerAccountsPanel() {
                       </span>
                     </div>
                   </div>
-                  {isOnline && onlineInfo?.online_at && (
-                    <p className="text-xs text-gray-500 mb-2">
-                      Time In: {new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-                    </p>
-                  )}
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 mb-3">
+                    <div><span className="font-medium text-gray-700">Time In:</span> {timeIn}</div>
+                    <div><span className="font-medium text-gray-700">Time Out:</span> {timeOut}</div>
+                  </div>
                   <button
                     onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
-                    className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition mt-2"
+                    className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition"
                   >
                     View Details →
                   </button>
