@@ -1046,6 +1046,7 @@ const getTaskLabel = (booking) => {
 
 function BookingsPanel() {
   const [bookings, setBookings] = useState([])
+  const [bookingFilter, setBookingFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
 
@@ -1110,9 +1111,33 @@ function BookingsPanel() {
     return <p className="text-center text-gray-400 mt-16">No bookings yet.</p>
   }
 
+  const filteredBookings = bookingFilter === 'all'
+    ? bookings
+    : bookings.filter((b) => b.status === bookingFilter)
+
   return (
     <div className="space-y-4">
-      {bookings.map((b) => (
+      <div className="flex items-center gap-3 mb-6">
+        <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
+        <select
+          value={bookingFilter}
+          onChange={(e) => setBookingFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        >
+          <option value="all">All Bookings</option>
+          <option value="confirmed">Pending (Awaiting Tasker)</option>
+          <option value="accepted">Accepted</option>
+          <option value="on_the_way">On The Way</option>
+          <option value="in_progress">In Progress</option>
+          <option value="completed">Completed</option>
+        </select>
+        <span className="text-sm text-gray-400">
+          {bookingFilter === 'all'
+            ? `${bookings.length} total`
+            : `${filteredBookings.length} found`}
+        </span>
+      </div>
+      {filteredBookings.map((b) => (
         <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1 space-y-2">
@@ -1825,7 +1850,7 @@ function DashboardPanel({ setTab }) {
   const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0 })
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
-  const [bookingsInQueue, setBookingsInQueue] = useState([])
+  const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1843,7 +1868,7 @@ function DashboardPanel({ setTab }) {
       ] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
-        supabase.from('bookings').select('*', { count: 'exact', head: true }),
+        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
         supabase.from('bookings').select('estimated_total, created_at').eq('status', 'completed'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
@@ -1858,13 +1883,13 @@ function DashboardPanel({ setTab }) {
       setTotalRevenue(allRevenue)
       setMonthlyRevenue(thisMonthRevenue)
 
-      // Bookings in Queue
-      const { data: queueData } = await supabase
+      // Recent Bookings
+      const { data: recentData } = await supabase
         .from('bookings')
-        .select('id, customer_name, service, scheduled_date, scheduled_time, taskers_needed')
-        .eq('status', 'confirmed')
-        .order('created_at', { ascending: true })
-      setBookingsInQueue(queueData || [])
+        .select('id, customer_name, service, scheduled_date, scheduled_time, status')
+        .order('created_at', { ascending: false })
+        .limit(5)
+      setRecentBookings(recentData || [])
 
       setAllBookings(yearBookings ?? [])
 
@@ -1919,7 +1944,7 @@ function DashboardPanel({ setTab }) {
   const statCards = [
     { label: 'Total Customers', value: stats.customers, icon: <Users className="w-8 h-8 text-blue-500" />,           accent: 'border-blue-500',   num: 'text-blue-600' },
     { label: 'Total Taskers',   value: stats.taskers,   icon: <Wrench className="w-8 h-8 text-green-500" />,         accent: 'border-green-500',  num: 'text-green-600' },
-    { label: 'Total Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600' },
+    { label: 'Completed Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600' },
   ]
 
   if (loading) {
@@ -1956,7 +1981,7 @@ function DashboardPanel({ setTab }) {
 
         {/* Monthly Bookings Chart */}
         <div className="bg-white rounded-xl shadow-sm p-5 md:min-h-[400px] md:col-span-3">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">Monthly Bookings — {currentYear}</h3>
+          <h3 className="text-sm font-semibold text-gray-700 mb-4">Monthly Booking Activity — {currentYear}</h3>
           <div className="flex items-end gap-2 h-64 min-h-[200px]">
             {monthlyData.map((item) => (
               <div key={item.month} className="flex flex-col items-center gap-1 flex-1">
@@ -1971,27 +1996,27 @@ function DashboardPanel({ setTab }) {
           </div>
         </div>
 
-        {/* Bookings in Queue */}
+        {/* Recent Bookings */}
         <div className="bg-white rounded-xl shadow-sm p-5 md:min-h-[400px] md:col-span-2">
           <div className="flex justify-between items-center mb-4">
-            <h3 className="text-sm font-semibold text-gray-700">Bookings in Queue</h3>
-            <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-2 py-1 rounded-full">
-              {bookingsInQueue.length} pending
+            <h3 className="text-sm font-semibold text-gray-700">Recent Bookings</h3>
+            <span className="text-xs bg-gray-100 text-gray-500 font-semibold px-2 py-1 rounded-full">
+              Last 5
             </span>
           </div>
-          {bookingsInQueue.length === 0 ? (
-            <p className="text-gray-400 text-sm">No bookings in queue.</p>
+          {recentBookings.length === 0 ? (
+            <p className="text-gray-400 text-sm">No bookings yet.</p>
           ) : (
             <div className="space-y-3 overflow-y-auto max-h-80">
-              {bookingsInQueue.map((booking) => (
+              {recentBookings.map((booking) => (
                 <div key={booking.id} className="flex items-start justify-between border border-gray-100 rounded-lg p-3">
                   <div>
                     <p className="text-sm font-medium text-gray-800">{booking.customer_name || 'Customer'}</p>
                     <p className="text-xs text-gray-500">{booking.service}</p>
-                    <p className="text-xs text-gray-400">{booking.scheduled_date} at {booking.scheduled_time}</p>
+                    <p className="text-xs text-gray-400">{booking.scheduled_date}{booking.scheduled_time ? ` at ${booking.scheduled_time}` : ''}</p>
                   </div>
-                  <span className="text-xs bg-yellow-100 text-yellow-700 font-semibold px-2 py-1 rounded-full whitespace-nowrap">
-                    Awaiting Tasker
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize ${BOOKING_STATUS_STYLES[booking.status] ?? BOOKING_STATUS_STYLES.pending}`}>
+                    {booking.status?.replace('_', ' ')}
                   </span>
                 </div>
               ))}
@@ -2003,7 +2028,7 @@ function DashboardPanel({ setTab }) {
 
       {/* Top Services */}
       <div className="bg-white rounded-xl shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">Top Services by Bookings</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-4">Top Services by Demand</h3>
         {topServices.every((s) => s.count === 0) ? (
           <p className="text-gray-400 text-sm">No bookings yet.</p>
         ) : (
