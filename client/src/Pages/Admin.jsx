@@ -1044,6 +1044,43 @@ const getTaskLabel = (booking) => {
   return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || booking.task_size || 'N/A'
 }
 
+const formatBookingDate = (date, time) => {
+  if (!date) return '—'
+  const dateObj = new Date(`${date}T${time || '00:00:00'}`)
+  return dateObj.toLocaleString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  })
+}
+
+const getStatusBadge = (status) => {
+  const styles = {
+    confirmed:   'bg-blue-100 text-blue-700',
+    accepted:    'bg-yellow-100 text-yellow-700',
+    on_the_way:  'bg-purple-100 text-purple-700',
+    in_progress: 'bg-orange-100 text-orange-700',
+    completed:   'bg-green-100 text-green-700',
+    cancelled:   'bg-red-100 text-red-700',
+  }
+  const labels = {
+    confirmed:   'Pending',
+    accepted:    'Accepted',
+    on_the_way:  'On The Way',
+    in_progress: 'In Progress',
+    completed:   'Completed',
+    cancelled:   'Cancelled',
+  }
+  return (
+    <span className={`text-xs font-semibold px-3 py-1 rounded-full ${styles[status] || 'bg-gray-100 text-gray-600'}`}>
+      {labels[status] || status}
+    </span>
+  )
+}
+
 function BookingsPanel() {
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
@@ -1089,6 +1126,13 @@ function BookingsPanel() {
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
   }
 
+  async function handleCancelBooking(id) {
+    if (!window.confirm('Cancel this booking? This cannot be undone.')) return
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id)
+    if (error) { alert('Failed: ' + error.message); return }
+    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b))
+  }
+
   async function handleDeleteBooking(id) {
     if (!window.confirm('Are you sure you want to delete this completed booking record? This cannot be undone.')) return
     const { error } = await supabase.from('bookings').delete().eq('id', id)
@@ -1130,6 +1174,7 @@ function BookingsPanel() {
           <option value="on_the_way">On The Way</option>
           <option value="in_progress">In Progress</option>
           <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
         </select>
         <span className="text-sm text-gray-400">
           {bookingFilter === 'all'
@@ -1143,16 +1188,13 @@ function BookingsPanel() {
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3">
                 <p className="font-bold text-orange-500 text-sm tracking-wide">{b.reference_number ?? '—'}</p>
-                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? BOOKING_STATUS_STYLES.pending}`}>
-                  {b.status?.replace('_', ' ')}
-                </span>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm">
                 {[
                   ['Service',   b.service],
                   ['Tasker',    b.taskerName],
                   ['Client',    b.clientEmail],
-                  ['Date',      b.scheduled_date ? `${b.scheduled_date}${b.scheduled_time ? ' at ' + b.scheduled_time : ''}` : '—'],
+                  ['Date',      formatBookingDate(b.scheduled_date, b.scheduled_time)],
                   ['Task',      getTaskLabel(b)],
                   ['Address',   b.address],
                 ].map(([label, val]) => (
@@ -1164,17 +1206,16 @@ function BookingsPanel() {
               </div>
             </div>
 
-            <div className="md:flex-shrink-0">
-              <select
-                value={b.status}
-                onChange={(e) => updateBookingStatus(b.id, e.target.value)}
-                className="w-full md:w-auto border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 focus:outline-none focus:border-orange-400"
-              >
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-              </select>
+            <div className="md:flex-shrink-0 flex flex-col items-end gap-2">
+              {getStatusBadge(b.status)}
+              {!['completed', 'cancelled'].includes(b.status) && (
+                <button
+                  onClick={() => handleCancelBooking(b.id)}
+                  className="text-xs border border-red-400 text-red-500 px-3 py-1 rounded-lg hover:bg-red-50 transition"
+                >
+                  Cancel Booking
+                </button>
+              )}
             </div>
           </div>
           {b.ai_image_analysis && (
