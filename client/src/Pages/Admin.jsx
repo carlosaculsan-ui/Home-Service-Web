@@ -266,6 +266,8 @@ function TaskerAccountsPanel() {
   const [deleteErrors, setDeleteErrors] = useState({})
   const [lightboxSrc, setLightboxSrc] = useState(null)
   const [docsModalTasker, setDocsModalTasker] = useState(null)
+  const [selectedTasker, setSelectedTasker] = useState(null)
+  const [showTaskerModal, setShowTaskerModal] = useState(false)
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -388,6 +390,12 @@ function TaskerAccountsPanel() {
 
   const displayList = employeeSubTab === 'active' ? taskers : archivedTaskers
 
+  const sortedTaskers = [...displayList].sort((a, b) => {
+    const aOnline = onlineTaskers.some(o => o.user_id === a.id) ? 1 : 0
+    const bOnline = onlineTaskers.some(o => o.user_id === b.id) ? 1 : 0
+    return bOnline - aOnline
+  })
+
   return (
     <>
       {/* Metric Cards */}
@@ -448,9 +456,110 @@ function TaskerAccountsPanel() {
         <p className="text-center text-gray-400 mt-16">
           {employeeSubTab === 'active' ? 'No approved taskers yet.' : 'No archived employees.'}
         </p>
+      ) : employeeSubTab === 'active' ? (
+        <>
+          {/* Active — Desktop Table */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time In</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-4 py-3 font-medium">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {sortedTaskers.map((t) => {
+                    const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
+                    const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
+                    return (
+                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+                            <span className={`text-xs font-semibold ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                              {isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                              {getInitials(t.name)}
+                            </div>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {isOnline && onlineInfo?.online_at
+                            ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">—</td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
+                            className="text-orange-500 text-sm font-medium hover:underline"
+                          >
+                            View Details →
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Active — Mobile Cards */}
+          <div className="block md:hidden space-y-3">
+            {sortedTaskers.map((t) => {
+              const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
+              const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
+              return (
+                <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                        {getInitials(t.name)}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800">{t.name || '—'}</p>
+                        <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+                      <span className={`text-xs font-semibold ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
+                  {isOnline && onlineInfo?.online_at && (
+                    <p className="text-xs text-gray-500 mb-2">
+                      Time In: {new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    </p>
+                  )}
+                  <button
+                    onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
+                    className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition mt-2"
+                  >
+                    View Details →
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </>
       ) : (
         <>
-          {/* Desktop Table */}
+          {/* Archived — Desktop Table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm">
@@ -467,144 +576,163 @@ function TaskerAccountsPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {displayList.map((t, idx) => {
-                    const docs = DOC_FIELDS.filter(({ key }) => t[key])
-                    return (
-                      <>
-                        <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                                {getInitials(t.name)}
-                              </div>
-                              <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                  {displayList.map((t, idx) => (
+                    <>
+                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                              {getInitials(t.name)}
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
-                          <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
-                            {t.service_area
-                              ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
-                              : '—'}
-                          </td>
-                          <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                            {t.created_at
-                              ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                              : '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-col gap-2">
-                              {docs.length > 0 && (
-                                <button
-                                  onClick={() => setDocsModalTasker({ tasker: t, docs })}
-                                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors whitespace-nowrap"
-                                >
-                                  View Documents
-                                </button>
-                              )}
-                              {employeeSubTab === 'active' ? (
-                                <button
-                                  onClick={() => handleArchiveTasker(t)}
-                                  className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-orange-500 border border-gray-200 hover:border-orange-300 transition-colors whitespace-nowrap"
-                                >
-                                  <Archive size={12} />
-                                  Archive
-                                </button>
-                              ) : (
-                                <>
-                                  <button
-                                    onClick={() => handleRestoreTasker(t)}
-                                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
-                                  >
-                                    <RotateCcw size={12} />
-                                    Restore
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteTasker(t)}
-                                    className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
-                                  >
-                                    <Trash2 size={12} />
-                                    Delete
-                                  </button>
-                                </>
-                              )}
-                            </div>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
+                          {t.service_area
+                            ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
+                          {t.created_at
+                            ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => handleRestoreTasker(t)}
+                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
+                            >
+                              <RotateCcw size={12} />
+                              Restore
+                            </button>
+                            <button
+                              onClick={() => handleDeleteTasker(t)}
+                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      {deleteErrors[t.id] && (
+                        <tr key={`${t.id}-err`}>
+                          <td colSpan={8} className="px-4 pb-3 pt-0">
+                            <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
                           </td>
                         </tr>
-                        {deleteErrors[t.id] && (
-                          <tr key={`${t.id}-err`}>
-                            <td colSpan={8} className="px-4 pb-3 pt-0">
-                              <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
-                            </td>
-                          </tr>
-                        )}
-                      </>
-                    )
-                  })}
+                      )}
+                    </>
+                  ))}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Mobile Card List */}
+          {/* Archived — Mobile Cards */}
           <div className="block md:hidden space-y-3">
-            {displayList.map((t, idx) => {
-              const docs = DOC_FIELDS.filter(({ key }) => t[key])
-              return (
-                <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                  <div className="flex justify-between items-start mb-2">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                        {getInitials(t.name)}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-800">{t.name || '—'}</p>
-                        <p className="text-sm text-gray-500">{t.email || '—'}</p>
-                      </div>
+            {displayList.map((t, idx) => (
+              <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                      {getInitials(t.name)}
                     </div>
-                    <span className="text-xs text-gray-400">#{idx + 1}</span>
+                    <div>
+                      <p className="font-semibold text-gray-800">{t.name || '—'}</p>
+                      <p className="text-sm text-gray-500">{t.email || '—'}</p>
+                    </div>
                   </div>
-                  <div className="text-sm text-gray-500 space-y-1">
-                    <p>📞 {t.phone || '—'}</p>
-                    <p>🔧 {t.role || '—'}</p>
-                    <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
-                    <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
-                  </div>
-                  {deleteErrors[t.id] && (
-                    <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
-                  )}
-                  <div className="flex gap-2 mt-3">
-                    {docs.length > 0 && (
-                      <button
-                        onClick={() => setDocsModalTasker({ tasker: t, docs })}
-                        className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
-                      >View Documents</button>
-                    )}
-                    {employeeSubTab === 'active' ? (
-                      <button
-                        onClick={() => handleArchiveTasker(t)}
-                        className="flex-1 text-sm border border-orange-400 text-orange-500 py-2 rounded-lg"
-                      >Archive</button>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => handleRestoreTasker(t)}
-                          className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg"
-                        >Restore</button>
-                        <button
-                          onClick={() => handleDeleteTasker(t)}
-                          className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
-                        >Delete</button>
-                      </>
-                    )}
-                  </div>
+                  <span className="text-xs text-gray-400">#{idx + 1}</span>
                 </div>
-              )
-            })}
+                <div className="text-sm text-gray-500 space-y-1">
+                  <p>📞 {t.phone || '—'}</p>
+                  <p>🔧 {t.role || '—'}</p>
+                  <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
+                  <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
+                </div>
+                {deleteErrors[t.id] && (
+                  <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
+                )}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={() => handleRestoreTasker(t)}
+                    className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg"
+                  >Restore</button>
+                  <button
+                    onClick={() => handleDeleteTasker(t)}
+                    className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
+                  >Delete</button>
+                </div>
+              </div>
+            ))}
           </div>
         </>
+      )}
+
+      {/* Tasker Details Modal */}
+      {showTaskerModal && selectedTasker && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={() => setShowTaskerModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setShowTaskerModal(false)}
+              className="absolute top-3 right-3 text-gray-400 hover:text-black text-xl"
+            >✕</button>
+
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedTasker.name)} flex items-center justify-center text-white text-xl font-bold`}>
+                {getInitials(selectedTasker.name)}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">{selectedTasker.name || '—'}</h2>
+                <p className="text-sm text-gray-500">{selectedTasker.email || '—'}</p>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Approved</span>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+              <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selectedTasker.phone || '—'}</span></div>
+              <div><span className="text-gray-500">Service:</span> <span className="font-medium">{selectedTasker.role || '—'}</span></div>
+              <div><span className="text-gray-500">Area:</span> <span className="font-medium">{selectedTasker.service_area || '—'}</span></div>
+              <div><span className="text-gray-500">Joined:</span> <span className="font-medium">{selectedTasker.created_at ? new Date(selectedTasker.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</span></div>
+            </div>
+
+            {/* Documents */}
+            {DOC_FIELDS.filter(({ key }) => selectedTasker[key]).length > 0 ? (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Documents</h4>
+                <div className="flex gap-3 flex-wrap">
+                  {DOC_FIELDS.filter(({ key }) => selectedTasker[key]).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setLightboxSrc(selectedTasker[key])}
+                      className="text-orange-500 text-sm underline"
+                    >{label}</button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <p className="text-gray-400 text-sm">No documents uploaded.</p>
+            )}
+
+            {/* Archive Button */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => { handleArchiveTasker(selectedTasker); setShowTaskerModal(false) }}
+                className="text-sm border border-orange-400 text-orange-500 px-4 py-2 rounded-lg hover:bg-orange-50"
+              >
+                Archive Employee
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Documents Modal */}
