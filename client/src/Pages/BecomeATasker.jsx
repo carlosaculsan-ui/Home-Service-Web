@@ -38,6 +38,7 @@ function BecomeATasker() {
     phone: '',
     email: '',
     serviceArea: '',
+    area: '',
     address: '',
     age: '',
     gender: '',
@@ -214,7 +215,7 @@ function BecomeATasker() {
       phone: formData.phone,
       role: formData.serviceRole,
       bio: formData.experience,
-      service_area: formData.serviceArea,
+      service_area: formData.area || formData.serviceArea,
       status: 'pending',
       is_available: false,
       rating: 0,
@@ -517,6 +518,30 @@ function BecomeATasker() {
                     placeholder="Postal Code"
                     className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   />
+                  <select
+                    value={formData.area}
+                    onChange={(e) => setFormData(prev => ({ ...prev, area: e.target.value }))}
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                  >
+                    <option value="">-- Select Area --</option>
+                    <option value="Manila">Manila</option>
+                    <option value="Quezon City">Quezon City</option>
+                    <option value="Caloocan">Caloocan</option>
+                    <option value="Las Piñas">Las Piñas</option>
+                    <option value="Makati">Makati</option>
+                    <option value="Malabon">Malabon</option>
+                    <option value="Mandaluyong">Mandaluyong</option>
+                    <option value="Marikina">Marikina</option>
+                    <option value="Muntinlupa">Muntinlupa</option>
+                    <option value="Navotas">Navotas</option>
+                    <option value="Parañaque">Parañaque</option>
+                    <option value="Pasay">Pasay</option>
+                    <option value="Pasig">Pasig</option>
+                    <option value="Pateros">Pateros</option>
+                    <option value="San Juan">San Juan</option>
+                    <option value="Taguig">Taguig</option>
+                    <option value="Valenzuela">Valenzuela</option>
+                  </select>
                 </div>
                 {/* Right column: Map — desktop only */}
                 <div className="hidden md:block md:flex-1 md:min-h-[130px]">
@@ -1140,11 +1165,11 @@ function BecomeATasker() {
                       </div>
                       <div className="col-span-2">
                         <span className="text-gray-500">Service Area:</span>
-                        <p className="font-bold text-gray-900">{formData.serviceArea || '—'}</p>
+                        <p className="font-bold text-gray-900">{formData.area || '—'}</p>
                       </div>
                       <div className="col-span-2">
                         <span className="text-gray-500">Address:</span>
-                        <p className="font-bold text-gray-900">{formData.address || '—'}</p>
+                        <p className="font-bold text-gray-900">{formData.serviceArea || '—'}</p>
                       </div>
                       <div>
                         <span className="text-gray-500">Postal Code:</span>
@@ -1164,16 +1189,6 @@ function BecomeATasker() {
                       <div>
                         <span className="text-gray-500">Experience:</span>
                         <p className="font-bold text-gray-900">{formData.experience || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Availability:</span>
-                        <p className="font-bold text-gray-900">
-                          {[
-                            formData.availWeekdays && 'Weekdays',
-                            formData.availWeekends && 'Weekends',
-                            formData.availAnytime && 'Anytime',
-                          ].filter(Boolean).join(', ') || '—'}
-                        </p>
                       </div>
                       <div>
                         <span className="text-gray-500">Working Hours:</span>
