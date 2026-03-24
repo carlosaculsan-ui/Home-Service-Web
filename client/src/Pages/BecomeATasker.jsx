@@ -73,12 +73,30 @@ function BecomeATasker() {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleNext = () => {
-    if (step === 1 && formData.phone && !validatePhone(formData.phone)) {
-      setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
-      return
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+  const validateStep1 = () => {
+    const newErrors = {}
+    const firstName = formData.firstName?.trim() ?? ''
+    if (!firstName || firstName.length < 2 || !/^[a-zA-Z\s]+$/.test(firstName)) {
+      newErrors.name = 'Please enter a valid full name'
     }
-    setPhoneError('')
+    if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address'
+    }
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleNext = () => {
+    if (step === 1) {
+      if (!validateStep1()) return
+      if (formData.phone && !validatePhone(formData.phone)) {
+        setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
+        return
+      }
+      setPhoneError('')
+    }
     setStep((prev) => Math.min(prev + 1, 5))
   }
 
@@ -93,6 +111,7 @@ function BecomeATasker() {
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
   const [phoneError, setPhoneError] = useState('')
+  const [errors, setErrors] = useState({})
 
   const PH_PHONE_RE = /^(09|\+639)\d{9}$/
   const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
@@ -354,14 +373,14 @@ function BecomeATasker() {
               <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
 
               {/* Row 1: Name fields */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-1">
                 <input
                   type="text"
                   name="firstName"
                   value={formData.firstName}
-                  onChange={handleChange}
+                  onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, name: undefined })) }}
                   placeholder="Firstname"
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                  className={`w-full border rounded-md p-2 text-sm ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
                 />
                 <input
                   type="text"
@@ -388,6 +407,7 @@ function BecomeATasker() {
                   className="w-full border border-gray-300 rounded-md p-2 text-sm"
                 />
               </div>
+              {errors.name && <p className="text-red-500 text-xs mb-2">{errors.name}</p>}
 
               {/* Row 2: Phone + Service Area */}
               <div className="grid grid-cols-1 md:flex md:flex-row gap-2 mb-3">
@@ -456,10 +476,11 @@ function BecomeATasker() {
                     type="email"
                     name="email"
                     value={formData.email}
-                    onChange={handleChange}
+                    onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, email: undefined })) }}
                     placeholder="Email"
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                    className={`w-full border rounded-md p-2 text-sm ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
                   />
+                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
                   <input
                     type="number"
                     name="age"
@@ -1087,31 +1108,82 @@ function BecomeATasker() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <span className="text-gray-500">First Name:</span>
-                        <p className="font-bold text-gray-900">{formData.firstName || 'N/A'}</p>
+                        <p className="font-bold text-gray-900">{formData.firstName || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Middle Name:</span>
+                        <p className="font-bold text-gray-900">{formData.middleName || '—'}</p>
                       </div>
                       <div>
                         <span className="text-gray-500">Last Name:</span>
-                        <p className="font-bold text-gray-900">{formData.lastName || 'N/A'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Phone Number:</span>
-                        <p className="font-bold text-gray-900">{formData.phone || 'N/A'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Address:</span>
-                        <p className="font-bold text-gray-900">{formData.address || 'N/A'}</p>
+                        <p className="font-bold text-gray-900">{formData.lastName || '—'}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Birthday:</span>
-                        <p className="font-bold text-gray-900">{formData.birthday || 'N/A'}</p>
+                        <span className="text-gray-500">Suffix:</span>
+                        <p className="font-bold text-gray-900">{formData.suffix || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Age:</span>
+                        <p className="font-bold text-gray-900">{formData.age || '—'}</p>
                       </div>
                       <div>
                         <span className="text-gray-500">Gender:</span>
-                        <p className="font-bold text-gray-900">{formData.gender || 'N/A'}</p>
+                        <p className="font-bold text-gray-900">{formData.gender || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Phone:</span>
+                        <p className="font-bold text-gray-900">{formData.phone || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Email:</span>
+                        <p className="font-bold text-gray-900">{formData.email || '—'}</p>
                       </div>
                       <div className="col-span-2">
-                        <span className="text-gray-500">Service Category:</span>
-                        <p className="font-bold text-gray-900">{formData.category || 'N/A'}</p>
+                        <span className="text-gray-500">Service Area:</span>
+                        <p className="font-bold text-gray-900">{formData.serviceArea || '—'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-gray-500">Address:</span>
+                        <p className="font-bold text-gray-900">{formData.address || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Postal Code:</span>
+                        <p className="font-bold text-gray-900">{formData.postalCode || '—'}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
+                      Service Information
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-gray-500">Service Role:</span>
+                        <p className="font-bold text-gray-900">{formData.serviceRole || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Experience:</span>
+                        <p className="font-bold text-gray-900">{formData.experience || '—'}</p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Availability:</span>
+                        <p className="font-bold text-gray-900">
+                          {[
+                            formData.availWeekdays && 'Weekdays',
+                            formData.availWeekends && 'Weekends',
+                            formData.availAnytime && 'Anytime',
+                          ].filter(Boolean).join(', ') || '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Working Hours:</span>
+                        <p className="font-bold text-gray-900">
+                          {[
+                            formData.workMorning && 'Morning',
+                            formData.workAfternoon && 'Afternoon',
+                            formData.workEvening && 'Evening',
+                          ].filter(Boolean).join(', ') || '—'}
+                        </p>
                       </div>
                     </div>
                   </div>
