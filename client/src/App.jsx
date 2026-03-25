@@ -104,6 +104,45 @@ function App() {
     }
   }, [user, profile])
 
+  useEffect(() => {
+    if (!user || profile?.role !== 'customer') return
+
+    let channel
+    try {
+      channel = supabase.channel('online-customers', {
+        config: { presence: { key: user.id } }
+      })
+      channel
+        .on('presence', { event: 'sync' }, () => {})
+        .subscribe(async (status) => {
+          if (status === 'SUBSCRIBED') {
+            await channel.track({
+              user_id: user.id,
+              name: profile?.full_name || user.email?.split('@')[0] || 'Customer',
+              online_at: new Date().toISOString()
+            })
+            await supabase
+              .from('profiles')
+              .update({ last_time_in: new Date().toISOString(), last_time_out: null })
+              .eq('id', user.id)
+          }
+        })
+    } catch (err) {
+      console.error('Customer presence error:', err)
+    }
+
+    return () => {
+      if (channel) {
+        supabase
+          .from('profiles')
+          .update({ last_time_out: new Date().toISOString() })
+          .eq('id', user.id)
+          .then(() => {})
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, profile])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />

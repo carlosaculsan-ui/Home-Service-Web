@@ -424,16 +424,6 @@ function TaskerAccountsPanel() {
           </div>
           <p className="text-4xl font-bold text-green-600">{onlineTaskers.length}</p>
           <p className="text-xs text-gray-400 mt-1">Currently online</p>
-          {onlineTaskers.length > 0 && (
-            <div className="mt-3 space-y-1">
-              {onlineTaskers.map((t, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm text-gray-600">
-                  <span className="w-2 h-2 bg-green-400 rounded-full inline-block animate-pulse" />
-                  {t.name}
-                </div>
-              ))}
-            </div>
-          )}
         </div>
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-gray-300">
           <div className="flex items-center gap-3 mb-2">
@@ -816,11 +806,14 @@ function CustomerAccountsPanel() {
   const [customers, setCustomers] = useState([])
   const [archivedCustomers, setArchivedCustomers] = useState([])
   const [customerSubTab, setCustomerSubTab] = useState('active')
+  const [onlineCustomers, setOnlineCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
   const [viewingCustomer, setViewingCustomer] = useState(null)
   const [customerBookings, setCustomerBookings] = useState([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [selectedCustomer, setSelectedCustomer] = useState(null)
+  const [showCustomerModal, setShowCustomerModal] = useState(false)
 
   async function fetchCustomers() {
     const { data: customersData } = await supabase
@@ -828,12 +821,45 @@ function CustomerAccountsPanel() {
       .select('*')
       .eq('role', 'customer')
 
-    setCustomers(customersData?.filter(c => !c.is_archived) ?? [])
-    setArchivedCustomers(customersData?.filter(c => c.is_archived) ?? [])
+    const rows = customersData ?? []
+    const ids = rows.map(c => c.id).filter(Boolean)
+    let profileMap = {}
+    if (ids.length > 0) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('id, last_time_in, last_time_out')
+        .in('id', ids)
+      profileData?.forEach(p => { profileMap[p.id] = p })
+    }
+    const enriched = rows.map(c => ({ ...c, ...profileMap[c.id] }))
+    setCustomers(enriched.filter(c => !c.is_archived))
+    setArchivedCustomers(enriched.filter(c => c.is_archived))
     setLoading(false)
   }
 
   useEffect(() => { fetchCustomers() }, [])
+
+  useEffect(() => {
+    const channel = supabase.channel('online-customers')
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState()
+        setOnlineCustomers(Object.values(state).flat())
+      })
+      .on('presence', { event: 'leave' }, async ({ leftPresences }) => {
+        for (const p of leftPresences) {
+          if (p.user_id) {
+            await supabase
+              .from('profiles')
+              .update({ last_time_out: new Date().toISOString() })
+              .eq('id', p.user_id)
+          }
+        }
+        fetchCustomers()
+      })
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [])
 
   async function handleViewBookings(customer) {
     setViewingCustomer(customer)
@@ -945,9 +971,11 @@ function CustomerAccountsPanel() {
 
   const displayList = customerSubTab === 'active' ? customers : archivedCustomers
 
-  if (displayList.length === 0 && customers.length === 0 && archivedCustomers.length === 0) {
-    return <p className="text-center text-gray-400 mt-16">No customer accounts found.</p>
-  }
+  const sortedCustomers = [...customers].sort((a, b) => {
+    const aOnline = onlineCustomers.some(o => o.user_id === a.id) ? 1 : 0
+    const bOnline = onlineCustomers.some(o => o.user_id === b.id) ? 1 : 0
+    return bOnline - aOnline
+  })
 
   return (
     <>
@@ -961,12 +989,9 @@ function CustomerAccountsPanel() {
             className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
               <div>
-                <p className="font-bold text-gray-800 text-base">
-                  {viewingCustomer.full_name || 'No name'}
-                </p>
+                <p className="font-bold text-gray-800 text-base">{viewingCustomer.full_name || 'No name'}</p>
                 <p className="text-xs text-gray-400 mt-0.5">Booking history</p>
               </div>
               <button
@@ -976,8 +1001,6 @@ function CustomerAccountsPanel() {
                 <X size={18} />
               </button>
             </div>
-
-            {/* Modal body */}
             <div className="overflow-y-auto flex-1 px-6 py-4">
               {bookingsLoading ? (
                 <div className="flex justify-center py-10">
@@ -1002,9 +1025,7 @@ function CustomerAccountsPanel() {
                         <tr key={b.id} className="text-gray-700">
                           <td className="py-2.5 pr-4 font-medium">{b.service ?? '—'}</td>
                           <td className="py-2.5 pr-4 text-gray-500">{b.taskerName}</td>
-                          <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">
-                            {b.scheduled_date ?? '—'}
-                          </td>
+                          <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">{b.scheduled_date ?? '—'}</td>
                           <td className="py-2.5 pr-4">
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
                               {b.status?.replace('_', ' ') ?? '—'}
@@ -1024,17 +1045,75 @@ function CustomerAccountsPanel() {
         </div>
       )}
 
-      {/* Sub-tab toggle */}
+      {/* Customer Details Modal */}
+      {showCustomerModal && selectedCustomer && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={() => setShowCustomerModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowCustomerModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-black text-xl">✕</button>
+            <div className="flex items-center gap-4 mb-6">
+              <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedCustomer.full_name || selectedCustomer.email)} flex items-center justify-center text-white text-xl font-bold`}>
+                {getInitials(selectedCustomer.full_name || selectedCustomer.email?.split('@')[0])}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">{selectedCustomer.full_name?.trim() || selectedCustomer.email?.split('@')[0] || '—'}</h2>
+                <p className="text-sm text-gray-500">{selectedCustomer.email}</p>
+                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">Customer</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+              <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{selectedCustomer.phone || '—'}</span></div>
+              <div><span className="text-gray-500">Joined:</span> <span className="font-medium">{selectedCustomer.created_at ? new Date(selectedCustomer.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</span></div>
+              <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{selectedCustomer.address || '—'}</span></div>
+            </div>
+            <div className="flex justify-between items-center mt-2">
+              <button
+                onClick={() => { handleViewBookings(selectedCustomer); setShowCustomerModal(false) }}
+                className="text-sm bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600"
+              >
+                View Bookings
+              </button>
+              <button
+                onClick={() => { handleArchiveCustomer(selectedCustomer); setShowCustomerModal(false) }}
+                className="text-sm border border-orange-400 text-orange-500 px-4 py-2 rounded-lg hover:bg-orange-50"
+              >
+                Archive Customer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Metric Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
+          <div className="flex items-center gap-3 mb-2">
+            <Wifi className="w-6 h-6 text-green-500" />
+            <span className="text-sm font-semibold text-gray-600">Active Customers</span>
+          </div>
+          <p className="text-4xl font-bold text-green-600">{onlineCustomers.length}</p>
+          <p className="text-xs text-gray-400 mt-1">Currently online</p>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-gray-300">
+          <div className="flex items-center gap-3 mb-2">
+            <WifiOff className="w-6 h-6 text-gray-400" />
+            <span className="text-sm font-semibold text-gray-600">Offline Customers</span>
+          </div>
+          <p className="text-4xl font-bold text-gray-500">{customers.length - onlineCustomers.length}</p>
+          <p className="text-xs text-gray-400 mt-1">Not currently online</p>
+        </div>
+      </div>
+
+      {/* Sub-tabs */}
       <div className="flex gap-2 mb-4">
         <button
           onClick={() => setCustomerSubTab('active')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${customerSubTab === 'active' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600'}`}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'active' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
         >
           Active ({customers.length})
         </button>
         <button
           onClick={() => setCustomerSubTab('archived')}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition ${customerSubTab === 'archived' ? 'bg-gray-700 text-white' : 'bg-gray-100 text-gray-600'}`}
+          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'archived' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
         >
           Archived ({archivedCustomers.length})
         </button>
@@ -1044,14 +1123,130 @@ function CustomerAccountsPanel() {
         <p className="text-center text-gray-400 mt-8">
           {customerSubTab === 'active' ? 'No active customers.' : 'No archived customers.'}
         </p>
-      ) : (
+      ) : customerSubTab === 'active' ? (
         <>
-          {/* Desktop Table - hidden on mobile */}
+          {/* Active — Desktop Table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
+                    <th className="px-4 py-3 font-medium">Status</th>
+                    <th className="px-4 py-3 font-medium">Name</th>
+                    <th className="px-4 py-3 font-medium">Email</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time In</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-4 py-3 font-medium">Details</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {sortedCustomers.map((c) => {
+                    const isOnline = onlineCustomers.some(o => o.user_id === c.id)
+                    const onlineInfo = onlineCustomers.find(o => o.user_id === c.id)
+                    return (
+                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+                            <span className={`text-xs font-semibold ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                              {isOnline ? 'Online' : 'Offline'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
+                              {getInitials(c.full_name || c.email?.split('@')[0])}
+                            </div>
+                            <span className="font-medium text-gray-800 whitespace-nowrap">
+                              {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {isOnline && onlineInfo?.online_at
+                            ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : c.last_time_in
+                            ? new Date(c.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-600">
+                          {!isOnline && c.last_time_out
+                            ? new Date(c.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => { setSelectedCustomer(c); setShowCustomerModal(true) }}
+                            className="text-orange-500 text-sm font-medium hover:underline"
+                          >
+                            View Details →
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Active — Mobile Cards */}
+          <div className="block md:hidden space-y-3">
+            {sortedCustomers.map((c) => {
+              const isOnline = onlineCustomers.some(o => o.user_id === c.id)
+              const onlineInfo = onlineCustomers.find(o => o.user_id === c.id)
+              const timeIn = isOnline && onlineInfo?.online_at
+                ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : c.last_time_in
+                ? new Date(c.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—'
+              const timeOut = !isOnline && c.last_time_out
+                ? new Date(c.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                : '—'
+              return (
+                <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white font-bold shrink-0`}>
+                        {getInitials(c.full_name || c.email?.split('@')[0])}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-800">{c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}</p>
+                        <p className="text-xs text-gray-500">{c.email || '—'}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className={`w-2.5 h-2.5 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+                      <span className={`text-xs font-semibold ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                        {isOnline ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 mb-3">
+                    <div><span className="font-medium text-gray-700">Time In:</span> {timeIn}</div>
+                    <div><span className="font-medium text-gray-700">Time Out:</span> {timeOut}</div>
+                  </div>
+                  <button
+                    onClick={() => { setSelectedCustomer(c); setShowCustomerModal(true) }}
+                    className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition"
+                  >
+                    View Details →
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Archived — Desktop Table */}
+          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
                     <th className="px-4 py-3 font-medium w-8">#</th>
                     <th className="px-4 py-3 font-medium">Name</th>
                     <th className="px-4 py-3 font-medium">Email</th>
@@ -1077,48 +1272,27 @@ function CustomerAccountsPanel() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{c.phone || '—'}</td>
+                        <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">{c.address || '—'}</td>
                         <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {c.phone || 'Not provided'}
+                          {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
                         </td>
-                        <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">
-                          {c.address || 'Not provided'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {c.created_at
-                            ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <div className="flex flex-row gap-2 items-center">
+                        <td className="px-4 py-3">
+                          <div className="flex flex-col gap-2">
                             <button
-                              onClick={() => handleViewBookings(c)}
-                              className="text-sm font-medium px-3 py-1 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 transition-colors"
+                              onClick={() => handleRestoreCustomer(c)}
+                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
                             >
-                              View Bookings
+                              <RotateCcw size={12} />
+                              Restore
                             </button>
-                            {customerSubTab === 'active' ? (
-                              <button
-                                onClick={() => handleArchiveCustomer(c)}
-                                className="text-sm border border-orange-400 text-orange-500 px-3 py-1 rounded hover:bg-orange-50"
-                              >
-                                Archive
-                              </button>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleRestoreCustomer(c)}
-                                  className="text-sm bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-                                >
-                                  Restore
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteCustomer(c.id)}
-                                  className="text-sm border border-red-400 text-red-500 px-3 py-1 rounded hover:bg-red-50"
-                                >
-                                  Delete
-                                </button>
-                              </>
-                            )}
+                            <button
+                              onClick={() => handleDeleteCustomer(c.id)}
+                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
+                            >
+                              <Trash2 size={12} />
+                              Delete
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -1136,7 +1310,7 @@ function CustomerAccountsPanel() {
             </div>
           </div>
 
-          {/* Mobile Card List - hidden on desktop */}
+          {/* Archived — Mobile Cards */}
           <div className="block md:hidden space-y-3">
             {displayList.map((c, idx) => (
               <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1146,44 +1320,23 @@ function CustomerAccountsPanel() {
                       {getInitials(c.full_name || c.email?.split('@')[0])}
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-800">
-                        {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
-                      </p>
+                      <p className="font-semibold text-gray-800">{c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}</p>
                       <p className="text-sm text-gray-500">{c.email}</p>
                     </div>
                   </div>
                   <span className="text-xs text-gray-400">#{idx + 1}</span>
                 </div>
                 <div className="text-sm text-gray-500 space-y-1">
-                  <p>📞 {c.phone || 'Not provided'}</p>
-                  <p>📍 {c.address || 'Not provided'}</p>
+                  <p>📞 {c.phone || '—'}</p>
+                  <p>📍 {c.address || '—'}</p>
                   <p>📅 Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
                 </div>
                 {deleteErrors[c.id] && (
                   <p className="text-xs text-red-500 mt-2">{deleteErrors[c.id]}</p>
                 )}
                 <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => handleViewBookings(c)}
-                    className="flex-1 text-sm bg-orange-500 text-white py-2 rounded-lg"
-                  >View Bookings</button>
-                  {customerSubTab === 'active' ? (
-                    <button
-                      onClick={() => handleArchiveCustomer(c)}
-                      className="flex-1 text-sm border border-orange-400 text-orange-500 py-2 rounded-lg"
-                    >Archive</button>
-                  ) : (
-                    <>
-                      <button
-                        onClick={() => handleRestoreCustomer(c)}
-                        className="flex-1 text-sm bg-green-500 text-white py-2 rounded-lg"
-                      >Restore</button>
-                      <button
-                        onClick={() => handleDeleteCustomer(c.id)}
-                        className="flex-1 text-sm border border-red-400 text-red-500 py-2 rounded-lg"
-                      >Delete</button>
-                    </>
-                  )}
+                  <button onClick={() => handleRestoreCustomer(c)} className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg">Restore</button>
+                  <button onClick={() => handleDeleteCustomer(c.id)} className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg">Delete</button>
                 </div>
               </div>
             ))}
