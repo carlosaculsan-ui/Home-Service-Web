@@ -1433,9 +1433,8 @@ const getStatusBadge = (status) => {
   )
 }
 
-function BookingsPanel() {
+function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [bookings, setBookings] = useState([])
-  const [bookingFilter, setBookingFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
 
@@ -1513,12 +1512,12 @@ function BookingsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-6">
         <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
         <select
           value={bookingFilter}
           onChange={(e) => setBookingFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
         >
           <option value="all">All Bookings</option>
           <option value="confirmed">Pending (Awaiting Tasker)</option>
@@ -2051,12 +2050,12 @@ function ReviewsPanel() {
       )}
 
       {/* Service filter */}
-      <div className="flex items-center gap-3 mb-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-4">
         <label className="text-sm font-semibold text-gray-600">Filter by Service:</label>
         <select
           value={reviewServiceFilter}
           onChange={(e) => setReviewServiceFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
         >
           <option value="all">All Services</option>
           <option value="Cleaning">Cleaning</option>
@@ -2233,12 +2232,12 @@ function LeaveRequestsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-6">
         <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
         <select
           value={leaveFilter}
           onChange={(e) => setLeaveFilter(e.target.value)}
-          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          className="w-full sm:w-auto border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
         >
           <option value="all">All Requests</option>
           <option value="pending">Pending</option>
@@ -2324,7 +2323,7 @@ function LeaveRequestsPanel() {
 
 // ─── Dashboard Panel ─────────────────────────────────────────────────────────
 
-function DashboardPanel({ setTab }) {
+function DashboardPanel({ setTab, setBookingFilter }) {
   const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0 })
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [monthlyRevenue, setMonthlyRevenue] = useState(0)
@@ -2420,9 +2419,9 @@ function DashboardPanel({ setTab }) {
   }
 
   const statCards = [
-    { label: 'Total Customers', value: stats.customers, icon: <Users className="w-8 h-8 text-blue-500" />,           accent: 'border-blue-500',   num: 'text-blue-600' },
-    { label: 'Total Taskers',   value: stats.taskers,   icon: <Wrench className="w-8 h-8 text-green-500" />,         accent: 'border-green-500',  num: 'text-green-600' },
-    { label: 'Completed Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600' },
+    { label: 'Total Customers', value: stats.customers, icon: <Users className="w-8 h-8 text-blue-500" />,           accent: 'border-blue-500',   num: 'text-blue-600',   onClick: () => setTab('customers') },
+    { label: 'Total Taskers',   value: stats.taskers,   icon: <Wrench className="w-8 h-8 text-green-500" />,         accent: 'border-green-500',  num: 'text-green-600',  onClick: () => setTab('tasker-accounts') },
+    { label: 'Completed Bookings',  value: stats.bookings,  icon: <ClipboardList className="w-8 h-8 text-orange-500" />, accent: 'border-orange-500', num: 'text-orange-600', onClick: () => { setBookingFilter('completed'); setTab('bookings') } },
   ]
 
   if (loading) {
@@ -2438,15 +2437,15 @@ function DashboardPanel({ setTab }) {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {statCards.map(({ label, value, icon, accent, num }) => (
-          <div key={label} className={`bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 ${accent}`}>
+        {statCards.map(({ label, value, icon, accent, num, onClick }) => (
+          <div key={label} onClick={onClick} className={`bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 ${accent} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200`}>
             <div className="mb-2">{icon}</div>
             <div className={`text-2xl md:text-4xl font-bold ${num}`}>{value}</div>
             <div className="text-xs md:text-sm text-gray-500 mt-1">{label}</div>
           </div>
         ))}
         {/* Revenue card */}
-        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-purple-500">
+        <div onClick={() => { setBookingFilter('completed'); setTab('bookings') }} className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-purple-500 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
           <div className="mb-2"><CircleDollarSign className="w-8 h-8 text-purple-500" /></div>
           <div className="text-2xl md:text-4xl font-bold text-purple-600">₱{totalRevenue.toLocaleString()}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Total Revenue (All-time)</div>
@@ -2619,6 +2618,7 @@ function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
 
 function Admin() {
   const [tab, setTab] = useState('dashboard')
+  const [bookingFilter, setBookingFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
   const [calendarBookings, setCalendarBookings] = useState([])
@@ -2731,7 +2731,7 @@ function Admin() {
         </div>
 
         {tab === 'dashboard' ? (
-          <DashboardPanel setTab={setTab} />
+          <DashboardPanel setTab={setTab} setBookingFilter={setBookingFilter} />
         ) : tab === 'calendar' ? (
           <>
           <div className="p-3 sm:p-6 w-full">
@@ -2938,7 +2938,7 @@ function Admin() {
             {tab === 'customers'       && <CustomerAccountsPanel />}
             {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
             {tab === 'applications'    && <TaskerApplications />}
-            {tab === 'bookings'        && <BookingsPanel />}
+            {tab === 'bookings'        && <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} />}
             {tab === 'services'        && <ServicesPanel />}
             {tab === 'reviews'         && <ReviewsPanel />}
             {tab === 'leave-requests'  && <LeaveRequestsPanel />}
