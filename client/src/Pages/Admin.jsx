@@ -2622,8 +2622,9 @@ function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
   const [calendarBookings, setCalendarBookings] = useState([])
+  const [approvedLeaveDates, setApprovedLeaveDates] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState(null)
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [events, setEvents] = useState(() => {
     const saved = localStorage.getItem('admin_calendar_events')
     return saved ? JSON.parse(saved) : {}
@@ -2657,6 +2658,17 @@ function Admin() {
       .select('id, customer_name, service, scheduled_date, scheduled_time, status, tasker_id')
       .order('scheduled_date', { ascending: true })
       .then(({ data }) => setCalendarBookings(data || []))
+    supabase
+      .from('tasker_leaves')
+      .select('leave_dates, status')
+      .eq('status', 'approved')
+      .then(({ data }) => {
+        const allLeaveDates = data?.flatMap(l => {
+          try { return JSON.parse(l.leave_dates) || [] } catch { return [] }
+        }) || []
+        console.log('Approved leave dates:', allLeaveDates)
+        setApprovedLeaveDates(allLeaveDates)
+      })
   }, [tab])
 
   useEffect(() => {
@@ -2786,13 +2798,16 @@ function Admin() {
                             `}
                           >
                             <span className="text-xs sm:text-base">{day}</span>
-                            {(dayBookings.length > 0 || events[dateStr]?.length > 0) && (
+                            {(dayBookings.length > 0 || events[dateStr]?.length > 0 || approvedLeaveDates.includes(dateStr)) && (
                               <div className="flex justify-center gap-1 mt-1">
                                 {dayBookings.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
                                 )}
                                 {events[dateStr]?.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
+                                )}
+                                {approvedLeaveDates.includes(dateStr) && (
+                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-500'}`} />
                                 )}
                               </div>
                             )}
@@ -2802,12 +2817,28 @@ function Admin() {
                     </div>
                   )
                 })()}
+
+                {/* Legend */}
+                <div className="flex items-center gap-4 mt-4 pt-4 border-t border-gray-100">
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 inline-block" />
+                    <span className="text-xs text-gray-500">Bookings</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" />
+                    <span className="text-xs text-gray-500">Reminders</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
+                    <span className="text-xs text-gray-500">Approved Leaves</span>
+                  </div>
+                </div>
               </div>
 
               {/* Bookings for Selected Date */}
               <div className="bg-white rounded-xl shadow-sm p-5">
                 <h3 className="text-sm font-semibold text-gray-700 mb-4">
-                  {selectedDate ? `Bookings on ${selectedDate}` : 'Select a date to view bookings'}
+                  {selectedDate ? `Bookings on ${new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}` : 'Select a date to view bookings'}
                 </h3>
                 {selectedDate ? (
                   calendarBookings.filter(b => b.scheduled_date === selectedDate).length === 0 ? (
@@ -2831,6 +2862,14 @@ function Admin() {
                   )
                 ) : (
                   <p className="text-gray-400 text-sm">Click any highlighted date to see bookings.</p>
+                )}
+
+                {/* Approved Leaves for selected date */}
+                {selectedDate && approvedLeaveDates.includes(selectedDate) && (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Approved Leaves</h4>
+                    <p className="text-sm text-purple-600">Taskers are on approved leave on this date.</p>
+                  </div>
                 )}
 
                 {/* Reminders for selected date */}
