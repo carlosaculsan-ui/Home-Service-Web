@@ -1414,12 +1414,12 @@ function BookingsPanel() {
       taskers?.forEach((t) => { taskerMap[t.id] = t.name })
     }
 
-    // Fetch client emails from profiles
+    // Fetch client names from profiles
     const clientIds = [...new Set(data.map((b) => b.client_id).filter(Boolean))]
     let clientMap = {}
     if (clientIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('id, email').in('id', clientIds)
-      profiles?.forEach((p) => { clientMap[p.id] = p.email })
+      const { data: profiles } = await supabase.from('profiles').select('id, full_name, email').in('id', clientIds)
+      profiles?.forEach((p) => { clientMap[p.id] = p.full_name || p.email || '—' })
     }
 
     setBookings(data.map((b) => ({
@@ -1504,7 +1504,7 @@ function BookingsPanel() {
                 {[
                   ['Service',   b.service],
                   ['Tasker',    b.taskerName],
-                  ['Client',    b.clientEmail],
+                  ['Client',    b.customer_name || b.clientEmail],
                   ['Date',      formatBookingDate(b.scheduled_date, b.scheduled_time)],
                   ['Task',      getTaskLabel(b)],
                   ['Address',   b.address],
