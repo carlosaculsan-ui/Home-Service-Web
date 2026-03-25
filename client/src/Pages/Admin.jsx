@@ -268,6 +268,7 @@ function TaskerAccountsPanel() {
   const [docsModalTasker, setDocsModalTasker] = useState(null)
   const [selectedTasker, setSelectedTasker] = useState(null)
   const [showTaskerModal, setShowTaskerModal] = useState(false)
+  const [employeeSearch, setEmployeeSearch] = useState('')
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -407,11 +408,21 @@ function TaskerAccountsPanel() {
   console.log('onlineTaskers:', onlineTaskers.map(o => o.user_id))
   console.log('taskers user_ids:', displayList.map(t => t.user_id))
 
-  const sortedTaskers = [...displayList].sort((a, b) => {
+  const sortedTaskers = [...taskers].sort((a, b) => {
     const aOnline = onlineTaskers.some(o => o.user_id === a.user_id) ? 1 : 0
     const bOnline = onlineTaskers.some(o => o.user_id === b.user_id) ? 1 : 0
     return bOnline - aOnline
   })
+
+  const filteredTaskers = sortedTaskers.filter(t =>
+    t.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    t.email?.toLowerCase().includes(employeeSearch.toLowerCase())
+  )
+
+  const filteredArchivedTaskers = archivedTaskers.filter(t =>
+    t.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+    t.email?.toLowerCase().includes(employeeSearch.toLowerCase())
+  )
 
   return (
     <>
@@ -435,10 +446,21 @@ function TaskerAccountsPanel() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name or email..."
+          value={employeeSearch}
+          onChange={(e) => setEmployeeSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+      </div>
+
       {/* Sub-tabs */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setEmployeeSubTab('active')}
+          onClick={() => { setEmployeeSubTab('active'); setEmployeeSearch('') }}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             employeeSubTab === 'active'
               ? 'bg-orange-500 text-white'
@@ -448,7 +470,7 @@ function TaskerAccountsPanel() {
           Active ({taskers.length})
         </button>
         <button
-          onClick={() => setEmployeeSubTab('archived')}
+          onClick={() => { setEmployeeSubTab('archived'); setEmployeeSearch('') }}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
             employeeSubTab === 'archived'
               ? 'bg-orange-500 text-white'
@@ -459,9 +481,9 @@ function TaskerAccountsPanel() {
         </button>
       </div>
 
-      {displayList.length === 0 ? (
+      {(employeeSubTab === 'active' ? filteredTaskers : filteredArchivedTaskers).length === 0 ? (
         <p className="text-center text-gray-400 mt-16">
-          {employeeSubTab === 'active' ? 'No approved taskers yet.' : 'No archived employees.'}
+          {employeeSearch ? 'No employees match your search.' : employeeSubTab === 'active' ? 'No approved taskers yet.' : 'No archived employees.'}
         </p>
       ) : employeeSubTab === 'active' ? (
         <>
@@ -480,7 +502,7 @@ function TaskerAccountsPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {sortedTaskers.map((t) => {
+                  {filteredTaskers.map((t) => {
                     const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
                     const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
                     return (
@@ -596,7 +618,7 @@ function TaskerAccountsPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {displayList.map((t, idx) => (
+                  {filteredArchivedTaskers.map((t, idx) => (
                     <>
                       <tr key={t.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
@@ -656,7 +678,7 @@ function TaskerAccountsPanel() {
 
           {/* Archived — Mobile Cards */}
           <div className="block md:hidden space-y-3">
-            {displayList.map((t, idx) => (
+            {filteredArchivedTaskers.map((t, idx) => (
               <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-3">
@@ -814,6 +836,7 @@ function CustomerAccountsPanel() {
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
+  const [customerSearch, setCustomerSearch] = useState('')
 
   async function fetchCustomers() {
     const { data: customersData } = await supabase
@@ -969,9 +992,16 @@ function CustomerAccountsPanel() {
     )
   }
 
-  const displayList = customerSubTab === 'active' ? customers : archivedCustomers
+  const filteredCustomers = customers.filter(c =>
+    c.full_name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    c.email?.toLowerCase().includes(customerSearch.toLowerCase())
+  )
+  const filteredArchivedCustomers = archivedCustomers.filter(c =>
+    c.full_name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
+    c.email?.toLowerCase().includes(customerSearch.toLowerCase())
+  )
 
-  const sortedCustomers = [...customers].sort((a, b) => {
+  const sortedCustomers = [...filteredCustomers].sort((a, b) => {
     const aOnline = onlineCustomers.some(o => o.user_id === a.id) ? 1 : 0
     const bOnline = onlineCustomers.some(o => o.user_id === b.id) ? 1 : 0
     return bOnline - aOnline
@@ -1103,25 +1133,36 @@ function CustomerAccountsPanel() {
         </div>
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          placeholder="Search by name or email..."
+          value={customerSearch}
+          onChange={(e) => setCustomerSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm w-72 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
+      </div>
+
       {/* Sub-tabs */}
       <div className="flex gap-2 mb-4">
         <button
-          onClick={() => setCustomerSubTab('active')}
+          onClick={() => { setCustomerSubTab('active'); setCustomerSearch('') }}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'active' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
         >
           Active ({customers.length})
         </button>
         <button
-          onClick={() => setCustomerSubTab('archived')}
+          onClick={() => { setCustomerSubTab('archived'); setCustomerSearch('') }}
           className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'archived' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
         >
           Archived ({archivedCustomers.length})
         </button>
       </div>
 
-      {displayList.length === 0 ? (
+      {(customerSubTab === 'active' ? filteredCustomers : filteredArchivedCustomers).length === 0 ? (
         <p className="text-center text-gray-400 mt-8">
-          {customerSubTab === 'active' ? 'No active customers.' : 'No archived customers.'}
+          {customerSearch ? 'No customers match your search.' : customerSubTab === 'active' ? 'No active customers.' : 'No archived customers.'}
         </p>
       ) : customerSubTab === 'active' ? (
         <>
@@ -1257,7 +1298,7 @@ function CustomerAccountsPanel() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {displayList.map((c, idx) => (
+                  {filteredArchivedCustomers.map((c, idx) => (
                     <>
                       <tr key={c.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
@@ -1312,7 +1353,7 @@ function CustomerAccountsPanel() {
 
           {/* Archived — Mobile Cards */}
           <div className="block md:hidden space-y-3">
-            {displayList.map((c, idx) => (
+            {filteredArchivedCustomers.map((c, idx) => (
               <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-3">
@@ -1571,6 +1612,7 @@ function ServicesPanel() {
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [editError, setEditError] = useState('')
   const [editLoading, setEditLoading] = useState(false)
+  const [serviceSearch, setServiceSearch] = useState('')
 
   async function fetchServices() {
     const { data } = await supabase
@@ -1648,9 +1690,11 @@ function ServicesPanel() {
     fetchServices()
   }
 
-  async function handleDelete(id, title) {
-    if (!window.confirm(`Delete "${title}"? This cannot be undone.`)) return
-    await supabase.from('services').delete().eq('id', id)
+  async function handleDelete(service) {
+    if (!window.confirm(
+      `⚠️ WARNING: Deleting "${service.title}" is permanent and cannot be undone.\n\nThis may affect existing bookings that used this service.\n\nAre you sure you want to delete this service?`
+    )) return
+    await supabase.from('services').delete().eq('id', service.id)
     fetchServices()
   }
 
@@ -1664,8 +1708,15 @@ function ServicesPanel() {
 
   return (
     <div className="space-y-4">
-      {/* Add Service Button */}
-      <div className="flex justify-end">
+      {/* Search + Add Service */}
+      <div className="flex items-center justify-between mb-6">
+        <input
+          type="text"
+          placeholder="Search services..."
+          value={serviceSearch}
+          onChange={(e) => setServiceSearch(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        />
         <button
           onClick={() => { setShowAddForm(!showAddForm); setAddError('') }}
           className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
@@ -1738,10 +1789,13 @@ function ServicesPanel() {
       )}
 
       {/* Service Cards */}
-      {services.length === 0 && (
-        <p className="text-center text-gray-400 mt-16">No services yet. Add one above.</p>
-      )}
-      {services.map((s) => (
+      {(() => {
+        const filteredServices = services.filter(s =>
+          s.title?.toLowerCase().includes(serviceSearch.toLowerCase())
+        )
+        if (services.length === 0) return <p className="text-center text-gray-400 mt-16">No services yet. Add one above.</p>
+        if (filteredServices.length === 0) return <p className="text-center text-gray-400 mt-16">No services match your search.</p>
+        return filteredServices.map((s) => (
         <div key={s.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
           {editId === s.id ? (
             <form onSubmit={handleEdit} className="space-y-3">
@@ -1843,7 +1897,7 @@ function ServicesPanel() {
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDelete(s.id, s.title)}
+                  onClick={() => handleDelete(s)}
                   className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
                   Delete
@@ -1852,7 +1906,8 @@ function ServicesPanel() {
             </div>
           )}
         </div>
-      ))}
+        ))
+      })()}
     </div>
   )
 }
@@ -1890,11 +1945,21 @@ function Lightbox({ src, onClose }) {
 // NOTE: Run this SQL in Supabase if not already done:
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
+const formatReviewDate = (dateStr) => {
+  if (!dateStr) return '—'
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 function ReviewsPanel() {
   const [reviews, setReviews] = useState([])
   const [taskerMap, setTaskerMap] = useState({})
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
+  const [reviewServiceFilter, setReviewServiceFilter] = useState('all')
   const [toast, setToast] = useState('')
   const [deleteErrors, setDeleteErrors] = useState({})
   const [lightboxSrc, setLightboxSrc] = useState(null)
@@ -1954,11 +2019,13 @@ function ReviewsPanel() {
   const featuredCount = reviews.filter(r => r.featured).length
   const hiddenCount   = reviews.filter(r => r.is_hidden).length
 
-  const visible = reviews.filter(r => {
-    if (filter === 'featured') return r.featured
-    if (filter === 'hidden')   return r.is_hidden
-    return true
-  })
+  const visible = reviews
+    .filter(r => {
+      if (filter === 'featured') return r.featured
+      if (filter === 'hidden')   return r.is_hidden
+      return true
+    })
+    .filter(r => reviewServiceFilter === 'all' || r.service === reviewServiceFilter)
 
   const filterTabs = [
     { key: 'all',      label: 'All',      count: allCount },
@@ -1982,6 +2049,24 @@ function ReviewsPanel() {
           {toast}
         </div>
       )}
+
+      {/* Service filter */}
+      <div className="flex items-center gap-3 mb-4">
+        <label className="text-sm font-semibold text-gray-600">Filter by Service:</label>
+        <select
+          value={reviewServiceFilter}
+          onChange={(e) => setReviewServiceFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        >
+          <option value="all">All Services</option>
+          <option value="Cleaning">Cleaning</option>
+          <option value="Plumbing">Plumbing</option>
+          <option value="Electrical">Electrical</option>
+          <option value="Carpentry">Carpentry</option>
+          <option value="Aircon Cleaning">Aircon Cleaning</option>
+          <option value="Painting">Painting</option>
+        </select>
+      </div>
 
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">
@@ -2046,7 +2131,7 @@ function ReviewsPanel() {
                     {taskerMap[r.tasker_id] && (
                       <span>Tasker: <span className="text-gray-600 font-medium">{taskerMap[r.tasker_id]}</span></span>
                     )}
-                    <span>{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</span>
+                    <span>{formatReviewDate(r.created_at)}</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2 flex-shrink-0">
@@ -2087,8 +2172,17 @@ function ReviewsPanel() {
 
 // ─── Leave Requests Tab ───────────────────────────────────────────────────────
 
+const formatLeaveDate = (dateStr) => {
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
 function LeaveRequestsPanel() {
   const [leaves, setLeaves] = useState([])
+  const [leaveFilter, setLeaveFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
   const [deleteErrors, setDeleteErrors] = useState({})
@@ -2133,9 +2227,31 @@ function LeaveRequestsPanel() {
     return <p className="text-center text-gray-400 mt-16">No leave requests yet.</p>
   }
 
+  const filteredLeaves = leaveFilter === 'all'
+    ? leaves
+    : leaves.filter(l => l.status === leaveFilter)
+
   return (
     <div className="space-y-4">
-      {leaves.map((leave) => {
+      <div className="flex items-center gap-3 mb-6">
+        <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
+        <select
+          value={leaveFilter}
+          onChange={(e) => setLeaveFilter(e.target.value)}
+          className="border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+        >
+          <option value="all">All Requests</option>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="rejected">Rejected</option>
+        </select>
+        <span className="text-sm text-gray-400">
+          {leaveFilter === 'all'
+            ? `${leaves.length} total`
+            : `${filteredLeaves.length} found`}
+        </span>
+      </div>
+      {filteredLeaves.map((leave) => {
         const dates = (() => { try { return JSON.parse(leave.leave_dates) } catch { return [] } })()
         const statusClass = TASKER_STATUS_STYLES[leave.status] ?? 'bg-gray-100 text-gray-600'
         return (
@@ -2150,7 +2266,17 @@ function LeaveRequestsPanel() {
                 </div>
                 <p className="text-sm text-gray-500">
                   <span className="text-gray-400 font-medium">Dates: </span>
-                  {dates.length > 0 ? dates.join(', ') : '—'}
+                  {(() => {
+                    if (dates.length === 0) return '—'
+                    if (dates.length === 1) return formatLeaveDate(dates[0])
+                    const sorted = [...dates].sort()
+                    return (
+                      <span>
+                        <span className="font-medium text-gray-700">{dates.length} days</span>
+                        <span className="text-gray-500"> ({formatLeaveDate(sorted[0])} – {formatLeaveDate(sorted[sorted.length - 1])})</span>
+                      </span>
+                    )
+                  })()}
                 </p>
                 <p className="text-sm text-gray-600">
                   <span className="text-gray-400 font-medium">Reason: </span>
