@@ -175,13 +175,15 @@ function Navbar() {
                     Become a Tasker
                   </Link>
                 )}
-                <Link
-                  to="/dashboard"
-                  onClick={() => setDropdownOpen(false)}
-                  className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors"
-                >
-                  My Bookings
-                </Link>
+                {!isAdmin && !isApprovedTasker && (
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setDropdownOpen(false)}
+                    className="block px-4 py-3 text-sm text-gray-700 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+                  >
+                    My Bookings
+                  </Link>
+                )}
                 {isApprovedTasker && (
                   <Link
                     to="/tasker-dashboard"
@@ -244,13 +246,15 @@ function Navbar() {
                   Become a Tasker
                 </Link>
               )}
-              <Link
-                to="/dashboard"
-                onClick={() => setMenuOpen(false)}
-                className="text-white font-medium hover:text-orange-200"
-              >
-                My Bookings
-              </Link>
+              {!isAdmin && !isApprovedTasker && (
+                <Link
+                  to="/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  className="text-white font-medium hover:text-orange-200"
+                >
+                  My Bookings
+                </Link>
+              )}
               {isApprovedTasker && (
                 <Link
                   to="/tasker-dashboard"

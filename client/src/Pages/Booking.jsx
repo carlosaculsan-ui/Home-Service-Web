@@ -2659,7 +2659,19 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
 function Booking() {
   const { service } = useParams()
+  const navigate = useNavigate()
   const [step, setStep] = useState(0)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return
+      supabase.from('profiles').select('role').eq('id', session.user.id).single()
+        .then(({ data }) => {
+          if (data?.role === 'tasker') navigate('/tasker-dashboard')
+          if (data?.role === 'admin') navigate('/admin')
+        })
+    })
+  }, [])
 
   // Step 1 data
   const [taskAddress, setTaskAddress] = useState('')

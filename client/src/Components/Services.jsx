@@ -22,6 +22,15 @@ const IMAGE_MAP = {
 function Services() {
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return
+      supabase.from('profiles').select('role').eq('id', session.user.id).single()
+        .then(({ data }) => setRole(data?.role ?? null))
+    })
+  }, [])
 
   useEffect(() => {
     async function fetchServices() {
@@ -93,11 +102,13 @@ function Services() {
               </div>
 
               {/* Circular orange arrow button */}
-              <div className="flex justify-end">
-                <Link to={`/booking/${service.title}`} className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors font-bold text-lg">
-                  →
-                </Link>
-              </div>
+              {role !== 'tasker' && role !== 'admin' && (
+                <div className="flex justify-end">
+                  <Link to={`/booking/${service.title}`} className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors font-bold text-lg">
+                    →
+                  </Link>
+                </div>
+              )}
             </div>
           ))}
         </div>

@@ -1,8 +1,19 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../supabase'
 import heroImg from '../Assets/hero.jpg'
 
 
 
 function Hero() {
+  const [role, setRole] = useState(null)
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.user) return
+      supabase.from('profiles').select('role').eq('id', session.user.id).single()
+        .then(({ data }) => setRole(data?.role ?? null))
+    })
+  }, [])
 
   return (
     <div
@@ -59,12 +70,14 @@ function Hero() {
         </p>
 
         {/* Get Started Button */}
-        <button
-          onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
-          className="mb-8 px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg text-lg"
-        >
-          Get Started
-        </button>
+        {role !== 'tasker' && role !== 'admin' && (
+          <button
+            onClick={() => document.getElementById('services')?.scrollIntoView({ behavior: 'smooth' })}
+            className="mb-8 px-8 py-3 bg-orange-500 hover:bg-orange-600 text-white font-bold rounded-lg text-lg"
+          >
+            Get Started
+          </button>
+        )}
       </div>
 
     </div>
