@@ -2622,7 +2622,7 @@ function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
   const [calendarBookings, setCalendarBookings] = useState([])
-  const [approvedLeaveDates, setApprovedLeaveDates] = useState([])
+  const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [events, setEvents] = useState(() => {
@@ -2660,14 +2660,15 @@ function Admin() {
       .then(({ data }) => setCalendarBookings(data || []))
     supabase
       .from('tasker_leaves')
-      .select('leave_dates, status')
+      .select('leave_dates, status, taskers(name)')
       .eq('status', 'approved')
-      .then(({ data }) => {
-        const allLeaveDates = data?.flatMap(l => {
-          try { return JSON.parse(l.leave_dates) || [] } catch { return [] }
-        }) || []
-        console.log('Approved leave dates:', allLeaveDates)
-        setApprovedLeaveDates(allLeaveDates)
+      .then(({ data: leavesData }) => {
+        console.log('Leaves raw data:', leavesData)
+        const allLeaves = (leavesData || []).map(l => {
+          try { return { ...l, leave_dates: JSON.parse(l.leave_dates) || [] } } catch { return { ...l, leave_dates: [] } }
+        })
+        console.log('Approved leaves set:', allLeaves)
+        setApprovedLeaves(allLeaves)
       })
   }, [tab])
 
@@ -2798,7 +2799,7 @@ function Admin() {
                             `}
                           >
                             <span className="text-xs sm:text-base">{day}</span>
-                            {(dayBookings.length > 0 || events[dateStr]?.length > 0 || approvedLeaveDates.includes(dateStr)) && (
+                            {(dayBookings.length > 0 || events[dateStr]?.length > 0 || approvedLeaves.some(l => l.leave_dates?.includes(dateStr))) && (
                               <div className="flex justify-center gap-1 mt-1">
                                 {dayBookings.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
@@ -2806,7 +2807,7 @@ function Admin() {
                                 {events[dateStr]?.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
                                 )}
-                                {approvedLeaveDates.includes(dateStr) && (
+                                {approvedLeaves.some(l => l.leave_dates?.includes(dateStr)) && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-500'}`} />
                                 )}
                               </div>
@@ -2865,12 +2866,24 @@ function Admin() {
                 )}
 
                 {/* Approved Leaves for selected date */}
-                {selectedDate && approvedLeaveDates.includes(selectedDate) && (
-                  <div className="mt-4">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Approved Leaves</h4>
-                    <p className="text-sm text-purple-600">Taskers are on approved leave on this date.</p>
-                  </div>
-                )}
+                {(() => {
+                  const leavingTaskers = approvedLeaves.filter(l => l.leave_dates?.includes(selectedDate))
+                  return leavingTaskers.length > 0 ? (
+                    <div className="mt-4">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Approved Leaves</h4>
+                      <div className="space-y-2">
+                        {leavingTaskers.map((leave, i) => (
+                          <div key={i} className="flex items-center gap-2 bg-purple-50 rounded-lg px-3 py-2">
+                            <span className="w-2 h-2 rounded-full bg-purple-500 shrink-0" />
+                            <span className="text-sm text-purple-700 font-medium">
+                              {leave.taskers?.name || 'Unknown Tasker'}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null
+                })()}
 
                 {/* Reminders for selected date */}
                 {selectedDate && events[selectedDate]?.length > 0 && (
