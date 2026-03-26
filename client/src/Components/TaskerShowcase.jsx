@@ -46,7 +46,7 @@ function getQuote(role) {
 
 function ProfileModal({ tasker, onClose, justOpenedRef }) {
   const navigate = useNavigate()
-  const avatar = taskerImages[tasker.avatar_url]
+  const avatar = tasker.profile_photo || taskerImages[tasker.avatar_url]
 
 
   return (
@@ -152,6 +152,7 @@ function TaskerShowcase() {
           rating: t.rating,
           reviews: t.reviews_count,
           avatar_url: t.avatar_url,
+          profile_photo: t.profile_photo,
           bio: t.bio,
           hourly_rate: t.hourly_rate,
         })))
@@ -309,16 +310,22 @@ function TaskerShowcase() {
                 }}
               >
                 {/* Image */}
-                {taskerImages[tasker.avatar_url] ? (
+                {tasker.profile_photo ? (
+                  <img
+                    src={tasker.profile_photo}
+                    alt={tasker.name}
+                    className="w-full h-40 object-cover group-hover:scale-110 transition-transform duration-700"
+                  />
+                ) : taskerImages[tasker.avatar_url] ? (
                   <img
                     src={taskerImages[tasker.avatar_url]}
                     alt={tasker.name}
                     className="w-full h-40 object-cover group-hover:scale-110 transition-transform duration-700"
                   />
                 ) : (
-                  <div className="w-full h-40 .bg-gradient-to-br from-orange-500/20 to-orange-600/20 flex items-center justify-center">
-                    <span className="text-4xl font-black text-orange-400">
-                      {tasker.name?.charAt(0) ?? "?"}
+                  <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+                    <span className="text-4xl font-bold text-gray-400">
+                      {tasker.name?.charAt(0).toUpperCase()}
                     </span>
                   </div>
                 )}
@@ -396,6 +403,7 @@ function TaskerShowcase() {
     </div>
   );
 }
+
 
 
 export default TaskerShowcase

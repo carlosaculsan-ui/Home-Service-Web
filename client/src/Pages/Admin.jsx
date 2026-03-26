@@ -352,6 +352,39 @@ function TaskerAccountsPanel() {
     setTaskers((prev) => [...prev, tasker])
   }
 
+  async function handleUploadTaskerPhoto(e, tasker) {
+    const file = e.target.files[0]
+    if (!file) return
+    const filePath = `tasker-photos/${tasker.user_id}-${Date.now()}`
+    const { error: uploadError } = await supabase.storage
+      .from('tasker-files')
+      .upload(filePath, file, { upsert: true })
+    if (uploadError) { alert('Upload failed: ' + uploadError.message); return }
+    const { data: urlData } = supabase.storage.from('tasker-files').getPublicUrl(filePath)
+    const photoUrl = urlData.publicUrl
+    const { data: updateData, error } = await supabase
+      .from('taskers')
+      .update({ profile_photo: photoUrl })
+      .eq('user_id', tasker.user_id)
+      .select()
+    console.log('Update result:', updateData, error)
+    if (error) { alert('Failed to save photo: ' + error.message); return }
+    if (!updateData || updateData.length === 0) {
+      alert('Photo uploaded but could not save URL — tasker row not found. Check if tasker.user_id is correct.')
+      return
+    }
+    setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: photoUrl } : t))
+    setSelectedTasker(prev => ({ ...prev, profile_photo: photoUrl }))
+  }
+
+  async function handleRemoveTaskerPhoto(tasker) {
+    if (!window.confirm("Remove this tasker's showcase photo?")) return
+    const { error } = await supabase.from('taskers').update({ profile_photo: null }).eq('user_id', tasker.user_id)
+    if (error) { alert('Failed: ' + error.message); return }
+    setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: null } : t))
+    setSelectedTasker(prev => ({ ...prev, profile_photo: null }))
+  }
+
   async function handleDeleteTasker(tasker) {
     setDeleteErrors((prev) => ({ ...prev, [tasker.id]: '' }))
 
@@ -763,6 +796,39 @@ function TaskerAccountsPanel() {
             ) : (
               <p className="text-gray-400 text-sm">No documents uploaded.</p>
             )}
+
+            {/* Photo Management */}
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Showcase Photo</h4>
+              {selectedTasker.profile_photo ? (
+                <div className="flex items-center gap-3">
+                  <img
+                    src={selectedTasker.profile_photo}
+                    alt="Tasker"
+                    className="w-16 h-16 rounded-lg object-cover"
+                  />
+                  <button
+                    onClick={() => handleRemoveTaskerPhoto(selectedTasker)}
+                    className="text-xs border border-red-400 text-red-500 px-3 py-1 rounded hover:bg-red-50"
+                  >
+                    Remove Uploaded Photo
+                  </button>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-400 mb-2">Using default showcase photo. Upload to override.</p>
+              )}
+              <div className="mt-2">
+                <label className="cursor-pointer bg-orange-500 text-white text-xs px-3 py-2 rounded-lg hover:bg-orange-600 transition">
+                  Upload Photo
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleUploadTaskerPhoto(e, selectedTasker)}
+                  />
+                </label>
+              </div>
+            </div>
 
             {/* Archive Button */}
             <div className="mt-6 flex justify-end">
