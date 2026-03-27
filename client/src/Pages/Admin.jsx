@@ -1659,6 +1659,30 @@ function ServicesPanel() {
   const [editError, setEditError] = useState('')
   const [editLoading, setEditLoading] = useState(false)
   const [serviceSearch, setServiceSearch] = useState('')
+  const [viewTaskersService, setViewTaskersService] = useState(null)
+  const [serviceTaskers, setServiceTaskers] = useState([])
+  const [serviceTaskersLoading, setServiceTaskersLoading] = useState(false)
+
+  async function handleViewTaskers(service) {
+    setViewTaskersService(service)
+    setServiceTaskers([])
+    setServiceTaskersLoading(true)
+    const { data } = await supabase
+      .from('taskers')
+      .select('id, name, email, phone, availability, working_hours, profile_photo')
+      .eq('role', service.title)
+      .eq('status', 'approved')
+    const rows = (data ?? []).map((t) => {
+      const photoUrl = t.profile_photo
+        ? t.profile_photo.startsWith('http')
+          ? t.profile_photo
+          : supabase.storage.from('tasker-files').getPublicUrl(t.profile_photo).data.publicUrl
+        : null
+      return { ...t, photoUrl }
+    })
+    setServiceTaskers(rows)
+    setServiceTaskersLoading(false)
+  }
 
   async function fetchServices() {
     const { data } = await supabase
@@ -1937,6 +1961,12 @@ function ServicesPanel() {
               </div>
               <div className="flex flex-col gap-2 flex-shrink-0">
                 <button
+                  onClick={() => handleViewTaskers(s)}
+                  className="px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                >
+                  View Taskers
+                </button>
+                <button
                   onClick={() => startEdit(s)}
                   className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
                 >
@@ -1954,6 +1984,79 @@ function ServicesPanel() {
         </div>
         ))
       })()}
+
+      {/* View Taskers Modal */}
+      {viewTaskersService && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setViewTaskersService(null)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                <h2 className="font-bold text-gray-800 text-lg">
+                  Taskers for <span className="text-orange-500">{viewTaskersService.title}</span>
+                </h2>
+                <button
+                  onClick={() => setViewTaskersService(null)}
+                  className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="overflow-y-auto p-6">
+                {serviceTaskersLoading ? (
+                  <div className="flex justify-center py-10">
+                    <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : serviceTaskers.length === 0 ? (
+                  <p className="text-center text-gray-400 py-10 text-sm">No taskers assigned to this service yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {serviceTaskers.map((t) => (
+                      <div key={t.id} className="bg-gray-50 rounded-xl p-4 flex flex-col items-center text-center gap-2">
+                        {t.photoUrl ? (
+                          <img
+                            src={t.photoUrl}
+                            alt={t.name}
+                            className="w-16 h-16 rounded-full object-cover border-2 border-orange-100"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 rounded-full bg-orange-100 flex items-center justify-center">
+                            <span className="text-xl font-bold text-orange-400">
+                              {(t.name?.[0] ?? '?').toUpperCase()}
+                            </span>
+                          </div>
+                        )}
+                        <p className="font-semibold text-gray-800 text-sm">{t.name || '—'}</p>
+                        {t.email && <p className="text-xs text-gray-500 truncate w-full">{t.email}</p>}
+                        {t.phone && <p className="text-xs text-gray-500">{t.phone}</p>}
+                        {t.availability && (
+                          <p className="text-xs text-gray-400">
+                            {Array.isArray(t.availability) ? t.availability.join(', ') : t.availability}
+                          </p>
+                        )}
+                        {t.working_hours && (
+                          <p className="text-xs text-gray-400">
+                            {Array.isArray(t.working_hours) ? t.working_hours.join(', ') : t.working_hours}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
