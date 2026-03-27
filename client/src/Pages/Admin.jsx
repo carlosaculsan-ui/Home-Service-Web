@@ -1559,22 +1559,38 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-6">
-        <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
-        <select
-          value={bookingFilter}
-          onChange={(e) => setBookingFilter(e.target.value)}
-          className="w-full sm:w-auto border border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-orange-400"
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        {[
+          { value: 'confirmed',   label: 'Pending Tasker' },
+          { value: 'accepted',    label: 'Accepted' },
+          { value: 'on_the_way',  label: 'On The Way' },
+          { value: 'in_progress', label: 'In Progress' },
+          { value: 'completed',   label: 'Completed' },
+          { value: 'cancelled',   label: 'Cancelled' },
+        ].map(({ value, label }) => (
+          <button
+            key={value}
+            onClick={() => setBookingFilter(value)}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+              bookingFilter === value
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-orange-500 border-orange-300 hover:bg-orange-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          onClick={() => setBookingFilter('all')}
+          className={`ml-auto px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+            bookingFilter === 'all'
+              ? 'bg-orange-500 text-white border-orange-500'
+              : 'bg-white text-orange-500 border-orange-300 hover:bg-orange-50'
+          }`}
         >
-          <option value="all">All Bookings</option>
-          <option value="confirmed">Pending (Awaiting Tasker)</option>
-          <option value="accepted">Accepted</option>
-          <option value="on_the_way">On The Way</option>
-          <option value="in_progress">In Progress</option>
-          <option value="completed">Completed</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-        <span className="text-sm text-gray-400">
+          History
+        </button>
+        <span className="text-sm text-gray-400 w-full sm:w-auto">
           {bookingFilter === 'all'
             ? `${bookings.length} total`
             : `${filteredBookings.length} found`}
