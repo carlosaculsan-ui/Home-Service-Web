@@ -6,7 +6,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import backgroundImg from '../Assets/Background.jpg'
-import { MapPin, Wrench, Camera } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare } from 'lucide-react'
+import ChatModal from '../Components/ChatModal'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
@@ -228,6 +229,34 @@ function BookingCard({ booking, userId, onCancel }) {
   const [confirmCancel, setConfirmCancel] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
+  const [showChat, setShowChat] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    if (booking.status === 'cancelled') return
+    supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', booking.id)
+      .eq('receiver_id', userId)
+      .eq('is_read', false)
+      .then(({ count }) => setUnreadCount(count ?? 0))
+
+    const channel = supabase
+      .channel(`unread-customer-${booking.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `booking_id=eq.${booking.id}`,
+      }, (payload) => {
+        if (payload.new.receiver_id === userId && !payload.new.is_read) {
+          setUnreadCount((n) => n + 1)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [booking.id, booking.status, userId])
 
   async function handleCancel() {
     setCancelling(true)
@@ -268,6 +297,16 @@ function BookingCard({ booking, userId, onCancel }) {
           userId={userId}
           onClose={() => setShowReviewModal(false)}
           onSuccess={() => { setReviewSubmitted(true); setHasReview(true) }}
+        />
+      )}
+
+      {showChat && booking.taskerUserId && (
+        <ChatModal
+          bookingId={booking.id}
+          currentUserId={userId}
+          otherUserId={booking.taskerUserId}
+          otherUserName={booking.taskerName}
+          onClose={() => { setShowChat(false); setUnreadCount(0) }}
         />
       )}
 
@@ -362,6 +401,23 @@ function BookingCard({ booking, userId, onCancel }) {
             )}
           </div>
         )}
+
+        {booking.status !== 'cancelled' && booking.taskerUserId && (
+          <div className="pt-1">
+            <button
+              onClick={() => setShowChat(true)}
+              className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors relative"
+            >
+              <MessageSquare size={15} />
+              Message Tasker
+              {unreadCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
@@ -387,12 +443,16 @@ function Dashboard() {
     if (taskerIds.length > 0) {
       const { data: taskers } = await supabase
         .from('taskers')
-        .select('id, name')
+        .select('id, name, user_id')
         .in('id', taskerIds)
-      taskers?.forEach((t) => { taskerMap[t.id] = t.name })
+      taskers?.forEach((t) => { taskerMap[t.id] = { name: t.name, user_id: t.user_id } })
     }
 
-    setBookings(data.map((b) => ({ ...b, taskerName: taskerMap[b.tasker_id] ?? '—' })))
+    setBookings(data.map((b) => ({
+      ...b,
+      taskerName: taskerMap[b.tasker_id]?.name ?? '—',
+      taskerUserId: taskerMap[b.tasker_id]?.user_id ?? null,
+    })))
   }
 
   useEffect(() => {

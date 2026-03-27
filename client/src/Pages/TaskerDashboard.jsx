@@ -5,8 +5,9 @@ import LocationMap from '../Components/LocationMap'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X,
+  LogOut, Menu, X, MessageSquare,
 } from 'lucide-react'
+import ChatModal from '../Components/ChatModal'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -47,11 +48,39 @@ const getTaskLabel = (booking) => {
 
 // ─── Task Card ──────────────────────────────────────────────────────────────
 
-function TaskCard({ booking, onStatusChange }) {
+function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [actionLoading, setActionLoading] = useState(null)
   const [statusError, setStatusError] = useState('')
+  const [showChat, setShowChat] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
+
+  useEffect(() => {
+    if (booking.status === 'cancelled' || !currentUserId) return
+    supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('booking_id', booking.id)
+      .eq('receiver_id', currentUserId)
+      .eq('is_read', false)
+      .then(({ count }) => setUnreadCount(count ?? 0))
+
+    const channel = supabase
+      .channel(`unread-tasker-${booking.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `booking_id=eq.${booking.id}`,
+      }, (payload) => {
+        if (payload.new.receiver_id === currentUserId && !payload.new.is_read) {
+          setUnreadCount((n) => n + 1)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [booking.id, booking.status, currentUserId])
 
   async function handleAction(newStatus) {
     if (newStatus === 'completed') {
@@ -74,6 +103,17 @@ function TaskCard({ booking, onStatusChange }) {
   }
 
   return (
+    <>
+      {showChat && booking.client_id && (
+        <ChatModal
+          bookingId={booking.id}
+          currentUserId={currentUserId}
+          otherUserId={booking.client_id}
+          otherUserName={booking.customer_name ?? 'Customer'}
+          onClose={() => { setShowChat(false); setUnreadCount(0) }}
+        />
+      )}
+
     <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
       <div className="flex items-center justify-between">
         <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
@@ -194,7 +234,25 @@ function TaskCard({ booking, onStatusChange }) {
       {statusError && (
         <p className="text-xs text-red-500">{statusError}</p>
       )}
+
+      {booking.status !== 'cancelled' && booking.client_id && (
+        <div className="pt-1">
+          <button
+            onClick={() => setShowChat(true)}
+            className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors relative"
+          >
+            <MessageSquare size={15} />
+            Message Customer
+            {unreadCount > 0 && (
+              <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
+          </button>
+        </div>
+      )}
     </div>
+    </>
   )
 }
 
@@ -1116,7 +1174,7 @@ function TaskerDashboard() {
               ) : (
                 <div className="space-y-4">
                   {bookings.map((booking) => (
-                    <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} />
+                    <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
                   ))}
                 </div>
               )}
