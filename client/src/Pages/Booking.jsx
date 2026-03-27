@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
@@ -2314,7 +2314,7 @@ function Step1({ service, onContinue }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('gcash')
   const [promoCode, setPromoCode] = useState('')
@@ -2556,6 +2556,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 taskers_needed: taskersNeeded,
                 estimated_total: estimatedTotal,
                 duration_hours: taskDuration ?? 8,
+                ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
               }
 
               // Save booking as pending_payment
@@ -2660,7 +2661,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 function Booking() {
   const { service } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [step, setStep] = useState(0)
+  const [isRebook, setIsRebook] = useState(false)
+  const [rebookOriginalId, setRebookOriginalId] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -2681,6 +2685,38 @@ function Booking() {
   const [taskOptions, setTaskOptions] = useState(null)
   const [taskersNeeded, setTaskersNeeded] = useState(1)
   const [estimatedTotal, setEstimatedTotal] = useState(0)
+
+  // Rebook init — runs once on mount if navigated here from Dashboard "Rebook"
+  useEffect(() => {
+    const state = location.state
+    if (!state?.is_rebook) return
+    setIsRebook(true)
+    setRebookOriginalId(state.original_booking_id ?? null)
+    if (state.taskers_needed) setTaskersNeeded(state.taskers_needed)
+    try {
+      const opts = typeof state.task_options === 'string'
+        ? JSON.parse(state.task_options)
+        : state.task_options
+      if (opts) setTaskOptions(opts)
+    } catch {}
+    if (state.tasker_id) {
+      supabase.from('taskers').select('*').eq('id', state.tasker_id).single()
+        .then(({ data: t }) => {
+          if (!t) return
+          setModalTasker({
+            id: t.id,
+            name: t.name,
+            role: t.role,
+            rating: t.rating,
+            reviews: t.reviews_count,
+            tasks: 0,
+            price: `₱${t.hourly_rate}/hr`,
+            bio: t.bio,
+          })
+          setStep(1)
+        })
+    }
+  }, [])
 
   // Tasker list (fetched from Supabase)
   const [taskers, setTaskers] = useState([])
@@ -2795,6 +2831,12 @@ function Booking() {
           <ProgressTracker step={step} />
         </div>
 
+        {isRebook && (
+          <div className="mb-5 flex items-center gap-2 px-4 py-2.5 bg-orange-50 border border-orange-200 rounded-xl text-sm text-orange-700 font-medium">
+            🔄 Rebooking — please select a new date and time
+          </div>
+        )}
+
         {step === 0 && <Step1 service={service} onContinue={handleStep1Continue} />}
 
         {step === 1 && (
@@ -2841,6 +2883,8 @@ function Booking() {
             taskersNeeded={taskersNeeded}
             taskDuration={taskDuration}
             estimatedTotal={estimatedTotal}
+            isRebook={isRebook}
+            rebookOriginalId={rebookOriginalId}
             onBack={() => setStep(2)}
           />
         )}

@@ -223,6 +223,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
 }
 
 function BookingCard({ booking, userId, onCancel }) {
+  const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [hasReview, setHasReview] = useState(true)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
@@ -272,6 +273,29 @@ function BookingCard({ booking, userId, onCancel }) {
     }
     setConfirmCancel(false)
     onCancel()
+  }
+
+  async function handleRebook() {
+    const { data } = await supabase
+      .from('taskers')
+      .select('id')
+      .eq('id', booking.tasker_id)
+      .eq('status', 'approved')
+      .maybeSingle()
+    if (!data) {
+      alert('This tasker is no longer available. Please make a new booking.')
+      return
+    }
+    navigate(`/booking/${booking.service}`, {
+      state: {
+        service: booking.service,
+        tasker_id: booking.tasker_id,
+        task_options: booking.task_options,
+        taskers_needed: booking.taskers_needed,
+        is_rebook: true,
+        original_booking_id: booking.id,
+      },
+    })
   }
 
   useEffect(() => {
@@ -388,17 +412,36 @@ function BookingCard({ booking, userId, onCancel }) {
               Thank you for using Hanap.ph! We hope you're happy with the service.
               Leave a review to help others find great taskers.
             </p>
-            {!hasReview && !reviewSubmitted && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {!hasReview && !reviewSubmitted && (
+                <button
+                  onClick={() => setShowReviewModal(true)}
+                  className="text-sm font-semibold text-orange-500 hover:text-orange-600 underline"
+                >
+                  Rate &amp; Review
+                </button>
+              )}
+              {reviewSubmitted && (
+                <p className="text-sm font-semibold text-green-600">Thank you for your review! ⭐</p>
+              )}
               <button
-                onClick={() => setShowReviewModal(true)}
-                className="text-sm font-semibold text-orange-500 hover:text-orange-600 underline"
+                onClick={handleRebook}
+                className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
               >
-                Rate &amp; Review
+                Rebook
               </button>
-            )}
-            {reviewSubmitted && (
-              <p className="text-sm font-semibold text-green-600">Thank you for your review! ⭐</p>
-            )}
+            </div>
+          </div>
+        )}
+
+        {booking.status === 'cancelled' && (
+          <div className="pt-1">
+            <button
+              onClick={handleRebook}
+              className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Rebook
+            </button>
           </div>
         )}
 
