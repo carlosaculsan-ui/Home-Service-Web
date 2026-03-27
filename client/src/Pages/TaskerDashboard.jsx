@@ -47,6 +47,139 @@ const getTaskLabel = (booking) => {
   return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || opts.service_type || booking.task_size || 'N/A'
 }
 
+// ─── Propose Modal ──────────────────────────────────────────────────────────
+
+function ProposeModal({ booking, taskerUserId, onClose, onSuccess }) {
+  const [options, setOptions] = useState([
+    { date: '', time: '' },
+    { date: '', time: '' },
+    { date: '', time: '' },
+  ])
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [error, setError] = useState('')
+
+  function updateOption(index, field, value) {
+    setOptions((prev) => prev.map((o, i) => i === index ? { ...o, [field]: value } : o))
+  }
+
+  async function handleSend() {
+    const filled = options.filter((o) => o.date.trim())
+    if (filled.length === 0) {
+      setError('Please fill in at least one date option.')
+      return
+    }
+    setSending(true)
+    setError('')
+
+    const dateList = filled
+      .map((o, i) => `Option ${i + 1}: ${o.date}${o.time ? ' at ' + o.time : ''}`)
+      .join(', ')
+    const content = `Your rebook request was declined. I'd like to propose these alternative dates: ${dateList}.${message.trim() ? ' ' + message.trim() : ''}`
+
+    const { error: updateErr } = await supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        rebook_status: 'proposed',
+        proposed_dates: JSON.stringify(filled),
+      })
+      .eq('id', booking.id)
+
+    if (updateErr) {
+      setError('Failed to send proposal. Try again.')
+      setSending(false)
+      return
+    }
+
+    await supabase.from('messages').insert({
+      booking_id: booking.id,
+      sender_id: taskerUserId,
+      receiver_id: booking.client_id,
+      content,
+      is_read: false,
+    })
+
+    setSending(false)
+    onSuccess()
+  }
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <p className="font-bold text-gray-800 text-base">Propose Alternative Dates</p>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-4 space-y-4 overflow-y-auto" style={{ maxHeight: '65vh' }}>
+            {options.map((opt, i) => (
+              <div key={i} className="space-y-1.5">
+                <p className="text-sm font-semibold text-gray-600">Option {i + 1}</p>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={opt.date}
+                    onChange={(e) => updateOption(i, 'date', e.target.value)}
+                    className="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-orange-400 transition-colors"
+                  />
+                  <input
+                    type="time"
+                    value={opt.time}
+                    onChange={(e) => updateOption(i, 'time', e.target.value)}
+                    className="w-32 px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-orange-400 transition-colors"
+                  />
+                </div>
+              </div>
+            ))}
+
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold text-gray-600">
+                Add a message to the customer <span className="text-xs text-gray-400 font-normal">(optional)</span>
+              </p>
+              <textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="e.g. I'm unavailable on your requested date but happy to help on any of these!"
+                rows={3}
+                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg outline-none focus:border-orange-400 transition-colors resize-none"
+              />
+            </div>
+
+            {error && <p className="text-xs text-red-500">{error}</p>}
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100">
+            <button
+              onClick={onClose}
+              className="text-sm font-semibold text-gray-500 hover:text-gray-700 px-4 py-2 rounded-lg transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              className="text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              {sending ? 'Sending…' : 'Send Proposal'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 // ─── Task Card ──────────────────────────────────────────────────────────────
 
 function TaskCard({ booking, onStatusChange, currentUserId }) {
@@ -54,6 +187,15 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [statusError, setStatusError] = useState('')
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [showProposeModal, setShowProposeModal] = useState(false)
+  const [toast, setToast] = useState('')
+
+  function handleProposeSent() {
+    setShowProposeModal(false)
+    setToast('Proposal sent to customer!')
+    setTimeout(() => setToast(''), 3000)
+    onStatusChange()
+  }
   const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
 
@@ -115,7 +257,21 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         />
       )}
 
+      {showProposeModal && (
+        <ProposeModal
+          booking={booking}
+          taskerUserId={currentUserId}
+          onClose={() => setShowProposeModal(false)}
+          onSuccess={handleProposeSent}
+        />
+      )}
+
     <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
+      {toast && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+          {toast}
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
         <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
@@ -175,7 +331,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
       {/* Accept / Reject — confirmed only */}
       {booking.status === 'confirmed' && (
-        <div className="flex gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           <button
             onClick={() => handleAction('accepted')}
             disabled={actionLoading !== null}
@@ -189,6 +345,27 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
           >
             {actionLoading === 'rejected' ? 'Rejecting…' : 'Reject'}
+          </button>
+          {booking.is_rebook && (
+            <button
+              onClick={() => setShowProposeModal(true)}
+              disabled={actionLoading !== null}
+              className="px-4 py-1.5 text-sm font-semibold rounded-lg border border-orange-400 text-orange-500 bg-white hover:bg-orange-50 disabled:opacity-50 transition-colors"
+            >
+              Reject &amp; Propose
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Reject & Propose — pending rebook only */}
+      {booking.status === 'pending' && booking.is_rebook && (
+        <div className="pt-1">
+          <button
+            onClick={() => setShowProposeModal(true)}
+            className="px-4 py-1.5 text-sm font-semibold rounded-lg border border-orange-400 text-orange-500 bg-white hover:bg-orange-50 transition-colors"
+          >
+            Reject &amp; Propose
           </button>
         </div>
       )}

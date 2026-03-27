@@ -232,6 +232,55 @@ function BookingCard({ booking, userId, onCancel }) {
   const [cancelError, setCancelError] = useState('')
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [selectedProposedDate, setSelectedProposedDate] = useState(null)
+  const [proposalLoading, setProposalLoading] = useState(null)
+  const [toast, setToast] = useState('')
+
+  const proposedDates = (() => {
+    try { return JSON.parse(booking.proposed_dates) } catch { return [] }
+  })()
+
+  async function handleAcceptProposal() {
+    if (!selectedProposedDate) return
+    setProposalLoading('accept')
+    const dateLabel = `${selectedProposedDate.date}${selectedProposedDate.time ? ' at ' + selectedProposedDate.time : ''}`
+    await supabase.from('bookings').update({
+      scheduled_date: selectedProposedDate.date,
+      scheduled_time: selectedProposedDate.time || null,
+      rebook_status: 'accepted',
+      status: 'confirmed',
+    }).eq('id', booking.id)
+    await supabase.from('messages').insert({
+      booking_id: booking.id,
+      sender_id: userId,
+      receiver_id: booking.taskerUserId,
+      content: `I have accepted your proposed date: ${dateLabel}. See you then!`,
+      is_read: false,
+    })
+    setProposalLoading(null)
+    setToast(`Booking confirmed for ${dateLabel}!`)
+    setTimeout(() => setToast(''), 3000)
+    onCancel()
+  }
+
+  async function handleDeclineProposal() {
+    setProposalLoading('decline')
+    await supabase.from('bookings').update({
+      rebook_status: 'declined',
+      status: 'cancelled',
+    }).eq('id', booking.id)
+    await supabase.from('messages').insert({
+      booking_id: booking.id,
+      sender_id: userId,
+      receiver_id: booking.taskerUserId,
+      content: 'I have declined your proposed dates.',
+      is_read: false,
+    })
+    setProposalLoading(null)
+    setToast('Proposal declined.')
+    setTimeout(() => setToast(''), 3000)
+    onCancel()
+  }
 
   useEffect(() => {
     if (booking.status === 'cancelled') return
@@ -332,6 +381,52 @@ function BookingCard({ booking, userId, onCancel }) {
           otherUserName={booking.taskerName}
           onClose={() => { setShowChat(false); setUnreadCount(0) }}
         />
+      )}
+
+      {toast && (
+        <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
+          {toast}
+        </div>
+      )}
+
+      {booking.rebook_status === 'proposed' && proposedDates.length > 0 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 space-y-3">
+          <p className="text-sm font-semibold text-blue-800">🗓️ Your tasker proposed alternative dates:</p>
+          <div className="flex flex-wrap gap-2">
+            {proposedDates.map((opt, i) => {
+              const isSelected = selectedProposedDate === opt
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedProposedDate(opt)}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+                    isSelected
+                      ? 'bg-blue-600 border-blue-600 text-white'
+                      : 'bg-white border-blue-300 text-blue-700 hover:border-blue-500'
+                  }`}
+                >
+                  {opt.date}{opt.time ? ' at ' + opt.time : ''}
+                </button>
+              )
+            })}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleAcceptProposal}
+              disabled={!selectedProposedDate || proposalLoading !== null}
+              className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white transition-colors"
+            >
+              {proposalLoading === 'accept' ? 'Confirming…' : 'Accept'}
+            </button>
+            <button
+              onClick={handleDeclineProposal}
+              disabled={proposalLoading !== null}
+              className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-white border border-red-300 text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+            >
+              {proposalLoading === 'decline' ? 'Declining…' : 'Decline'}
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
