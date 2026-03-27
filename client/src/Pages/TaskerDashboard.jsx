@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare,
+  LogOut, Menu, X, MessageSquare, Headset,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import {
@@ -38,6 +38,7 @@ const NAV_ITEMS = [
   { key: 'reviews',        label: 'Reviews',                      icon: Star },
   { key: 'profile',        label: 'Profile Management',           icon: UserCog },
   { key: 'history',        label: 'Booking History',              icon: History },
+  { key: 'contact-admin', label: 'Contact Admin',                icon: Headset },
 ]
 
 const getTaskLabel = (booking) => {
@@ -1029,6 +1030,204 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   )
 }
 
+// ─── Contact Admin Tab ───────────────────────────────────────────────────────
+
+function ContactAdminChat({ taskerUserId }) {
+  const [adminUserId, setAdminUserId] = useState(null)
+  const [adminLoading, setAdminLoading] = useState(true)
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  // Fetch admin user_id
+  useEffect(() => {
+    async function fetchAdmin() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'admin')
+        .limit(1)
+        .maybeSingle()
+      setAdminUserId(data?.id ?? null)
+      setAdminLoading(false)
+    }
+    fetchAdmin()
+  }, [])
+
+  // Fetch messages once admin id is known
+  async function fetchMessages(adminId) {
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .is('booking_id', null)
+      .or(`sender_id.eq.${taskerUserId},receiver_id.eq.${taskerUserId}`)
+      .order('created_at', { ascending: true })
+    setMessages(data ?? [])
+  }
+
+  async function markAsRead(adminId) {
+    await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .is('booking_id', null)
+      .eq('receiver_id', taskerUserId)
+      .eq('is_read', false)
+  }
+
+  useEffect(() => {
+    if (!adminUserId) return
+    fetchMessages(adminUserId).then(() => markAsRead(adminUserId))
+    inputRef.current?.focus()
+  }, [adminUserId])
+
+  // Realtime subscription
+  useEffect(() => {
+    if (!adminUserId) return
+    const channel = supabase
+      .channel(`admin-chat-${taskerUserId}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+      }, (payload) => {
+        const msg = payload.new
+        if (
+          msg.booking_id === null &&
+          (msg.sender_id === taskerUserId || msg.receiver_id === taskerUserId)
+        ) {
+          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+          if (msg.receiver_id === taskerUserId) {
+            supabase.from('messages').update({ is_read: true }).eq('id', msg.id)
+          }
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId, taskerUserId])
+
+  // Auto-scroll
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || sending || !adminUserId) return
+    setSending(true)
+    setInput('')
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      booking_id: null,
+      sender_id: taskerUserId,
+      receiver_id: adminUserId,
+      content: text,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimistic])
+    await supabase.from('messages').insert({
+      booking_id: null,
+      sender_id: taskerUserId,
+      receiver_id: adminUserId,
+      content: text,
+      is_read: false,
+    })
+    setSending(false)
+    inputRef.current?.focus()
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }
+
+  const fmtTime = (iso) => iso
+    ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : ''
+
+  if (adminLoading) {
+    return (
+      <div className="flex justify-center mt-20">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (!adminUserId) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+        <p className="text-base font-semibold">Unable to reach admin at this time.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white rounded-2xl shadow-sm flex flex-col" style={{ height: '560px', maxHeight: '75vh' }}>
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-shrink-0">
+        <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+          <Headset size={17} className="text-orange-500" />
+        </div>
+        <div>
+          <p className="font-bold text-gray-800 text-sm">Admin Support</p>
+          <p className="text-xs text-gray-400">Send a message to the Hanap.ph admin team</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400 text-sm text-center">
+              No messages yet.<br />Start the conversation!
+            </p>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isMine = msg.sender_id === taskerUserId
+            return (
+              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                  isMine
+                    ? 'bg-orange-500 text-white rounded-br-sm'
+                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                }`}>
+                  {msg.content}
+                </div>
+                <p className="text-xs text-gray-400 mt-1 px-1">
+                  {isMine ? 'You' : 'Admin'} · {fmtTime(msg.created_at)}
+                </p>
+              </div>
+            )
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type a message..."
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <MessageSquare size={17} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Placeholder Tab ─────────────────────────────────────────────────────────
 
 function ComingSoon() {
@@ -1245,6 +1444,21 @@ function TaskerDashboard() {
             <>
               <h2 className="text-xl font-bold text-gray-800 mb-6">Booking History</h2>
               <ComingSoon />
+            </>
+          )}
+
+          {tab === 'contact-admin' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Contact Admin</h2>
+              {loading ? (
+                <div className="flex justify-center mt-20">
+                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : taskerUserId ? (
+                <ContactAdminChat taskerUserId={taskerUserId} />
+              ) : (
+                <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
+              )}
             </>
           )}
 

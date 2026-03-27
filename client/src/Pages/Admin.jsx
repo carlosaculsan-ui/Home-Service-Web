@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
@@ -6,7 +6,7 @@ import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
-  Wifi, WifiOff, Archive, RotateCcw,
+  Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -817,7 +817,7 @@ function TaskerAccountsPanel() {
                 onClick={() => { handleArchiveTasker(selectedTasker); setShowTaskerModal(false) }}
                 className="text-sm border border-orange-400 text-orange-500 px-4 py-2 rounded-lg hover:bg-orange-50"
               >
-                Archive Employee
+                Delete
               </button>
             </div>
           </div>
@@ -2704,6 +2704,337 @@ function DashboardPanel({ setTab, setBookingFilter }) {
 
 // ─── Admin Page ──────────────────────────────────────────────────────────────
 
+// ─── Admin Messages Tab ───────────────────────────────────────────────────────
+
+function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  async function fetchMessages() {
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .is('booking_id', null)
+      .or(`sender_id.eq.${adminUserId},receiver_id.eq.${adminUserId}`)
+      .order('created_at', { ascending: true })
+    // Keep only messages between these two users
+    setMessages((data ?? []).filter(
+      (m) => (m.sender_id === adminUserId && m.receiver_id === otherUserId) ||
+             (m.sender_id === otherUserId && m.receiver_id === adminUserId)
+    ))
+  }
+
+  async function markAsRead() {
+    await supabase
+      .from('messages')
+      .update({ is_read: true })
+      .is('booking_id', null)
+      .eq('sender_id', otherUserId)
+      .eq('receiver_id', adminUserId)
+      .eq('is_read', false)
+  }
+
+  useEffect(() => {
+    fetchMessages().then(markAsRead)
+    inputRef.current?.focus()
+  }, [adminUserId, otherUserId])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`admin-chat-${adminUserId}-${otherUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new
+        if (
+          msg.booking_id === null &&
+          ((msg.sender_id === adminUserId && msg.receiver_id === otherUserId) ||
+           (msg.sender_id === otherUserId && msg.receiver_id === adminUserId))
+        ) {
+          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+          if (msg.receiver_id === adminUserId) {
+            supabase.from('messages').update({ is_read: true }).eq('id', msg.id)
+          }
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId, otherUserId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || sending) return
+    setSending(true)
+    setInput('')
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      booking_id: null,
+      sender_id: adminUserId,
+      receiver_id: otherUserId,
+      content: text,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimistic])
+    await supabase.from('messages').insert({
+      booking_id: null,
+      sender_id: adminUserId,
+      receiver_id: otherUserId,
+      content: text,
+      is_read: false,
+    })
+    setSending(false)
+    inputRef.current?.focus()
+  }
+
+  const fmtTime = (iso) => iso
+    ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : ''
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Chat header */}
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
+        {onBack && (
+          <button onClick={onBack} className="md:hidden p-1 text-gray-400 hover:text-gray-600">
+            ←
+          </button>
+        )}
+        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+          <span className="text-sm font-bold text-orange-500">{(otherUserName?.[0] ?? '?').toUpperCase()}</span>
+        </div>
+        <p className="font-semibold text-gray-800 text-sm flex-1">{otherUserName}</p>
+        {onBack && (
+          <button onClick={onBack} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-400 text-sm text-center">No messages yet.<br />Start the conversation!</p>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isMine = msg.sender_id === adminUserId
+            return (
+              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                  isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                }`}>
+                  {msg.content}
+                </div>
+                <p className="text-xs text-gray-400 mt-1 px-1">
+                  {isMine ? 'You' : otherUserName} · {fmtTime(msg.created_at)}
+                </p>
+              </div>
+            )
+          })
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+        <input
+          ref={inputRef}
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a message..."
+          className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <Send size={16} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function AdminMessagesPanel({ adminUserId }) {
+  const [conversations, setConversations] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [selectedTasker, setSelectedTasker] = useState(null)
+
+  async function fetchConversations() {
+    if (!adminUserId) return
+
+    // Fetch all admin messages (booking_id IS NULL)
+    const { data: msgs } = await supabase
+      .from('messages')
+      .select('*')
+      .is('booking_id', null)
+      .or(`sender_id.eq.${adminUserId},receiver_id.eq.${adminUserId}`)
+      .order('created_at', { ascending: false })
+
+    if (!msgs || msgs.length === 0) { setLoading(false); return }
+
+    // Collect distinct other user IDs
+    const otherIds = [...new Set(msgs.map((m) =>
+      m.sender_id === adminUserId ? m.receiver_id : m.sender_id
+    ).filter(Boolean))]
+
+    // Fetch tasker rows by user_id
+    const { data: taskers } = await supabase
+      .from('taskers')
+      .select('id, name, user_id, profile_photo')
+      .in('user_id', otherIds)
+
+    const taskerMap = {}
+    ;(taskers ?? []).forEach((t) => { taskerMap[t.user_id] = t })
+
+    // Build one entry per other user, using the first (most recent) message
+    const seen = new Set()
+    const convos = []
+    for (const msg of msgs) {
+      const otherId = msg.sender_id === adminUserId ? msg.receiver_id : msg.sender_id
+      if (seen.has(otherId)) continue
+      seen.add(otherId)
+
+      const tasker = taskerMap[otherId]
+      const unreadCount = msgs.filter(
+        (m) => m.sender_id === otherId && m.receiver_id === adminUserId && !m.is_read
+      ).length
+
+      // Resolve photo URL
+      const raw = tasker?.profile_photo
+      const photoUrl = raw
+        ? raw.startsWith('http') ? raw : supabase.storage.from('tasker-files').getPublicUrl(raw).data.publicUrl
+        : null
+
+      convos.push({
+        userId: otherId,
+        name: tasker?.name ?? 'Unknown Tasker',
+        photoUrl,
+        lastMessage: msg.content,
+        lastTime: msg.created_at,
+        unreadCount,
+      })
+    }
+
+    setConversations(convos)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchConversations() }, [adminUserId])
+
+  // Realtime: refresh conversation list on new messages
+  useEffect(() => {
+    if (!adminUserId) return
+    const channel = supabase
+      .channel(`admin-messages-list-${adminUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new
+        if (msg.booking_id === null &&
+            (msg.sender_id === adminUserId || msg.receiver_id === adminUserId)) {
+          fetchConversations()
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId])
+
+  const fmtTime = (iso) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    const now = new Date()
+    if (d.toDateString() === now.toDateString()) {
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    }
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex gap-0 bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100" style={{ height: '70vh', minHeight: '480px' }}>
+
+      {/* Left panel — conversation list */}
+      <div className={`w-full md:w-72 flex-shrink-0 border-r border-gray-100 flex flex-col ${selectedTasker ? 'hidden md:flex' : 'flex'}`}>
+        <div className="px-4 py-3 border-b border-gray-100">
+          <p className="font-bold text-gray-800 text-sm">Tasker Messages</p>
+          <p className="text-xs text-gray-400">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {conversations.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10 px-4">No messages yet.</p>
+          ) : (
+            conversations.map((c) => (
+              <button
+                key={c.userId}
+                onClick={() => setSelectedTasker(c)}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 ${
+                  selectedTasker?.userId === c.userId ? 'bg-orange-50' : ''
+                }`}
+              >
+                {c.photoUrl ? (
+                  <img src={c.photoUrl} alt={c.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-orange-500">{(c.name?.[0] ?? '?').toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                    <span className="text-xs text-gray-400 flex-shrink-0">{fmtTime(c.lastTime)}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
+                </div>
+                {c.unreadCount > 0 && (
+                  <span className="w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
+                    {c.unreadCount > 9 ? '9+' : c.unreadCount}
+                  </span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Right panel — chat */}
+      <div className={`flex-1 min-w-0 flex flex-col ${selectedTasker ? 'flex' : 'hidden md:flex'}`}>
+        {selectedTasker ? (
+          <AdminInlineChat
+            adminUserId={adminUserId}
+            otherUserId={selectedTasker.userId}
+            otherUserName={selectedTasker.name}
+            onBack={() => setSelectedTasker(null)}
+          />
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center text-gray-400">
+              <MessageSquare size={40} className="mx-auto mb-3 opacity-30" />
+              <p className="text-sm font-medium">Select a conversation to start chatting</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -2714,6 +3045,7 @@ const NAV_ITEMS = [
   { key: 'services',        label: 'Services',            icon: Wrench },
   { key: 'reviews',         label: 'Reviews',             icon: Star },
   { key: 'leave-requests',  label: 'Leave Requests',      icon: Umbrella },
+  { key: 'messages',        label: 'Messages',            icon: MessageSquare },
 ]
 
 function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
@@ -2787,6 +3119,7 @@ function Admin() {
   const [bookingFilter, setBookingFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
+  const [adminUserId, setAdminUserId] = useState('')
   const [calendarBookings, setCalendarBookings] = useState([])
   const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -2841,6 +3174,7 @@ function Admin() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setAdminEmail(user?.email ?? '')
+      setAdminUserId(user?.id ?? '')
     })
   }, [])
 
@@ -3121,6 +3455,7 @@ function Admin() {
             {tab === 'services'        && <ServicesPanel />}
             {tab === 'reviews'         && <ReviewsPanel />}
             {tab === 'leave-requests'  && <LeaveRequestsPanel />}
+            {tab === 'messages'        && <AdminMessagesPanel adminUserId={adminUserId} />}
           </div>
         )}
 
