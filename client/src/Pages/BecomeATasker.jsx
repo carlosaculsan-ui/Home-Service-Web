@@ -208,21 +208,43 @@ function BecomeATasker() {
 
     setUploadProgress('Saving application...')
 
-    const { error } = await supabase.from('taskers').insert({
+    const availabilityArr = [
+      formData.availWeekdays && 'Weekdays',
+      formData.availWeekends && 'Weekends',
+      formData.availAnytime && 'Anytime',
+    ].filter(Boolean)
+
+    const workingHoursArr = [
+      formData.workMorning && 'Morning',
+      formData.workAfternoon && 'Afternoon',
+      formData.workEvening && 'Evening',
+    ].filter(Boolean)
+
+    const insertData = {
       user_id: user.id,
-      name: `${formData.firstName} ${formData.lastName}`,
+      name: `${formData.firstName || ''} ${formData.middleName || ''} ${formData.lastName || ''} ${formData.suffix || ''}`.trim(),
+      middle_name: formData.middleName || null,
+      suffix: formData.suffix || null,
       email: formData.email,
       phone: formData.phone,
+      age: formData.age || null,
+      gender: formData.gender || null,
+      address: formData.serviceArea || null,
+      postal_code: formData.postalCode || null,
       role: formData.serviceRole,
       bio: formData.experience,
-      service_area: formData.area || formData.serviceArea,
+      service_area: formData.area || null,
+      availability: availabilityArr.length > 0 ? availabilityArr : null,
+      working_hours: workingHoursArr.length > 0 ? workingHoursArr : null,
       status: 'pending',
       is_available: false,
       rating: 0,
       reviews_count: 0,
       hourly_rate: parseFloat(formData.hourlyRate) || 0,
       ...uploadedUrls,
-    })
+    }
+    console.log('INSERT DATA:', JSON.stringify(insertData))
+    const { error } = await supabase.from('taskers').insert(insertData)
     setSubmitting(false)
     setUploadProgress('')
     if (error) {

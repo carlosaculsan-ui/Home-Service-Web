@@ -56,12 +56,14 @@ function TaskerApplications() {
   }
 
   async function fetchTaskers() {
-    const { data } = await supabase
+    const { data: applicantsData, error: applicantsError } = await supabase
       .from('taskers')
       .select('*')
-      .in('status', ['pending', 'rejected'])
+      .not('status', 'eq', 'approved')
       .order('created_at', { ascending: false })
-    setTaskers(data ?? [])
+    console.log('Applicants raw data:', applicantsData, applicantsError)
+    console.log('First applicant full data:', applicantsData?.[0])
+    setTaskers(applicantsData ?? [])
     setLoading(false)
   }
 
@@ -118,84 +120,63 @@ function TaskerApplications() {
         const docs = DOC_FIELDS.filter(({ key }) => t[key])
         return (
           <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
-              <div className="space-y-1 flex-1">
-                <div className="flex items-center gap-3">
-                  <p className="font-bold text-gray-800 text-base">{t.name}</p>
-                  <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
-                    {t.status}
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm mt-2">
-                  {[
-                    ['Email',   t.email],
-                    ['Phone',   t.phone],
-                    ['Service', t.role],
-                    ['Area',    t.service_area],
-                    ['Applied', t.created_at ? new Date(t.created_at).toLocaleDateString() : '—'],
-                  ].map(([label, val]) => (
-                    <div key={label} className="flex gap-2">
-                      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
-                      <span className="text-gray-700">{val ?? '—'}</span>
-                    </div>
-                  ))}
-                  <div className="flex gap-2 items-center">
-                    <span className="text-gray-400 w-24 flex-shrink-0">Hourly Rate</span>
-                    {editingRate[t.id] !== undefined ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-gray-500">₱</span>
-                        <input
-                          type="number"
-                          min="1"
-                          value={editingRate[t.id]}
-                          onChange={(e) => setEditingRate((prev) => ({ ...prev, [t.id]: e.target.value }))}
-                          className="w-20 border border-gray-300 rounded px-1.5 py-0.5 text-sm focus:outline-none focus:border-orange-400"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => saveRate(t.id)}
-                          className="text-xs px-2 py-0.5 bg-orange-500 hover:bg-orange-600 text-white rounded font-semibold"
-                        >Save</button>
-                        <button
-                          onClick={() => setEditingRate((prev) => { const next = { ...prev }; delete next[t.id]; return next })}
-                          className="text-xs px-2 py-0.5 bg-gray-200 hover:bg-gray-300 text-gray-600 rounded"
-                        >Cancel</button>
-                      </div>
-                    ) : (
-                      <span
-                        className="text-gray-700 cursor-pointer hover:text-orange-500 flex items-center gap-1 group"
-                        onClick={() => setEditingRate((prev) => ({ ...prev, [t.id]: t.hourly_rate ?? '' }))}
-                      >
-                        {t.hourly_rate ? `₱${t.hourly_rate}/hr` : '—'}
-                        <span className="text-xs text-orange-400 opacity-0 group-hover:opacity-100">(edit)</span>
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {t.bio && (
-                  <p className="text-sm text-gray-600 mt-2 border-t border-gray-100 pt-2">
-                    <span className="font-medium text-gray-500">Bio: </span>{t.bio}
-                  </p>
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <h3 className="text-lg font-bold text-gray-800">
+                {t.name || '—'}
+              </h3>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
+                  {t.status}
+                </span>
+                {t.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => updateStatus(t, 'approved')}
+                      className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >Approve</button>
+                    <button
+                      onClick={() => updateStatus(t, 'rejected')}
+                      className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >Reject</button>
+                  </>
                 )}
               </div>
-
-              {t.status === 'pending' && (
-                <div className="flex md:flex-col gap-2 md:flex-shrink-0">
-                  <button
-                    onClick={() => updateStatus(t, 'approved')}
-                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => updateStatus(t, 'rejected')}
-                    className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                  >
-                    Reject
-                  </button>
-                </div>
-              )}
             </div>
+
+            {/* Personal Information */}
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-orange-500 uppercase mb-2">Personal Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div><span className="text-gray-500">Email:</span> <span className="font-medium">{t.email || '—'}</span></div>
+                <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{t.phone || '—'}</span></div>
+                <div><span className="text-gray-500">Age:</span> <span className="font-medium">{t.age || '—'}</span></div>
+                <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{t.gender || '—'}</span></div>
+                <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{t.address || '—'}</span></div>
+                <div><span className="text-gray-500">Service Area:</span> <span className="font-medium">{t.service_area || '—'}</span></div>
+                <div><span className="text-gray-500">Postal Code:</span> <span className="font-medium">{t.postal_code || '—'}</span></div>
+              </div>
+            </div>
+
+            {/* Service Information */}
+            <div className="mb-4">
+              <h4 className="text-xs font-semibold text-orange-500 uppercase mb-2">Service Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <div><span className="text-gray-500">Service Role:</span> <span className="font-medium">{t.role || '—'}</span></div>
+                <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{t.bio || '—'}</span></div>
+                <div><span className="text-gray-500">Working Hours:</span> <span className="font-medium">{Array.isArray(t.working_hours) ? t.working_hours.join(', ') : t.working_hours || '—'}</span></div>
+                <div><span className="text-gray-500">Availability:</span> <span className="font-medium">
+                  {Array.isArray(t.availability) ? t.availability.join(', ') : t.availability || '—'}
+                </span></div>
+              </div>
+            </div>
+
+            {/* Applied Date */}
+            <div className="text-xs text-gray-400 mb-4">
+              Applied: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+            </div>
+
+            <hr className="mb-4" />
 
             {docs.length > 0 && (
               <div className="mt-3 border-t border-gray-100 pt-3">
