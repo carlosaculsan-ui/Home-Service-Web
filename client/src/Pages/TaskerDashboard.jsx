@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import Navbar from '../Components/Navbar'
-import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
-import { Phone, Bot, Car, Wrench, CheckCircle2 } from 'lucide-react'
+import {
+  Phone, Bot, Car, Wrench, CheckCircle2,
+  CalendarCheck, CalendarOff, DollarSign, Star, UserCog, History,
+  LogOut, Menu,
+} from 'lucide-react'
 
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -24,11 +27,22 @@ const STATUS_STYLES = {
   cancelled:   'bg-gray-100 text-gray-500',
 }
 
+const NAV_ITEMS = [
+  { key: 'bookings',       label: 'Bookings',                     icon: CalendarCheck },
+  { key: 'leave',          label: 'Leave Request',                icon: CalendarOff },
+  { key: 'earnings',       label: 'Earnings Summary',             icon: DollarSign },
+  { key: 'reviews',        label: 'Reviews',                      icon: Star },
+  { key: 'profile',        label: 'Profile Management',           icon: UserCog },
+  { key: 'history',        label: 'Booking History',              icon: History },
+]
+
 const getTaskLabel = (booking) => {
   const opts = booking.task_options
   if (!opts) return booking.task_size || 'N/A'
   return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || opts.service_type || booking.task_size || 'N/A'
 }
+
+// ─── Task Card ──────────────────────────────────────────────────────────────
 
 function TaskCard({ booking, onStatusChange }) {
   const [actionLoading, setActionLoading] = useState(null)
@@ -176,6 +190,8 @@ function TaskCard({ booking, onStatusChange }) {
   )
 }
 
+// ─── Leave Request Section ───────────────────────────────────────────────────
+
 function LeaveRequestSection({ taskerId }) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -288,10 +304,8 @@ function LeaveRequestSection({ taskerId }) {
   }
 
   return (
-    <div className="mt-12">
-      <h2 className="text-2xl font-extrabold text-white text-center mb-6 drop-shadow">Leave Requests</h2>
-
-      <div className="bg-white rounded-2xl shadow-md p-6 mb-6">
+    <div className="space-y-6">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="font-bold text-gray-800 text-lg mb-4">Select Leave Dates</h3>
 
         <div className="flex items-center justify-between mb-3">
@@ -366,14 +380,14 @@ function LeaveRequestSection({ taskerId }) {
           <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : leaves.length === 0 ? (
-        <p className="text-center text-white/70 text-sm">No leave requests yet.</p>
+        <p className="text-center text-gray-400 text-sm">No leave requests yet.</p>
       ) : (
         <div className="space-y-3">
           {leaves.map((leave) => {
             const dates = (() => { try { return JSON.parse(leave.leave_dates) } catch { return [] } })()
             const statusClass = LEAVE_STATUS_STYLES[leave.status] ?? 'bg-gray-100 text-gray-600'
             return (
-              <div key={leave.id} className="bg-white rounded-2xl shadow-md p-5">
+              <div key={leave.id} className="bg-white rounded-2xl shadow-sm p-5">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-gray-700">
                     {dates.length} day{dates.length !== 1 ? 's' : ''}: {dates.join(', ')}
@@ -406,12 +420,99 @@ function LeaveRequestSection({ taskerId }) {
   )
 }
 
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+
+function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose }) {
+  return (
+    <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
+
+      {/* Logo */}
+      <div className="px-6 py-5 border-b border-orange-400">
+        <div className="flex items-center gap-3">
+          <div className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <svg
+              className="absolute left-1/2 -translate-x-1/2"
+              style={{ top: 0 }}
+              width="40"
+              height="20"
+              viewBox="0 0 40 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <line x1="20" y1="2" x2="1" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="20" y1="2" x2="39" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <rect x="26" y="4" width="4" height="7" fill="white" rx="0.5" />
+            </svg>
+            <span className="text-white font-black text-3xl leading-none">h</span>
+          </div>
+          <div>
+            <p className="text-white font-bold text-lg leading-tight">Hanap.ph</p>
+            <p className="text-orange-200 text-xs">Tasker Dashboard</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => { setTab(key); onClose?.() }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === key
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <Icon size={17} className="flex-shrink-0" />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Bottom */}
+      <div className="px-3 pt-4 pb-6 border-t border-orange-400">
+        {(taskerName || taskerEmail) && (
+          <div className="px-4 mb-2">
+            {taskerName && <p className="text-white text-xs font-semibold truncate">{taskerName}</p>}
+            {taskerEmail && <p className="text-orange-200 text-xs truncate">{taskerEmail}</p>}
+          </div>
+        )}
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-200 hover:bg-orange-600 hover:text-white transition-colors"
+        >
+          <LogOut size={17} className="flex-shrink-0" />
+          Logout
+        </button>
+      </div>
+
+    </div>
+  )
+}
+
+// ─── Placeholder Tab ─────────────────────────────────────────────────────────
+
+function ComingSoon() {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+      <p className="text-lg font-semibold">Coming Soon</p>
+      <p className="text-sm mt-1">This section is under construction.</p>
+    </div>
+  )
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+
 function TaskerDashboard() {
+  const [tab, setTab] = useState('bookings')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [taskerId, setTaskerId] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState(null)
   const [taskerName, setTaskerName] = useState('')
+  const [taskerEmail, setTaskerEmail] = useState('')
+  const navigate = useNavigate()
 
   async function load(tid) {
     console.log('load() called with tasker_id:', tid)
@@ -437,7 +538,7 @@ function TaskerDashboard() {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { setLoading(false); return }
-        setUser(session.user)
+        setTaskerEmail(session.user.email ?? '')
         console.log('session user id:', session.user.id)
 
         const { data: tasker, error: taskerError } = await supabase
@@ -462,34 +563,128 @@ function TaskerDashboard() {
     init()
   }, [])
 
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
+
+  const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Dashboard'
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-    >
-      <Navbar />
+    <div className="flex min-h-screen">
 
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-extrabold text-white text-center mb-8 drop-shadow">My Tasks</h1>
+      {/* Desktop sidebar — fixed */}
+      <div className="hidden md:block fixed top-0 left-0 h-screen z-30 overflow-y-auto">
+        <TaskerSidebar
+          tab={tab}
+          setTab={setTab}
+          taskerName={taskerName}
+          taskerEmail={taskerEmail}
+          onLogout={handleLogout}
+        />
+      </div>
 
-        {loading ? (
-          <div className="flex justify-center mt-20">
-            <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <div className="fixed top-0 left-0 h-screen z-40 md:hidden overflow-y-auto">
+            <TaskerSidebar
+              tab={tab}
+              setTab={setTab}
+              taskerName={taskerName}
+              taskerEmail={taskerEmail}
+              onLogout={handleLogout}
+              onClose={() => setSidebarOpen(false)}
+            />
           </div>
-        ) : bookings.length === 0 ? (
-          <div className="text-center mt-20">
-            <p className="text-white text-lg font-medium">No tasks assigned yet.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {bookings.map((booking) => (
-              <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} />
-            ))}
-          </div>
-        )}
+        </>
+      )}
 
-        {!loading && taskerId && <LeaveRequestSection taskerId={taskerId} />}
+      {/* Main content */}
+      <div className="flex-1 min-w-0 md:ml-[260px] bg-gray-50 min-h-screen">
+
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-20">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <Menu size={22} />
+          </button>
+          <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+
+          {tab === 'bookings' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">My Bookings</h2>
+              {loading ? (
+                <div className="flex justify-center mt-20">
+                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center mt-20">
+                  <p className="text-gray-400 text-lg font-medium">No tasks assigned yet.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.map((booking) => (
+                    <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'leave' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Leave Request / Availability Calendar</h2>
+              {loading ? (
+                <div className="flex justify-center mt-20">
+                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : taskerId ? (
+                <LeaveRequestSection taskerId={taskerId} />
+              ) : (
+                <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
+              )}
+            </>
+          )}
+
+          {tab === 'earnings' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Earnings Summary</h2>
+              <ComingSoon />
+            </>
+          )}
+
+          {tab === 'reviews' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Reviews</h2>
+              <ComingSoon />
+            </>
+          )}
+
+          {tab === 'profile' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Profile Management</h2>
+              <ComingSoon />
+            </>
+          )}
+
+          {tab === 'history' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Booking History</h2>
+              <ComingSoon />
+            </>
+          )}
+
+        </div>
       </div>
     </div>
   )
