@@ -901,7 +901,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
     : null
 
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6">
 
       {/* Section 1 — Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center gap-3">
@@ -942,22 +942,22 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
       </div>
 
       {/* Section 2 — Personal Information */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
         <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Personal Information</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
           <InfoField label="Age"         value={profile.age} />
           <InfoField label="Gender"      value={profile.gender} />
           <InfoField label="Email"       value={profile.email} />
           <InfoField label="Phone"       value={profile.phone} />
-          <InfoField label="Address"     value={profile.address} />
-          <InfoField label="Postal Code" value={profile.postal_code} />
+          <InfoField label="Address"      value={profile.address} />
+          <InfoField label="Service Area" value={profile.service_area} />
         </div>
       </div>
 
       {/* Section 3 — Work Information */}
-      <div className="bg-white rounded-2xl shadow-sm p-6">
+      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
         <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Work Information</h4>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
           <InfoField label="Working Hours" value={arrayOrString(profile.working_hours)} />
           <InfoField label="Availability"  value={arrayOrString(profile.availability)} />
           <div className="col-span-1 sm:col-span-2">
