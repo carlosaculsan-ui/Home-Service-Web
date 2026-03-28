@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 
 const STATUS_STYLES = {
@@ -807,6 +807,13 @@ function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, o
             {customerEmail && <p className="text-orange-200 text-xs truncate">{customerEmail}</p>}
           </div>
         )}
+        <Link
+          to="/"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-white/80 hover:bg-orange-600 hover:text-white transition-colors"
+        >
+          <Home size={17} className="flex-shrink-0" />
+          Back to Home
+        </Link>
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-200 hover:bg-orange-600 hover:text-white transition-colors"
@@ -1156,7 +1163,10 @@ function Dashboard() {
           >
             <Menu size={22} />
           </button>
-          <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
+          <p className="font-semibold text-gray-800 text-sm flex-1">{activeLabel}</p>
+          <Link to="/" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors">
+            <Home size={20} />
+          </Link>
         </div>
 
         <div className="p-4 sm:p-6">
