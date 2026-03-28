@@ -35,7 +35,6 @@ const NAV_ITEMS = [
   { key: 'bookings',       label: 'Bookings',                     icon: CalendarCheck },
   { key: 'leave',          label: 'Leave Request',                icon: CalendarOff },
   { key: 'earnings',       label: 'Earnings Summary',             icon: Wallet },
-  { key: 'reviews',        label: 'Reviews',                      icon: Star },
   { key: 'profile',        label: 'Profile Management',           icon: UserCog },
   { key: 'history',        label: 'Booking History',              icon: History },
   { key: 'contact-admin', label: 'Contact Admin',                icon: Headset },
@@ -753,16 +752,25 @@ const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct
 function EarningsSummary({ taskerId }) {
   const [completedBookings, setCompletedBookings] = useState([])
   const [earningsLoading, setEarningsLoading] = useState(true)
+  const [reviews, setReviews] = useState([])
 
   useEffect(() => {
     async function fetchEarnings() {
-      const { data } = await supabase
-        .from('bookings')
-        .select('id, scheduled_date, customer_name, service, duration_hours, estimated_total, tasker_payout, platform_fee, created_at')
-        .eq('tasker_id', taskerId)
-        .eq('status', 'completed')
-        .order('scheduled_date', { ascending: false })
-      setCompletedBookings(data ?? [])
+      const [{ data: bookingData }, { data: reviewData }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('id, scheduled_date, customer_name, service, duration_hours, estimated_total, tasker_payout, platform_fee, created_at')
+          .eq('tasker_id', taskerId)
+          .eq('status', 'completed')
+          .order('scheduled_date', { ascending: false }),
+        supabase
+          .from('reviews')
+          .select('rating')
+          .eq('tasker_id', taskerId)
+          .eq('is_hidden', false),
+      ])
+      setCompletedBookings(bookingData ?? [])
+      setReviews(reviewData ?? [])
       setEarningsLoading(false)
     }
     fetchEarnings()
@@ -775,6 +783,15 @@ function EarningsSummary({ taskerId }) {
       </div>
     )
   }
+
+  // ── Performance calculations ────────────────────────────────────────────────
+  const avgRating = reviews.length > 0
+    ? reviews.reduce((s, r) => s + (r.rating ?? 0), 0) / reviews.length
+    : 0
+  const ratingBreakdown = [5, 4, 3, 2, 1].map((star) => ({
+    star,
+    count: reviews.filter((r) => r.rating === star).length,
+  }))
 
   // ── Stat calculations ──────────────────────────────────────────────────────
   const now = new Date()
@@ -811,6 +828,36 @@ function EarningsSummary({ taskerId }) {
 
   return (
     <div className="space-y-6">
+
+      {/* Performance Overview */}
+      <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+        {/* Average score */}
+        <div className="flex flex-col items-center flex-shrink-0 min-w-[100px]">
+          <p className="text-6xl font-extrabold text-gray-800 leading-none">{avgRating.toFixed(1)}</p>
+          <StarRow rating={Math.round(avgRating)} />
+          <p className="text-sm text-gray-400 mt-1">{reviews.length} review{reviews.length !== 1 ? 's' : ''}</p>
+        </div>
+
+        {/* Breakdown bars */}
+        <div className="flex-1 w-full space-y-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Performance Overview</p>
+          {ratingBreakdown.map(({ star, count }) => {
+            const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0
+            return (
+              <div key={star} className="flex items-center gap-3 text-sm">
+                <span className="text-gray-500 w-4 text-right flex-shrink-0">{star}</span>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5 text-orange-400 flex-shrink-0">
+                  <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                </svg>
+                <div className="flex-1 bg-gray-100 rounded-full h-2 overflow-hidden">
+                  <div className="h-2 rounded-full bg-orange-400 transition-all duration-500" style={{ width: `${pct}%` }} />
+                </div>
+                <span className="text-gray-400 w-4 text-right flex-shrink-0">{count}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Section 1 — Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1469,12 +1516,112 @@ function getHistoryTaskLabel(booking) {
   return booking.task_size || '—'
 }
 
+function ReviewModal({ bookingId, onClose }) {
+  const [review, setReview] = useState(null)
+  const [revLoading, setRevLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('reviews')
+      .select('id, rating, comment, images, is_flagged, is_hidden, created_at')
+      .eq('booking_id', bookingId)
+      .maybeSingle()
+      .then(({ data }) => { setReview(data); setRevLoading(false) })
+  }, [bookingId])
+
+  const images = (() => {
+    if (!review?.images) return []
+    if (Array.isArray(review.images)) return review.images
+    try { return JSON.parse(review.images) } catch { return [] }
+  })()
+
+  const formattedDate = review?.created_at
+    ? new Date(review.created_at).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+    : null
+
+  const badge = review
+    ? review.is_flagged
+      ? { label: 'Pending Approval', cls: 'bg-orange-100 text-orange-600' }
+      : review.is_hidden
+      ? { label: 'Hidden', cls: 'bg-red-100 text-red-600' }
+      : { label: 'Live', cls: 'bg-green-100 text-green-600' }
+    : null
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/50 z-40" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md flex flex-col"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+            <p className="font-bold text-gray-800 text-base">Customer Review</p>
+            <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="px-5 py-5 overflow-y-auto" style={{ maxHeight: '65vh' }}>
+            {revLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : !review ? (
+              <p className="text-center text-gray-400 text-sm py-10">No review submitted for this booking yet.</p>
+            ) : (
+              <div className="space-y-4">
+                {/* Stars + badge */}
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <StarRow rating={review.rating ?? 0} />
+                  {badge && (
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  )}
+                </div>
+
+                {/* Comment */}
+                {review.comment && (
+                  <p className="text-sm text-gray-700 leading-relaxed">{review.comment}</p>
+                )}
+
+                {/* Images */}
+                {images.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {images.map((src, i) => (
+                      <img
+                        key={i}
+                        src={src}
+                        alt={`Review image ${i + 1}`}
+                        className="w-16 h-16 object-cover rounded-lg border border-gray-100"
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Date */}
+                {formattedDate && (
+                  <p className="text-xs text-gray-400">Posted on {formattedDate}</p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function BookingHistory({ taskerId, taskerUserId }) {
   const [allBookings, setAllBookings] = useState([])
   const [histLoading, setHistLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [openChatId, setOpenChatId] = useState(null)
+  const [openReviewId, setOpenReviewId] = useState(null)
 
   useEffect(() => {
     if (!taskerId) return
@@ -1541,6 +1688,11 @@ function BookingHistory({ taskerId, taskerUserId }) {
         />
       )}
 
+      {/* Review modal */}
+      {openReviewId && (
+        <ReviewModal bookingId={openReviewId} onClose={() => setOpenReviewId(null)} />
+      )}
+
       {/* Content */}
       {histLoading ? (
         <div className="flex justify-center mt-20">
@@ -1596,29 +1748,30 @@ function BookingHistory({ taskerId, taskerUserId }) {
                   </div>
                 )}
 
-                {b.status !== 'cancelled' && b.client_id && (
-                  <button
-                    onClick={() => setOpenChatId(b.id)}
-                    className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    <MessageSquare size={15} />
-                    Message Customer
-                  </button>
-                )}
+                <div className="flex flex-wrap gap-2">
+                  {b.status !== 'cancelled' && b.client_id && (
+                    <button
+                      onClick={() => setOpenChatId(b.id)}
+                      className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      <MessageSquare size={15} />
+                      Message Customer
+                    </button>
+                  )}
+                  {b.status === 'completed' && (
+                    <button
+                      onClick={() => setOpenReviewId(b.id)}
+                      className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
+                    >
+                      View Review
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
       )}
-    </div>
-  )
-}
-
-function ComingSoon() {
-  return (
-    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
-      <p className="text-lg font-semibold">Coming Soon</p>
-      <p className="text-sm mt-1">This section is under construction.</p>
     </div>
   )
 }
@@ -1788,21 +1941,6 @@ function TaskerDashboard() {
                 </div>
               ) : taskerId ? (
                 <EarningsSummary taskerId={taskerId} />
-              ) : (
-                <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
-              )}
-            </>
-          )}
-
-          {tab === 'reviews' && (
-            <>
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Reviews</h2>
-              {loading ? (
-                <div className="flex justify-center mt-20">
-                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : taskerId ? (
-                <TaskerReviews taskerId={taskerId} />
               ) : (
                 <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
               )}
