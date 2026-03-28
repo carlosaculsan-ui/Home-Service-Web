@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, History, Star, UserCog, Headset, LogOut, Menu, X } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 
 const STATUS_STYLES = {
@@ -559,11 +559,183 @@ function BookingCard({ booking, userId, onCancel }) {
   )
 }
 
+// ─── My Reviews Tab ──────────────────────────────────────────────────────────
+
+function ReviewStars({ rating }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[1, 2, 3, 4, 5].map((s) => (
+        <svg key={s} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+          className={`w-4 h-4 ${s <= rating ? 'text-orange-400' : 'text-gray-200'}`}>
+          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+        </svg>
+      ))}
+    </div>
+  )
+}
+
+function CustomerReviews({ userId }) {
+  const [reviews, setReviews] = useState([])
+  const [revLoading, setRevLoading] = useState(true)
+
+  useEffect(() => {
+    if (!userId) return
+    async function fetchReviews() {
+      const { data: reviewRows } = await supabase
+        .from('reviews')
+        .select('id, booking_id, tasker_id, rating, comment, images, created_at')
+        .eq('client_id', userId)
+        .order('created_at', { ascending: false })
+
+      if (!reviewRows || reviewRows.length === 0) {
+        setRevLoading(false)
+        return
+      }
+
+      // Fetch tasker names + photos
+      const taskerIds = [...new Set(reviewRows.map((r) => r.tasker_id).filter(Boolean))]
+      let taskerMap = {}
+      if (taskerIds.length > 0) {
+        const { data: taskers } = await supabase
+          .from('taskers')
+          .select('id, name, profile_photo')
+          .in('id', taskerIds)
+        ;(taskers ?? []).forEach((t) => {
+          const photo = t.profile_photo
+            ? (t.profile_photo.startsWith('http')
+                ? t.profile_photo
+                : supabase.storage.from('tasker-files').getPublicUrl(t.profile_photo).data.publicUrl)
+            : null
+          taskerMap[t.id] = { name: t.name, photo }
+        })
+      }
+
+      // Fetch service types from bookings
+      const bookingIds = [...new Set(reviewRows.map((r) => r.booking_id).filter(Boolean))]
+      let serviceMap = {}
+      if (bookingIds.length > 0) {
+        const { data: bkgs } = await supabase
+          .from('bookings')
+          .select('id, service')
+          .in('id', bookingIds)
+        ;(bkgs ?? []).forEach((b) => { serviceMap[b.id] = b.service })
+      }
+
+      setReviews(reviewRows.map((r) => ({
+        ...r,
+        taskerName: taskerMap[r.tasker_id]?.name ?? 'Unknown Tasker',
+        taskerPhoto: taskerMap[r.tasker_id]?.photo ?? null,
+        service: serviceMap[r.booking_id] ?? '—',
+      })))
+      setRevLoading(false)
+    }
+    fetchReviews()
+  }, [userId])
+
+  if (revLoading) {
+    return (
+      <div className="flex justify-center mt-20">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center mt-20 gap-4 text-center">
+        <p className="text-gray-400 text-base font-medium">
+          You haven't written any reviews yet.<br />Complete a booking to leave a review!
+        </p>
+        <Link
+          to="/"
+          className="bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+        >
+          Browse Services
+        </Link>
+      </div>
+    )
+  }
+
+  const avg = reviews.reduce((s, r) => s + (r.rating ?? 0), 0) / reviews.length
+
+  return (
+    <div className="space-y-5">
+
+      {/* Section 1 — Summary */}
+      <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-6 flex-wrap">
+        <div className="flex flex-col items-center">
+          <p className="text-4xl font-extrabold text-gray-800 leading-none">{avg.toFixed(1)}</p>
+          <ReviewStars rating={Math.round(avg)} />
+          <p className="text-xs text-gray-400 mt-1">avg rating given</p>
+        </div>
+        <div className="h-12 w-px bg-gray-100 hidden sm:block" />
+        <div className="flex flex-col items-center">
+          <p className="text-4xl font-extrabold text-orange-500 leading-none">{reviews.length}</p>
+          <p className="text-xs text-gray-400 mt-1">review{reviews.length !== 1 ? 's' : ''} written</p>
+        </div>
+      </div>
+
+      {/* Section 2 — Review Cards */}
+      <div className="space-y-4">
+        {reviews.map((r) => {
+          const images = (() => {
+            if (!r.images) return []
+            if (Array.isArray(r.images)) return r.images
+            try { return JSON.parse(r.images) } catch { return [] }
+          })()
+          const dateStr = r.created_at
+            ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+            : '—'
+
+          return (
+            <div key={r.id} className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+              {/* Header */}
+              <div className="flex items-center gap-3">
+                {r.taskerPhoto ? (
+                  <img src={r.taskerPhoto} alt={r.taskerName}
+                    className="w-10 h-10 rounded-full object-cover flex-shrink-0 border border-gray-100" />
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sm font-bold text-orange-500">{(r.taskerName[0] ?? '?').toUpperCase()}</span>
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm leading-tight">{r.taskerName}</p>
+                  <p className="text-xs text-gray-400 capitalize">{r.service}</p>
+                </div>
+                <p className="text-xs text-gray-400 ml-auto flex-shrink-0">{dateStr}</p>
+              </div>
+
+              {/* Stars */}
+              <ReviewStars rating={r.rating ?? 0} />
+
+              {/* Comment */}
+              {r.comment && (
+                <p className="text-sm text-gray-600 leading-relaxed">{r.comment}</p>
+              )}
+
+              {/* Images */}
+              {images.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {images.map((src, i) => (
+                    <img key={i} src={src} alt={`Review photo ${i + 1}`}
+                      className="w-16 h-16 object-cover rounded-lg border border-gray-100" />
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+    </div>
+  )
+}
+
 // ─── Navigation ──────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
   { key: 'bookings', label: 'My Bookings',     icon: CalendarCheck },
-  { key: 'history',  label: 'Booking History', icon: History },
   { key: 'reviews',  label: 'My Reviews',      icon: Star },
   { key: 'profile',  label: 'Profile Settings',icon: UserCog },
   { key: 'support',  label: 'Contact Support', icon: Headset },
@@ -643,6 +815,222 @@ function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, o
           Logout
         </button>
       </div>
+
+    </div>
+  )
+}
+
+// ─── Profile Settings Tab ─────────────────────────────────────────────────────
+
+function CustomerProfile({ userId, userEmail }) {
+  const [profile, setProfile] = useState(null)
+  const [profLoading, setProfLoading] = useState(true)
+  const [fullName, setFullName] = useState('')
+  const [phone, setPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState(null) // { type: 'success'|'error', msg: string }
+
+  useEffect(() => {
+    if (!userId) return
+    async function fetchProfile() {
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, phone, avatar_url, address, created_at')
+        .eq('id', userId)
+        .single()
+      if (data) {
+        setProfile(data)
+        setFullName(data.full_name ?? '')
+        setPhone(data.phone ?? '')
+        setAddress(data.address ?? '')
+        setAvatarUrl(data.avatar_url ?? null)
+      }
+      setProfLoading(false)
+    }
+    fetchProfile()
+  }, [userId])
+
+  function showToast(type, msg) {
+    setToast({ type, msg })
+    setTimeout(() => setToast(null), 3000)
+  }
+
+  async function handleAvatarUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `customer-${userId}/avatar.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(path, file, { upsert: true })
+    if (uploadError) {
+      setUploading(false)
+      showToast('error', 'Photo upload failed. Please try again.')
+      return
+    }
+    const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
+    setAvatarUrl(publicUrl)
+    setUploading(false)
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    const { error } = await supabase
+      .from('profiles')
+      .update({ full_name: fullName.trim(), phone: phone.trim(), address: address.trim() })
+      .eq('id', userId)
+    setSaving(false)
+    if (error) {
+      showToast('error', 'Failed to save changes. Please try again.')
+    } else {
+      showToast('success', 'Profile updated successfully!')
+    }
+  }
+
+  if (profLoading) {
+    return (
+      <div className="flex justify-center mt-20">
+        <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const initials = (fullName || userEmail || '?')[0].toUpperCase()
+  const joinedDate = profile?.created_at
+    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+    : '—'
+
+  return (
+    <div className="space-y-6">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`rounded-xl px-4 py-3 text-sm font-medium ${
+          toast.type === 'success'
+            ? 'bg-green-50 border border-green-200 text-green-700'
+            : 'bg-red-50 border border-red-200 text-red-600'
+        }`}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Section 1 — Avatar */}
+      <div className="bg-white rounded-2xl shadow-sm p-6" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+        <div style={{ position: 'relative' }}>
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Profile"
+              style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3f4f6' }}
+            />
+          ) : (
+            <div style={{ width: 120, height: 120, borderRadius: '50%', background: '#f3f4f6', border: '2px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ fontSize: '2.5rem', fontWeight: 700, color: '#f97316' }}>{initials}</span>
+            </div>
+          )}
+          {uploading && (
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+        <label className={`cursor-pointer text-sm font-semibold px-4 py-2 rounded-lg border transition-colors ${
+          uploading
+            ? 'opacity-50 pointer-events-none border-gray-200 text-gray-400'
+            : 'border-orange-400 text-orange-500 hover:bg-orange-50'
+        }`}>
+          {uploading ? 'Uploading…' : 'Upload Photo'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handleAvatarUpload}
+            disabled={uploading}
+          />
+        </label>
+      </div>
+
+      {/* Section 2 — Personal Information */}
+      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
+        <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Personal Information</h4>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
+
+          {/* Full Name */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Full Name</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Your full name"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 transition-colors"
+            />
+          </div>
+
+          {/* Phone */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Phone</label>
+            <input
+              type="text"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="e.g. 09171234567"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 transition-colors"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Email</label>
+            <input
+              type="text"
+              value={userEmail}
+              readOnly
+              className="w-full border border-gray-100 rounded-lg px-3 py-2.5 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
+            />
+          </div>
+
+          {/* Address */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Address</label>
+            <input
+              type="text"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="Your address"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 transition-colors"
+            />
+          </div>
+
+          {/* Joined Date — full width */}
+          <div style={{ gridColumn: 'span 2' }}>
+            <label className="block text-xs font-semibold text-gray-500 mb-1">Member Since</label>
+            <input
+              type="text"
+              value={joinedDate}
+              readOnly
+              className="w-full border border-gray-100 rounded-lg px-3 py-2.5 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
+            />
+          </div>
+
+        </div>
+      </div>
+
+      {/* Section 3 — Save */}
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-3 rounded-xl transition-colors"
+      >
+        {saving ? 'Saving…' : 'Save Changes'}
+      </button>
 
     </div>
   )
@@ -800,24 +1188,17 @@ function Dashboard() {
             </>
           )}
 
-          {tab === 'history' && (
-            <>
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Booking History</h2>
-              <CustomerComingSoon />
-            </>
-          )}
-
           {tab === 'reviews' && (
             <>
               <h2 className="text-xl font-bold text-gray-800 mb-6">My Reviews</h2>
-              <CustomerComingSoon />
+              <CustomerReviews userId={userId} />
             </>
           )}
 
           {tab === 'profile' && (
             <>
               <h2 className="text-xl font-bold text-gray-800 mb-6">Profile Settings</h2>
-              <CustomerComingSoon />
+              <CustomerProfile userId={userId} userEmail={customerEmail} />
             </>
           )}
 
