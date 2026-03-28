@@ -233,8 +233,8 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     setStatusError('')
     const updatePayload = { status: newStatus }
     if (newStatus === 'completed' && booking.estimated_total != null) {
-      updatePayload.platform_fee = booking.estimated_total * 0.15
-      updatePayload.tasker_payout = booking.estimated_total * 0.85
+      updatePayload.platform_fee = booking.estimated_total * 0.30
+      updatePayload.tasker_payout = booking.estimated_total * 0.70
     }
     const { error } = await supabase.from('bookings').update(updatePayload).eq('id', booking.id)
     setActionLoading(null)
@@ -758,7 +758,7 @@ function EarningsSummary({ taskerId }) {
     async function fetchEarnings() {
       const { data } = await supabase
         .from('bookings')
-        .select('id, scheduled_date, customer_name, service, duration_hours, estimated_total, tasker_payout')
+        .select('id, scheduled_date, customer_name, service, duration_hours, estimated_total, tasker_payout, platform_fee, created_at')
         .eq('tasker_id', taskerId)
         .eq('status', 'completed')
         .order('scheduled_date', { ascending: false })
@@ -803,19 +803,30 @@ function EarningsSummary({ taskerId }) {
     return { month: SHORT_MONTHS[mo], total }
   })
 
+  function fmtEarningsDate(dateStr) {
+    if (!dateStr) return '—'
+    const d = new Date(dateStr + 'T00:00:00')
+    return d.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+  }
+
   return (
     <div className="space-y-6">
 
       {/* Section 1 — Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Total Earned',    value: PHP(totalEarned) },
-          { label: 'This Month',      value: PHP(thisMonth) },
-          { label: 'Completed Jobs',  value: completedCount },
-        ].map(({ label, value }) => (
-          <div key={label} className="bg-white rounded-2xl shadow-sm p-5 flex flex-col gap-1">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
-            <p className="text-2xl font-extrabold text-gray-800">{value}</p>
+          { emoji: '💵', label: 'Total Earned',   value: PHP(totalEarned),   isAmount: true },
+          { emoji: '📅', label: 'This Month',     value: PHP(thisMonth),     isAmount: true },
+          { emoji: '✅', label: 'Completed Jobs', value: completedCount,     isAmount: false },
+        ].map(({ emoji, label, value, isAmount }) => (
+          <div key={label} className="bg-white rounded-2xl shadow-sm p-5 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center flex-shrink-0 text-lg">
+              {emoji}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{label}</p>
+              <p className={`text-2xl font-extrabold mt-0.5 ${isAmount ? 'text-orange-500' : 'text-orange-500'}`}>{value}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -846,40 +857,46 @@ function EarningsSummary({ taskerId }) {
       {/* Section 3 — Breakdown Table */}
       <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800">Completed Bookings Breakdown</h3>
+          <h3 className="font-bold text-gray-800">Booking Breakdown</h3>
         </div>
-        {completedBookings.length === 0 ? (
-          <p className="text-center text-gray-400 py-10 text-sm">No completed bookings yet.</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-gray-50 text-gray-400 text-xs uppercase tracking-wide">
-                  <th className="text-left px-5 py-3 font-semibold">Date</th>
-                  <th className="text-left px-5 py-3 font-semibold">Customer</th>
-                  <th className="text-left px-5 py-3 font-semibold">Service</th>
-                  <th className="text-right px-5 py-3 font-semibold">Duration</th>
-                  <th className="text-right px-5 py-3 font-semibold">Amount Paid</th>
-                  <th className="text-right px-5 py-3 font-semibold">Your Earnings</th>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-gray-50 text-gray-400 text-xs uppercase tracking-wide">
+                <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Date</th>
+                <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Customer</th>
+                <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Service</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Duration</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Amount Paid</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Your Earnings (70%)</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Platform Fee (30%)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {completedBookings.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-5 py-10 text-center text-gray-400 text-sm">
+                    No completed bookings yet.
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {completedBookings.map((b) => (
+              ) : (
+                completedBookings.map((b) => (
                   <tr key={b.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{b.scheduled_date ?? '—'}</td>
-                    <td className="px-5 py-3 text-gray-700 font-medium">{b.customer_name ?? '—'}</td>
-                    <td className="px-5 py-3 text-gray-600 capitalize">{b.service ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{fmtEarningsDate(b.scheduled_date)}</td>
+                    <td className="px-5 py-3 text-gray-700 font-medium whitespace-nowrap">{b.customer_name ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 capitalize whitespace-nowrap">{b.service ?? '—'}</td>
                     <td className="px-5 py-3 text-gray-600 text-right whitespace-nowrap">
                       {b.duration_hours != null ? `${b.duration_hours} hr${b.duration_hours !== 1 ? 's' : ''}` : '—'}
                     </td>
                     <td className="px-5 py-3 text-gray-700 text-right whitespace-nowrap">{PHP(b.estimated_total)}</td>
                     <td className="px-5 py-3 font-semibold text-orange-600 text-right whitespace-nowrap">{PHP(b.tasker_payout)}</td>
+                    <td className="px-5 py-3 text-gray-500 text-right whitespace-nowrap">{PHP(b.platform_fee)}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </div>

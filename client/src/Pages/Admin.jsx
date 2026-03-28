@@ -7,6 +7,7 @@ import {
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
+  TrendingUp, DollarSign, Calendar,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -2492,7 +2493,8 @@ function LeaveRequestsPanel() {
 function DashboardPanel({ setTab, setBookingFilter }) {
   const [stats, setStats] = useState({ customers: 0, taskers: 0, bookings: 0 })
   const [totalRevenue, setTotalRevenue] = useState(0)
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0)
+  const [platformEarnings, setPlatformEarnings] = useState(0)
+  const [monthlyPlatformEarnings, setMonthlyPlatformEarnings] = useState(0)
   const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
@@ -2512,19 +2514,22 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-        supabase.from('bookings').select('estimated_total, created_at').eq('status', 'completed'),
+        supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
 
       const currentMonth = new Date().getMonth()
-      const allRevenue = (completedBookings ?? []).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
-      const thisMonthRevenue = (completedBookings ?? []).filter((b) => {
-        const d = new Date(b.created_at)
+      const completed = completedBookings ?? []
+      const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+      const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+      const thisMonthPlatformEarnings = completed.filter((b) => {
+        const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear
-      }).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+      }).reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
       setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0 })
       setTotalRevenue(allRevenue)
-      setMonthlyRevenue(thisMonthRevenue)
+      setPlatformEarnings(allPlatformEarnings)
+      setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
 
       // Recent Bookings
       const { data: recentData } = await supabase
@@ -2610,12 +2615,28 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             <div className="text-xs md:text-sm text-gray-500 mt-1">{label}</div>
           </div>
         ))}
-        {/* Revenue card */}
+        {/* Total Revenue card */}
         <div onClick={() => { setBookingFilter('completed'); setTab('bookings') }} className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-purple-500 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
-          <div className="mb-2"><CircleDollarSign className="w-8 h-8 text-purple-500" /></div>
-          <div className="text-2xl md:text-4xl font-bold text-purple-600">₱{totalRevenue.toLocaleString()}</div>
-          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Revenue (All-time)</div>
-          <div className="text-xs text-gray-400 mt-1">₱{monthlyRevenue.toLocaleString()} this month</div>
+          <div className="mb-2"><TrendingUp className="w-8 h-8 text-purple-500" /></div>
+          <div className="text-2xl md:text-4xl font-bold text-purple-600">{'₱' + totalRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Revenue</div>
+          <div className="text-xs text-gray-400 mt-1">Gross customer payments</div>
+        </div>
+
+        {/* Platform Earnings card */}
+        <div onClick={() => { setBookingFilter('completed'); setTab('bookings') }} className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-emerald-500 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+          <div className="mb-2"><DollarSign className="w-8 h-8 text-emerald-500" /></div>
+          <div className="text-2xl md:text-4xl font-bold text-emerald-600">{'₱' + platformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Platform Earnings</div>
+          <div className="text-xs text-gray-400 mt-1">Hanap.ph 30% cut</div>
+        </div>
+
+        {/* This Month's Earnings card */}
+        <div onClick={() => { setBookingFilter('completed'); setTab('bookings') }} className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-blue-500 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
+          <div className="mb-2"><Calendar className="w-8 h-8 text-blue-500" /></div>
+          <div className="text-2xl md:text-4xl font-bold text-blue-600">{'₱' + monthlyPlatformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">This Month's Earnings</div>
+          <div className="text-xs text-gray-400 mt-1">Platform earnings this month</div>
         </div>
       </div>
 
