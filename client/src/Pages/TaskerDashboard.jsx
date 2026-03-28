@@ -1407,6 +1407,196 @@ function ContactAdminChat({ taskerUserId }) {
 
 // ─── Placeholder Tab ─────────────────────────────────────────────────────────
 
+// ─── Booking History ─────────────────────────────────────────────────────────
+
+const HISTORY_FILTERS = [
+  { key: 'all',         label: 'All' },
+  { key: 'confirmed',   label: 'Confirmed' },
+  { key: 'accepted',    label: 'Accepted' },
+  { key: 'on_the_way',  label: 'On The Way' },
+  { key: 'in_progress', label: 'In Progress' },
+  { key: 'completed',   label: 'Completed' },
+  { key: 'cancelled',   label: 'Cancelled' },
+]
+
+const HISTORY_STATUS_STYLES = {
+  confirmed:   'bg-blue-100 text-blue-700',
+  accepted:    'bg-yellow-100 text-yellow-700',
+  on_the_way:  'bg-purple-100 text-purple-700',
+  in_progress: 'bg-orange-100 text-orange-700',
+  completed:   'bg-green-100 text-green-700',
+  cancelled:   'bg-red-100 text-red-600',
+  pending:     'bg-yellow-100 text-yellow-700',
+  rejected:    'bg-red-100 text-red-600',
+}
+
+function fmtHistoryDate(dateStr, timeStr) {
+  if (!dateStr) return '—'
+  const d = new Date(dateStr + 'T00:00:00')
+  const datePart = d.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+  if (!timeStr) return datePart
+  const [h, m] = timeStr.split(':')
+  const hour = parseInt(h)
+  const suffix = hour < 12 ? 'AM' : 'PM'
+  const display = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour
+  return `${datePart} At ${display}:${m} ${suffix}`
+}
+
+function getHistoryTaskLabel(booking) {
+  try {
+    const opts = typeof booking.task_options === 'string'
+      ? JSON.parse(booking.task_options)
+      : booking.task_options
+    if (opts) return opts.type || opts.problem || opts.what_to_paint || opts.aircon_type || opts.service_type || booking.task_size || '—'
+  } catch {}
+  return booking.task_size || '—'
+}
+
+function BookingHistory({ taskerId, taskerUserId }) {
+  const [allBookings, setAllBookings] = useState([])
+  const [histLoading, setHistLoading] = useState(true)
+  const [filter, setFilter] = useState('all')
+  const [search, setSearch] = useState('')
+  const [openChatId, setOpenChatId] = useState(null)
+
+  useEffect(() => {
+    if (!taskerId) return
+    supabase
+      .from('bookings')
+      .select('id, status, service, task_options, task_size, duration_hours, customer_name, scheduled_date, scheduled_time, estimated_total, tasker_payout, is_rebook, created_at, client_id, reference_number')
+      .eq('tasker_id', taskerId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setAllBookings(data ?? [])
+        setHistLoading(false)
+      })
+  }, [taskerId])
+
+  const displayed = allBookings
+    .filter((b) => filter === 'all' || b.status === filter)
+    .filter((b) => {
+      if (!search.trim()) return true
+      const q = search.toLowerCase()
+      return (
+        (b.customer_name ?? '').toLowerCase().includes(q) ||
+        b.id.toLowerCase().includes(q)
+      )
+    })
+
+  const openChat = openChatId ? allBookings.find((b) => b.id === openChatId) : null
+
+  return (
+    <div className="space-y-4">
+      {/* Filter pills */}
+      <div className="flex flex-wrap gap-2">
+        {HISTORY_FILTERS.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setFilter(key)}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+              filter === key
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-orange-500 border-orange-300 hover:border-orange-400'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by customer name or booking ID..."
+        className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-orange-400 transition-colors"
+      />
+
+      {/* Chat modal */}
+      {openChat && (
+        <ChatModal
+          bookingId={openChat.id}
+          currentUserId={taskerUserId}
+          otherUserId={openChat.client_id}
+          otherUserName={openChat.customer_name ?? 'Customer'}
+          onClose={() => setOpenChatId(null)}
+        />
+      )}
+
+      {/* Content */}
+      {histLoading ? (
+        <div className="flex justify-center mt-20">
+          <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : displayed.length === 0 ? (
+        <div className="flex justify-center mt-20">
+          <p className="text-gray-400 text-base font-medium">No bookings found.</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {displayed.map((b) => {
+            const statusStyle = HISTORY_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'
+            const statusLabel = b.status?.replace(/_/g, ' ') ?? '—'
+            const refId = 'VE-' + b.id.slice(0, 13).toUpperCase()
+            const taskLabel = getHistoryTaskLabel(b)
+            return (
+              <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-3">
+                {/* Top row */}
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold text-orange-500">{refId}</span>
+                    {b.is_rebook && (
+                      <span className="text-xs font-semibold text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+                        🔄 Rebook
+                      </span>
+                    )}
+                  </div>
+                  <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusStyle}`}>
+                    {statusLabel}
+                  </span>
+                </div>
+
+                {/* Details grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
+                  {[
+                    ['Service',    b.service ?? '—'],
+                    ['Task',       taskLabel],
+                    ['Duration',   b.duration_hours ? `${b.duration_hours} hr${b.duration_hours !== 1 ? 's' : ''}` : '—'],
+                    ['Customer',   b.customer_name ?? '—'],
+                    ['Scheduled',  fmtHistoryDate(b.scheduled_date, b.scheduled_time)],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex gap-2">
+                      <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
+                      <span className="text-gray-700">{val}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {b.status === 'completed' && b.tasker_payout != null && (
+                  <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 rounded-lg px-3 py-2">
+                    Your Earnings: ₱{Number(b.tasker_payout).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+                )}
+
+                {b.status !== 'cancelled' && b.client_id && (
+                  <button
+                    onClick={() => setOpenChatId(b.id)}
+                    className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors"
+                  >
+                    <MessageSquare size={15} />
+                    Message Customer
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ComingSoon() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -1620,7 +1810,15 @@ function TaskerDashboard() {
           {tab === 'history' && (
             <>
               <h2 className="text-xl font-bold text-gray-800 mb-6">Booking History</h2>
-              <ComingSoon />
+              {loading ? (
+                <div className="flex justify-center mt-20">
+                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : taskerId ? (
+                <BookingHistory taskerId={taskerId} taskerUserId={taskerUserId} />
+              ) : (
+                <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
+              )}
             </>
           )}
 
