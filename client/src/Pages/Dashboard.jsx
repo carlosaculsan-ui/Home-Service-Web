@@ -4,9 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import Navbar from '../Components/Navbar'
-import backgroundImg from '../Assets/Background.jpg'
-import { MapPin, Wrench, Camera, MessageSquare } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, History, Star, UserCog, Headset, LogOut, Menu, X } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 
 const STATUS_STYLES = {
@@ -561,10 +559,116 @@ function BookingCard({ booking, userId, onCancel }) {
   )
 }
 
+// ─── Navigation ──────────────────────────────────────────────────────────────
+
+const NAV_ITEMS = [
+  { key: 'bookings', label: 'My Bookings',     icon: CalendarCheck },
+  { key: 'history',  label: 'Booking History', icon: History },
+  { key: 'reviews',  label: 'My Reviews',      icon: Star },
+  { key: 'profile',  label: 'Profile Settings',icon: UserCog },
+  { key: 'support',  label: 'Contact Support', icon: Headset },
+]
+
+// ─── Sidebar ─────────────────────────────────────────────────────────────────
+
+function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, onClose }) {
+  return (
+    <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
+
+      {/* Logo */}
+      <div className="px-6 py-5 border-b border-orange-400">
+        <div className="flex items-center gap-3">
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="md:hidden mr-1 p-1 rounded-lg text-white/70 hover:text-white hover:bg-orange-600 transition-colors flex-shrink-0"
+            >
+              <X size={18} />
+            </button>
+          )}
+          <div className="relative w-10 h-10 flex items-center justify-center flex-shrink-0">
+            <svg
+              className="absolute left-1/2 -translate-x-1/2"
+              style={{ top: 0 }}
+              width="40"
+              height="20"
+              viewBox="0 0 40 20"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <line x1="20" y1="2" x2="1" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <line x1="20" y1="2" x2="39" y2="19" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
+              <rect x="26" y="4" width="4" height="7" fill="white" rx="0.5" />
+            </svg>
+            <span className="text-white font-black text-3xl leading-none">h</span>
+          </div>
+          <div>
+            <p className="text-white font-bold text-lg leading-tight">Hanap.ph</p>
+            <p className="text-orange-200 text-xs">My Account</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+          <button
+            key={key}
+            onClick={() => { setTab(key); onClose?.() }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === key
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <Icon size={17} className="flex-shrink-0" />
+            {label}
+          </button>
+        ))}
+      </nav>
+
+      {/* Bottom */}
+      <div className="px-3 pt-4 pb-6 border-t border-orange-400">
+        {(customerName || customerEmail) && (
+          <div className="px-4 mb-2">
+            {customerName && <p className="text-white text-xs font-semibold truncate">{customerName}</p>}
+            {customerEmail && <p className="text-orange-200 text-xs truncate">{customerEmail}</p>}
+          </div>
+        )}
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-200 hover:bg-orange-600 hover:text-white transition-colors"
+        >
+          <LogOut size={17} className="flex-shrink-0" />
+          Logout
+        </button>
+      </div>
+
+    </div>
+  )
+}
+
+// ─── Coming Soon placeholder ──────────────────────────────────────────────────
+
+function CustomerComingSoon() {
+  return (
+    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+      <p className="text-lg font-semibold">Coming Soon</p>
+      <p className="text-sm mt-1">This section is under construction.</p>
+    </div>
+  )
+}
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+
 function Dashboard() {
+  const [tab, setTab] = useState('bookings')
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [customerName, setCustomerName] = useState('')
+  const [customerEmail, setCustomerEmail] = useState('')
   const navigate = useNavigate()
 
   async function load(uid) {
@@ -596,49 +700,135 @@ function Dashboard() {
   useEffect(() => {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        navigate('/login')
-        return
-      }
+      if (!session) { navigate('/login'); return }
       const uid = session.user.id
       setUserId(uid)
+      setCustomerEmail(session.user.email ?? '')
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', uid)
+        .single()
+      setCustomerName(profile?.full_name ?? '')
       await load(uid)
       setLoading(false)
     }
     init()
   }, [])
 
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    navigate('/')
+  }
+
+  const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'My Bookings'
+
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-    >
-      <Navbar />
+    <div className="flex min-h-screen">
 
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        <h1 className="text-3xl font-extrabold text-white text-center mb-8 drop-shadow">My Bookings</h1>
+      {/* Desktop sidebar — fixed */}
+      <div className="hidden md:block fixed top-0 left-0 h-screen z-30 overflow-y-auto">
+        <CustomerSidebar
+          tab={tab}
+          setTab={setTab}
+          customerName={customerName}
+          customerEmail={customerEmail}
+          onLogout={handleLogout}
+        />
+      </div>
 
-        {loading ? (
-          <div className="flex justify-center mt-20">
-            <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+          <div className="fixed top-0 left-0 h-screen z-40 md:hidden overflow-y-auto">
+            <CustomerSidebar
+              tab={tab}
+              setTab={setTab}
+              customerName={customerName}
+              customerEmail={customerEmail}
+              onLogout={handleLogout}
+              onClose={() => setSidebarOpen(false)}
+            />
           </div>
-        ) : bookings.length === 0 ? (
-          <div className="text-center space-y-4 mt-20">
-            <p className="text-white text-lg font-medium">You have no bookings yet.</p>
-            <Link
-              to="/#services"
-              className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
-            >
-              Browse Services
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {bookings.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
-            ))}
-          </div>
-        )}
+        </>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 min-w-0 md:ml-[260px] bg-gray-50 min-h-screen">
+
+        {/* Mobile top bar */}
+        <div className="md:hidden flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-200 sticky top-0 z-20">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+          >
+            <Menu size={22} />
+          </button>
+          <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+
+          {tab === 'bookings' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">My Bookings</h2>
+              {loading ? (
+                <div className="flex justify-center mt-20">
+                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="text-center space-y-4 mt-20">
+                  <p className="text-gray-400 text-lg font-medium">You have no bookings yet.</p>
+                  <Link
+                    to="/#services"
+                    className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+                  >
+                    Browse Services
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {bookings.map((booking) => (
+                    <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'history' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Booking History</h2>
+              <CustomerComingSoon />
+            </>
+          )}
+
+          {tab === 'reviews' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">My Reviews</h2>
+              <CustomerComingSoon />
+            </>
+          )}
+
+          {tab === 'profile' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Profile Settings</h2>
+              <CustomerComingSoon />
+            </>
+          )}
+
+          {tab === 'support' && (
+            <>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Contact Support</h2>
+              <CustomerComingSoon />
+            </>
+          )}
+
+        </div>
       </div>
     </div>
   )
