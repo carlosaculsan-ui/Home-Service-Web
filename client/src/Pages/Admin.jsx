@@ -251,6 +251,15 @@ function TaskerAccountsPanel() {
   const [selectedTasker, setSelectedTasker] = useState(null)
   const [showTaskerModal, setShowTaskerModal] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
+  const [showcaseToast, setShowcaseToast] = useState('')
+
+  async function handleToggleFeature(tasker) {
+    const next = !tasker.is_featured
+    setTaskers((prev) => prev.map((t) => t.id === tasker.id ? { ...t, is_featured: next } : t))
+    await supabase.from('taskers').update({ is_featured: next }).eq('id', tasker.id)
+    setShowcaseToast(next ? 'Tasker added to Showcase!' : 'Tasker removed from Showcase!')
+    setTimeout(() => setShowcaseToast(''), 3000)
+  }
 
   async function fetchTaskers() {
     const { data } = await supabase
@@ -273,7 +282,10 @@ function TaskerAccountsPanel() {
       profileData?.forEach((p) => { profileMap[p.id] = p })
     }
 
-    const enriched = rows.map((t) => ({ ...t, ...profileMap[t.user_id] }))
+    const enriched = rows.map((t) => {
+      const { id: _pid, ...profileRest } = profileMap[t.user_id] ?? {}
+      return { ...t, ...profileRest }
+    })
     setTaskers(enriched.filter((t) => !archivedSet.has(t.user_id)))
     setArchivedTaskers(enriched.filter((t) => archivedSet.has(t.user_id)))
     setLoading(false)
@@ -441,6 +453,13 @@ function TaskerAccountsPanel() {
 
   return (
     <>
+      {/* Showcase Toast */}
+      {showcaseToast && (
+        <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm font-medium text-green-700">
+          {showcaseToast}
+        </div>
+      )}
+
       {/* Metric Cards */}
       <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-5 border-l-4 border-green-500">
@@ -513,6 +532,7 @@ function TaskerAccountsPanel() {
                     <th className="px-4 py-3 font-medium">Email</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Time In</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-4 py-3 font-medium">Showcase</th>
                     <th className="px-4 py-3 font-medium">Details</th>
                   </tr>
                 </thead>
@@ -550,6 +570,18 @@ function TaskerAccountsPanel() {
                           {!isOnline && t.last_time_out
                             ? new Date(t.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => handleToggleFeature(t)}
+                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                              t.is_featured
+                                ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
+                                : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-500'
+                            }`}
+                          >
+                            {t.is_featured ? '✓ In Showcase' : 'Add to Showcase'}
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           <button
@@ -602,6 +634,18 @@ function TaskerAccountsPanel() {
                   <div className="grid grid-cols-2 gap-2 text-sm text-gray-500 mb-3">
                     <div><span className="font-medium text-gray-700">Time In:</span> {timeIn}</div>
                     <div><span className="font-medium text-gray-700">Time Out:</span> {timeOut}</div>
+                  </div>
+                  <div className="flex gap-2 mb-2">
+                    <button
+                      onClick={() => handleToggleFeature(t)}
+                      className={`flex-1 text-xs font-semibold py-2 rounded-lg border transition-colors ${
+                        t.is_featured
+                          ? 'bg-green-50 border-green-300 text-green-700'
+                          : 'bg-gray-50 border-gray-200 text-gray-400'
+                      }`}
+                    >
+                      {t.is_featured ? '✓ In Showcase' : 'Add to Showcase'}
+                    </button>
                   </div>
                   <button
                     onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
