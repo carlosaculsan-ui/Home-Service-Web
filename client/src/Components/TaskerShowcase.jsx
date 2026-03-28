@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { EffectCoverflow, Autoplay, Pagination } from 'swiper/modules'
@@ -45,87 +45,86 @@ function getQuote(role) {
 
 
 function ProfileModal({ tasker, onClose, justOpenedRef }) {
-  const navigate = useNavigate()
   const avatar = tasker.profile_photo || taskerImages[tasker.avatar_url]
+  const [modalLoading, setModalLoading] = useState(true)
+  const [tasksCompleted, setTasksCompleted] = useState(0)
+  const [dateJoined, setDateJoined] = useState(null)
 
+  useEffect(() => {
+    async function fetchModalData() {
+      const [{ count }, { data: profile }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('id', { count: 'exact', head: true })
+          .eq('tasker_id', tasker.id)
+          .eq('status', 'completed'),
+        supabase
+          .from('profiles')
+          .select('created_at')
+          .eq('id', tasker.user_id)
+          .single(),
+      ])
+      setTasksCompleted(count ?? 0)
+      setDateJoined(
+        profile?.created_at
+          ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
+          : '—'
+      )
+      setModalLoading(false)
+    }
+    fetchModalData()
+  }, [tasker.id, tasker.user_id])
 
   return (
     <div
-      className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
       style={{ pointerEvents: 'auto' }}
       onClick={() => { if (justOpenedRef.current) return; onClose() }}
     >
       <div
-        className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl relative"
+        className="rounded-2xl w-full max-w-sm shadow-2xl relative overflow-hidden"
+        style={{ background: 'linear-gradient(160deg, #1a1a2e 0%, #0f0f0f 100%)', border: '1px solid rgba(249,115,22,0.25)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-600 font-bold z-10 transition-colors"
+          className="absolute top-3 right-3 w-8 h-8 rounded-full flex items-center justify-center font-bold z-10 transition-colors"
+          style={{ background: 'rgba(255,255,255,0.1)', color: '#fff' }}
         >
           ✕
         </button>
 
-
-        {/* Avatar */}
+        {/* Photo */}
         {avatar ? (
-          <img
-            src={avatar}
-            alt={tasker.name}
-            className="w-full h-56 object-cover rounded-t-2xl"
-          />
+          <img src={avatar} alt={tasker.name} className="w-full h-52 object-cover" />
         ) : (
-          <div className="w-full h-56 rounded-t-2xl bg-gradient-to-br from-gray-300 to-gray-400 flex items-center justify-center text-5xl font-bold text-orange-500">
-            {tasker.name?.charAt(0) ?? '?'}
+          <div className="w-full h-52 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #374151, #1f2937)' }}>
+            <span style={{ fontSize: '4rem', fontWeight: 900, color: '#f97316' }}>{tasker.name?.charAt(0) ?? '?'}</span>
           </div>
         )}
 
-
-        <div className="p-6">
-          {/* Name & role */}
-          <h2 className="text-2xl font-bold text-gray-900">{tasker.name}</h2>
-          <p className="text-orange-500 font-semibold mt-0.5">{tasker.role}</p>
-
-
-          {/* Rating */}
-          <p className="text-yellow-500 text-sm mt-2">
-            ★ {tasker.rating} <span className="text-gray-400">({(tasker.reviews ?? 0).toLocaleString()} reviews)</span>
-          </p>
-
-
-          {/* Hourly rate */}
-          {tasker.hourly_rate && (
-            <p className="text-gray-700 text-sm mt-2 font-medium">
-              ₱{tasker.hourly_rate}/hr
-            </p>
-          )}
-
-
-          {/* Quote */}
-          <blockquote className="mt-4 border-l-4 border-orange-400 pl-4 italic text-gray-600 text-sm">
-            "{getQuote(tasker.role)}"
-          </blockquote>
-
-
-          {/* Bio */}
-          {tasker.bio && (
-            <p className="text-gray-700 text-sm mt-4 leading-relaxed">{tasker.bio}</p>
-          )}
-
-
-          {/* Book Now */}
-          <button
-            onClick={() => {
-              onClose()
-              navigate(`/booking/${encodeURIComponent(tasker.role)}`)
-            }}
-            className="mt-6 w-full py-3 rounded-xl text-white font-bold text-base transition-opacity hover:opacity-90"
-            style={{ background: 'linear-gradient(90deg, #f97316, #ea580c)', boxShadow: '0 4px 14px rgba(249,115,22,0.4)' }}
-          >
-            Book Now
-          </button>
-        </div>
+        {/* Info */}
+        {modalLoading ? (
+          <div className="flex justify-center items-center py-10">
+            <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: '#f97316', borderTopColor: 'transparent' }} />
+          </div>
+        ) : (
+          <div className="px-6 py-5 space-y-4">
+            {[
+              { label: 'NAME',            value: tasker.name,      style: { color: '#fff', fontWeight: 700, fontSize: '1.1rem' } },
+              { label: 'SERVICE',         value: tasker.role,      style: { color: '#f97316', fontWeight: 600 } },
+              { label: 'STARS',           value: `★ ${tasker.rating ?? '—'}`, style: { color: '#facc15', fontWeight: 600 } },
+              { label: 'TASKS COMPLETED', value: tasksCompleted,   style: { color: '#fff', fontWeight: 700 } },
+              { label: 'DATE JOINED',     value: dateJoined,       style: { color: '#9ca3af' } },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.75rem' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: '#6b7280', textTransform: 'uppercase' }}>{label}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: label === 'NAME' ? 700 : 500, color: label === 'SERVICE' ? '#f97316' : label === 'STARS' ? '#facc15' : label === 'DATE JOINED' ? '#9ca3af' : '#fff' }}>{value}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -147,6 +146,8 @@ function TaskerShowcase() {
         setFetchError(true)
       } else {
         setTaskers(data.map((t) => ({
+          id: t.id,
+          user_id: t.user_id,
           name: t.name,
           role: t.role,
           rating: t.rating,
@@ -178,18 +179,10 @@ function TaskerShowcase() {
         className="py-16 px-8 text-white text-center overflow-hidden"
         style={{ background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)' }}
       >
-        <div className="flex items-center justify-center gap-1 mb-2">
-          <div className="relative w-16 h-16 flex items-center justify-center">
-            <svg className="absolute left-1/2 -translate-x-1/2" style={{ top: 0 }} width="52" height="26" viewBox="0 0 40 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <line x1="20" y1="2" x2="1" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
-              <line x1="20" y1="2" x2="39" y2="19" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" />
-              <rect x="26" y="4" width="4" height="7" fill="#6b7280" rx="0.5" />
-            </svg>
-            <span className="text-orange-500 font-black text-5xl leading-none">h</span>
-          </div>
-          <span style={{ color: '#6b7280' }} className="font-bold text-lg leading-none">anap.ph</span>
-        </div>
-        <p className="text-white font-semibold text-xl mb-6 -mt-6">Taskers</p>
+        <h2 style={{ fontSize: '2.5rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', color: 'white', marginBottom: '2rem' }}>
+          OUR TOP PERFORMING{' '}
+          <span style={{ color: '#f97316' }}>TASKER</span>
+        </h2>
         <p className="text-gray-400 mb-8">No taskers available at the moment.</p>
         <Link to="/become-a-tasker">
           <button
@@ -313,7 +306,7 @@ function TaskerShowcase() {
 
 
                   <button className="w-full text-white py-2 px-3 rounded-lg font-semibold text-xs bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-xl border border-orange-500/30 backdrop-blur-sm">
-                    View Profile
+                    More Info
                   </button>
                 </div>
 
