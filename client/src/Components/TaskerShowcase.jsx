@@ -116,11 +116,11 @@ function ProfileModal({ tasker, onClose, justOpenedRef }) {
               { label: 'SERVICE',         value: tasker.role,      style: { color: '#f97316', fontWeight: 600 } },
               { label: 'STARS',           value: `★ ${tasker.rating ?? '—'}`, style: { color: '#facc15', fontWeight: 600 } },
               { label: 'TASKS COMPLETED', value: tasksCompleted,   style: { color: '#fff', fontWeight: 700 } },
-              { label: 'DATE JOINED',     value: dateJoined,       style: { color: '#9ca3af' } },
+              { label: 'AREA',            value: tasker.service_area ?? '—', style: { color: '#9ca3af' } },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.75rem' }}>
                 <span style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', color: '#6b7280', textTransform: 'uppercase' }}>{label}</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: label === 'NAME' ? 700 : 500, color: label === 'SERVICE' ? '#f97316' : label === 'STARS' ? '#facc15' : label === 'DATE JOINED' ? '#9ca3af' : '#fff' }}>{value}</span>
+                <span style={{ fontSize: '0.95rem', fontWeight: label === 'NAME' ? 700 : 500, color: label === 'SERVICE' ? '#f97316' : label === 'STARS' ? '#facc15' : label === 'AREA' ? '#9ca3af' : '#fff' }}>{value}</span>
               </div>
             ))}
           </div>
@@ -156,6 +156,7 @@ function TaskerShowcase() {
           profile_photo: t.profile_photo,
           bio: t.bio,
           hourly_rate: t.hourly_rate,
+          service_area: t.service_area,
         })))
       }
       setLoading(false)

@@ -325,7 +325,7 @@ function TaskerAccountsPanel() {
 
   async function handleArchiveTasker(tasker) {
     if (!window.confirm('Archive this employee?')) return
-    const profileId = tasker.user_id
+    const profileId = tasker.user_id || tasker.id
     if (!profileId) { alert('Cannot archive: missing user_id'); return }
     const { data, error } = await supabase
       .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
@@ -1728,10 +1728,11 @@ function ServicesPanel() {
     setViewTaskersService(service)
     setServiceTaskers([])
     setServiceTaskersLoading(true)
+    const firstWord = service.title.split(' ')[0]
     const { data } = await supabase
       .from('taskers')
       .select('id, name, email, phone, availability, working_hours, profile_photo')
-      .eq('role', service.title)
+      .ilike('role', `%${firstWord}%`)
       .eq('status', 'approved')
     const rows = (data ?? []).map((t) => {
       const photoUrl = t.profile_photo
