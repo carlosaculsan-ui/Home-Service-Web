@@ -536,9 +536,17 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
 
       <div className="border border-gray-200 rounded-xl p-5 space-y-3">
         <div className="flex gap-4">
-          <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
-            <User size={28} />
-          </div>
+          {tasker.profile_photo ? (
+            <img
+              src={tasker.profile_photo.startsWith('http') ? tasker.profile_photo : supabase.storage.from('tasker-files').getPublicUrl(tasker.profile_photo).data.publicUrl}
+              alt={tasker.name}
+              className="w-16 h-16 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+              <User size={28} />
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <div className="flex items-start gap-2">
               <p className="font-bold text-gray-800 text-base leading-tight">{tasker.name}</p>
@@ -555,7 +563,7 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
               <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
               <span className="text-gray-400">({formatReviews(tasker.reviews ?? 0)} reviews)</span>
               <span className="text-gray-300">•</span>
-              <span>{(tasker.tasks ?? 0).toLocaleString()} tasks</span>
+              <span>✅ {(tasker.tasks ?? 0).toLocaleString()} completed jobs</span>
             </div>
             <span className="inline-block bg-green-100 text-green-700 text-xs font-bold px-2 py-0.5 rounded-full mt-1">
               2 HOUR MINIMUM
@@ -2769,6 +2777,7 @@ function Booking() {
           tasks: taskCountMap[t.id] || 0,
           price: `₱${t.hourly_rate}/hr`,
           bio: t.bio,
+          profile_photo: t.profile_photo ?? null,
         })))
       }
       setLoadingTaskers(false)
