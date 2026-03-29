@@ -1066,6 +1066,7 @@ function Dashboard() {
   const [tab, setTab] = useState('bookings')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
+  const [bookingFilter, setBookingFilter] = useState('all')
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
@@ -1195,11 +1196,41 @@ function Dashboard() {
                   </Link>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {bookings.map((booking) => (
-                    <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
-                  ))}
-                </div>
+                <>
+                  {/* Status filter toggles */}
+                  <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
+                    {[
+                      { value: 'all',         label: 'All' },
+                      { value: 'confirmed',   label: 'Pending' },
+                      { value: 'accepted',    label: 'Accepted' },
+                      { value: 'on_the_way',  label: 'On The Way' },
+                      { value: 'in_progress', label: 'In Progress' },
+                      { value: 'completed',   label: 'Completed' },
+                      { value: 'cancelled',   label: 'Cancelled' },
+                    ].map(({ value, label }) => (
+                      <button
+                        key={value}
+                        onClick={() => setBookingFilter(value)}
+                        className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
+                          bookingFilter === value
+                            ? 'bg-orange-500 text-white border-orange-500'
+                            : 'bg-white text-orange-500 border-orange-300 hover:bg-orange-50'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="space-y-4">
+                    {(bookingFilter === 'all' ? bookings : bookings.filter((b) => b.status === bookingFilter)).map((booking) => (
+                      <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
+                    ))}
+                    {bookingFilter !== 'all' && bookings.filter((b) => b.status === bookingFilter).length === 0 && (
+                      <p className="text-center text-gray-400 py-10">No bookings with this status.</p>
+                    )}
+                  </div>
+                </>
               )}
             </>
           )}

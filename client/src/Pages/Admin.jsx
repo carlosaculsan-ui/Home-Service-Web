@@ -552,9 +552,10 @@ function TaskerAccountsPanel() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                              {getInitials(t.name)}
-                            </div>
+                            {t.profile_photo
+                              ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
+                            }
                             <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
                           </div>
                         </td>
@@ -616,9 +617,10 @@ function TaskerAccountsPanel() {
                 <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white font-bold shrink-0`}>
-                        {getInitials(t.name)}
-                      </div>
+                      {t.profile_photo
+                        ? <img src={t.profile_photo} alt={t.name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                        : <div className={`w-10 h-10 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white font-bold shrink-0`}>{getInitials(t.name)}</div>
+                      }
                       <div>
                         <p className="font-semibold text-gray-800">{t.name || '—'}</p>
                         <p className="text-xs text-gray-500">{t.email || '—'}</p>
@@ -683,9 +685,10 @@ function TaskerAccountsPanel() {
                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                              {getInitials(t.name)}
-                            </div>
+                            {t.profile_photo
+                              ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
+                            }
                             <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
                           </div>
                         </td>
@@ -741,9 +744,10 @@ function TaskerAccountsPanel() {
               <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                      {getInitials(t.name)}
-                    </div>
+                    {t.profile_photo
+                      ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                      : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
+                    }
                     <div>
                       <p className="font-semibold text-gray-800">{t.name || '—'}</p>
                       <p className="text-sm text-gray-500">{t.email || '—'}</p>

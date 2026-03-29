@@ -1144,23 +1144,32 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [avgRating, setAvgRating] = useState(null)
   const [reviewCount, setReviewCount] = useState(0)
 
+  const [editingPersonal, setEditingPersonal] = useState(false)
+  const [editingWork, setEditingWork] = useState(false)
+  const [personalFields, setPersonalFields] = useState({ phone: '', address: '', service_area: '' })
+  const [workFields, setWorkFields] = useState({ working_hours: '', availability: '', bio: '' })
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState(null)
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 3000)
+  }
+
   useEffect(() => {
     async function fetchProfile() {
-      // Same query as Admin Applicants tab — select('*') from taskers, filtered to this user
       const { data: tasker } = await supabase
         .from('taskers')
         .select('*')
         .eq('user_id', taskerUserId)
         .maybeSingle()
 
-      // Fetch full_name from profiles (same column used across the app)
       const { data: prof } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('full_name, phone')
         .eq('id', taskerUserId)
         .maybeSingle()
 
-      // Fetch reviews for avg rating
       const { data: reviews } = await supabase
         .from('reviews')
         .select('rating')
@@ -1170,11 +1179,58 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
       setReviewCount(ratingList.length)
       setAvgRating(ratingList.length > 0 ? ratingList.reduce((s, v) => s + v, 0) / ratingList.length : null)
 
-      setProfile({ ...(tasker ?? {}), full_name: prof?.full_name ?? null })
+      const merged = { ...(tasker ?? {}), full_name: prof?.full_name ?? null, phone: prof?.phone ?? tasker?.phone ?? null }
+      setProfile(merged)
+      setPersonalFields({
+        phone: merged.phone ?? '',
+        address: merged.address ?? '',
+        service_area: merged.service_area ?? '',
+      })
+      const availVal = Array.isArray(merged.availability) ? merged.availability.join(', ') : (merged.availability ?? '')
+      const wHours = Array.isArray(merged.working_hours) ? merged.working_hours.join(', ') : (merged.working_hours ?? '')
+      setWorkFields({ working_hours: wHours, availability: availVal, bio: merged.bio ?? '' })
       setProfileLoading(false)
     }
     fetchProfile()
   }, [taskerId, taskerUserId])
+
+  async function handleSavePersonal() {
+    setSaving(true)
+    const [taskerRes, profileRes] = await Promise.all([
+      supabase.from('taskers').update({
+        address: personalFields.address,
+        service_area: personalFields.service_area,
+      }).eq('user_id', taskerUserId),
+      supabase.from('profiles').update({
+        phone: personalFields.phone,
+      }).eq('id', taskerUserId),
+    ])
+    setSaving(false)
+    if (taskerRes.error || profileRes.error) {
+      showToast('Failed to update profile.', 'error')
+      return
+    }
+    setProfile(prev => ({ ...prev, phone: personalFields.phone, address: personalFields.address, service_area: personalFields.service_area }))
+    setEditingPersonal(false)
+    showToast('Profile updated successfully!')
+  }
+
+  async function handleSaveWork() {
+    setSaving(true)
+    const { error } = await supabase.from('taskers').update({
+      working_hours: workFields.working_hours,
+      availability: workFields.availability,
+      bio: workFields.bio,
+    }).eq('user_id', taskerUserId)
+    setSaving(false)
+    if (error) {
+      showToast('Failed to update profile.', 'error')
+      return
+    }
+    setProfile(prev => ({ ...prev, working_hours: workFields.working_hours, availability: workFields.availability, bio: workFields.bio }))
+    setEditingWork(false)
+    showToast('Profile updated successfully!')
+  }
 
   if (profileLoading) {
     return (
@@ -1190,35 +1246,33 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
   const fullName = taskerName || profile.full_name?.trim() || 'Not provided'
 
-  const arrayOrString = (val) =>
-    Array.isArray(val) ? val.join(', ') : (val || 'Not provided')
-
-  // Resolve profile photo URL from Supabase storage if it's a path (not a full URL)
   const photoUrl = profile.profile_photo
     ? profile.profile_photo.startsWith('http')
       ? profile.profile_photo
       : supabase.storage.from('tasker-files').getPublicUrl(profile.profile_photo).data.publicUrl
     : null
 
+  const inputCls = 'w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-orange-300'
+
   return (
     <div className="space-y-6">
+
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-semibold text-white transition-all ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.message}
+        </div>
+      )}
 
       {/* Section 1 — Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center gap-3">
         {photoUrl ? (
-          <img
-            src={photoUrl}
-            alt={fullName}
-            className="w-28 h-28 rounded-full object-cover border-4 border-orange-100"
-          />
+          <img src={photoUrl} alt={fullName} className="w-28 h-28 rounded-full object-cover border-4 border-orange-100" />
         ) : (
           <div className="w-28 h-28 rounded-full bg-orange-100 flex items-center justify-center">
-            <span className="text-3xl font-bold text-orange-400">
-              {(profile.first_name?.[0] ?? '?').toUpperCase()}
-            </span>
+            <span className="text-3xl font-bold text-orange-400">{(profile.first_name?.[0] ?? '?').toUpperCase()}</span>
           </div>
         )}
-
         <div>
           <h3 className="text-2xl font-extrabold text-gray-800">{fullName}</h3>
           {profile.service_type && (
@@ -1243,28 +1297,182 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
       {/* Section 2 — Personal Information */}
       <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
-        <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Personal Information</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
-          <InfoField label="Age"         value={profile.age} />
-          <InfoField label="Gender"      value={profile.gender} />
-          <InfoField label="Email"       value={profile.email} />
-          <InfoField label="Phone"       value={profile.phone} />
-          <InfoField label="Address"      value={profile.address} />
-          <InfoField label="Service Area" value={profile.service_area} />
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide">Personal Information</h4>
+          {!editingPersonal && (
+            <button
+              onClick={() => setEditingPersonal(true)}
+              className="text-xs font-semibold text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition-colors"
+            >
+              Edit
+            </button>
+          )}
         </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
+          <InfoField label="Age"    value={profile.age} />
+          <InfoField label="Gender" value={profile.gender} />
+          <InfoField label="Email"  value={profile.email} />
+
+          {/* Phone */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Phone</p>
+            {editingPersonal ? (
+              <input
+                type="text"
+                value={personalFields.phone}
+                onChange={e => setPersonalFields(prev => ({ ...prev, phone: e.target.value }))}
+                className={inputCls}
+                placeholder="Phone number"
+              />
+            ) : (
+              <p className="text-sm text-gray-800 font-medium">{profile.phone || 'Not provided'}</p>
+            )}
+          </div>
+
+          {/* Address */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Address</p>
+            {editingPersonal ? (
+              <input
+                type="text"
+                value={personalFields.address}
+                onChange={e => setPersonalFields(prev => ({ ...prev, address: e.target.value }))}
+                className={inputCls}
+                placeholder="Address"
+              />
+            ) : (
+              <p className="text-sm text-gray-800 font-medium">{profile.address || 'Not provided'}</p>
+            )}
+          </div>
+
+          {/* Service Area */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Service Area</p>
+            {editingPersonal ? (
+              <input
+                type="text"
+                value={personalFields.service_area}
+                onChange={e => setPersonalFields(prev => ({ ...prev, service_area: e.target.value }))}
+                className={inputCls}
+                placeholder="Service area"
+              />
+            ) : (
+              <p className="text-sm text-gray-800 font-medium">{profile.service_area || 'Not provided'}</p>
+            )}
+          </div>
+        </div>
+
+        {editingPersonal && (
+          <div className="flex gap-2 mt-5 justify-end">
+            <button
+              onClick={() => {
+                setPersonalFields({ phone: profile.phone ?? '', address: profile.address ?? '', service_area: profile.service_area ?? '' })
+                setEditingPersonal(false)
+              }}
+              className="text-sm px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSavePersonal}
+              disabled={saving}
+              className="text-sm px-4 py-2 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Section 3 — Work Information */}
       <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
-        <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Work Information</h4>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide">Work Information</h4>
+          {!editingWork && (
+            <button
+              onClick={() => setEditingWork(true)}
+              className="text-xs font-semibold text-orange-500 border border-orange-300 px-3 py-1 rounded-lg hover:bg-orange-50 transition-colors"
+            >
+              Edit
+            </button>
+          )}
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
-          <InfoField label="Working Hours" value={arrayOrString(profile.working_hours)} />
-          <InfoField label="Availability"  value={arrayOrString(profile.availability)} />
-          <div className="col-span-1 sm:col-span-2">
+
+          {/* Working Hours */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Working Hours</p>
+            {editingWork ? (
+              <input
+                type="text"
+                value={workFields.working_hours}
+                onChange={e => setWorkFields(prev => ({ ...prev, working_hours: e.target.value }))}
+                className={inputCls}
+                placeholder="e.g. 8AM - 5PM"
+              />
+            ) : (
+              <p className="text-sm text-gray-800 font-medium">{profile.working_hours ? (Array.isArray(profile.working_hours) ? profile.working_hours.join(', ') : profile.working_hours) : 'Not provided'}</p>
+            )}
+          </div>
+
+          {/* Availability */}
+          <div className="w-full">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Availability</p>
+            {editingWork ? (
+              <select
+                value={workFields.availability}
+                onChange={e => setWorkFields(prev => ({ ...prev, availability: e.target.value }))}
+                className={inputCls}
+              >
+                <option value="">Select availability</option>
+                <option value="Full Time">Full Time</option>
+                <option value="Part Time - AM">Part Time - AM</option>
+                <option value="Part Time - PM">Part Time - PM</option>
+              </select>
+            ) : (
+              <p className="text-sm text-gray-800 font-medium">{profile.availability ? (Array.isArray(profile.availability) ? profile.availability.join(', ') : profile.availability) : 'Not provided'}</p>
+            )}
+          </div>
+
+          {/* Bio */}
+          <div className="col-span-2">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Bio</p>
-            <p className="text-sm text-gray-800 leading-relaxed">{profile.bio || 'Not provided'}</p>
+            {editingWork ? (
+              <textarea
+                value={workFields.bio}
+                onChange={e => setWorkFields(prev => ({ ...prev, bio: e.target.value }))}
+                rows={4}
+                className={inputCls}
+                placeholder="Tell customers about yourself…"
+              />
+            ) : (
+              <p className="text-sm text-gray-800 leading-relaxed">{profile.bio || 'Not provided'}</p>
+            )}
           </div>
         </div>
+
+        {editingWork && (
+          <div className="flex gap-2 mt-5 justify-end">
+            <button
+              onClick={() => {
+                const availVal = Array.isArray(profile.availability) ? profile.availability.join(', ') : (profile.availability ?? '')
+                const wHours = Array.isArray(profile.working_hours) ? profile.working_hours.join(', ') : (profile.working_hours ?? '')
+                setWorkFields({ working_hours: wHours, availability: availVal, bio: profile.bio ?? '' })
+                setEditingWork(false)
+              }}
+              className="text-sm px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveWork}
+              disabled={saving}
+              className="text-sm px-4 py-2 rounded-lg bg-orange-500 text-white font-semibold hover:bg-orange-600 disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        )}
       </div>
 
     </div>
