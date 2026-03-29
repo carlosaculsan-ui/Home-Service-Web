@@ -949,7 +949,7 @@ function CustomerAccountsPanel() {
     if (ids.length > 0) {
       const { data: profileData } = await supabase
         .from('profiles')
-        .select('id, last_time_in, last_time_out')
+        .select('id, avatar_url, last_time_in, last_time_out')
         .in('id', ids)
       profileData?.forEach(p => { profileMap[p.id] = p })
     }
@@ -1295,9 +1295,10 @@ function CustomerAccountsPanel() {
                         </td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                              {getInitials(c.full_name || c.email?.split('@')[0])}
-                            </div>
+                            {c.avatar_url
+                              ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
+                            }
                             <span className="font-medium text-gray-800 whitespace-nowrap">
                               {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
                             </span>
@@ -1349,9 +1350,10 @@ function CustomerAccountsPanel() {
                 <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white font-bold shrink-0`}>
-                        {getInitials(c.full_name || c.email?.split('@')[0])}
-                      </div>
+                      {c.avatar_url
+                        ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                        : <div className={`w-10 h-10 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white font-bold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
+                      }
                       <div>
                         <p className="font-semibold text-gray-800">{c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}</p>
                         <p className="text-xs text-gray-500">{c.email || '—'}</p>
@@ -1403,9 +1405,10 @@ function CustomerAccountsPanel() {
                         <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                              {getInitials(c.full_name || c.email?.split('@')[0])}
-                            </div>
+                            {c.avatar_url
+                              ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
+                            }
                             <span className="font-medium text-gray-800 whitespace-nowrap">
                               {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
                             </span>
@@ -1456,9 +1459,10 @@ function CustomerAccountsPanel() {
               <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>
-                      {getInitials(c.full_name || c.email?.split('@')[0])}
-                    </div>
+                    {c.avatar_url
+                      ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                      : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
+                    }
                     <div>
                       <p className="font-semibold text-gray-800">{c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}</p>
                       <p className="text-sm text-gray-500">{c.email}</p>

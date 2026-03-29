@@ -875,8 +875,7 @@ function CustomerProfile({ userId, userEmail }) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const ext = file.name.split('.').pop()
-    const path = `customer-${userId}/avatar.${ext}`
+    const path = `customer-avatars/${userId}/avatar`
     const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(path, file, { upsert: true })
@@ -890,6 +889,7 @@ function CustomerProfile({ userId, userEmail }) {
     await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
     setAvatarUrl(publicUrl)
     setUploading(false)
+    showToast('success', 'Profile photo updated!')
   }
 
   async function handleSave() {
