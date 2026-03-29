@@ -45,12 +45,8 @@ function BecomeATasker() {
     postalCode: '',
     birthday: '',
     category: '',
-    availWeekdays: false,
-    availWeekends: false,
-    availAnytime: false,
-    workMorning: false,
-    workAfternoon: false,
-    workEvening: false,
+    availType: '',
+    partTimeShift: '',
     travelDistance: '',
     serviceRole: '',
     hourlyRate: '',
@@ -208,17 +204,14 @@ function BecomeATasker() {
 
     setUploadProgress('Saving application...')
 
-    const availabilityArr = [
-      formData.availWeekdays && 'Weekdays',
-      formData.availWeekends && 'Weekends',
-      formData.availAnytime && 'Anytime',
-    ].filter(Boolean)
-
-    const workingHoursArr = [
-      formData.workMorning && 'Morning',
-      formData.workAfternoon && 'Afternoon',
-      formData.workEvening && 'Evening',
-    ].filter(Boolean)
+    const availabilityValue =
+      formData.availType === 'Full Time'
+        ? 'Full Time'
+        : formData.availType === 'Part Time' && formData.partTimeShift === 'AM'
+        ? 'Part Time - AM'
+        : formData.availType === 'Part Time' && formData.partTimeShift === 'PM'
+        ? 'Part Time - PM'
+        : null
 
     const insertData = {
       user_id: user.id,
@@ -234,8 +227,7 @@ function BecomeATasker() {
       role: formData.serviceRole,
       bio: formData.experience,
       service_area: formData.area || null,
-      availability: availabilityArr.length > 0 ? availabilityArr : null,
-      working_hours: workingHoursArr.length > 0 ? workingHoursArr : null,
+      availability: availabilityValue,
       status: 'pending',
       is_available: false,
       rating: 0,
@@ -576,66 +568,42 @@ function BecomeATasker() {
 
               {/* Availability Section */}
               <div className="mb-3">
-                <p className="font-bold text-gray-800 text-sm mb-2">Availability Section</p>
-                <div className="flex gap-4 mb-2">
-                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.availWeekdays}
-                      onChange={() => setFormData(prev => ({ ...prev, availWeekdays: !prev.availWeekdays }))}
-                      className="accent-orange-500"
-                    />
-                    Weekdays
-                  </label>
-                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.availWeekends}
-                      onChange={() => setFormData(prev => ({ ...prev, availWeekends: !prev.availWeekends }))}
-                      className="accent-orange-500"
-                    />
-                    Weekends
-                  </label>
-                  <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.availAnytime}
-                      onChange={() => setFormData(prev => ({ ...prev, availAnytime: !prev.availAnytime }))}
-                      className="accent-orange-500"
-                    />
-                    Anytime
-                  </label>
-                </div>
-                <p className="font-bold text-gray-800 text-sm mb-1">Working Hours</p>
-                <div className="flex flex-col gap-1 mb-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.workMorning}
-                      onChange={() => setFormData(prev => ({ ...prev, workMorning: !prev.workMorning }))}
-                      className="accent-orange-500"
-                    />
-                    Morning (6:00 AM – 12:00 PM)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.workAfternoon}
-                      onChange={() => setFormData(prev => ({ ...prev, workAfternoon: !prev.workAfternoon }))}
-                      className="accent-orange-500"
-                    />
-                    Afternoon (12:00 PM – 6:00 PM)
-                  </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.workEvening}
-                      onChange={() => setFormData(prev => ({ ...prev, workEvening: !prev.workEvening }))}
-                      className="accent-orange-500"
-                    />
-                    Evening (6:00 PM – 10:00 PM)
-                  </label>
-                </div>
+                <p className="font-bold text-gray-800 text-sm mb-2">Availability</p>
+                <select
+                  value={formData.availType}
+                  onChange={e => setFormData(prev => ({ ...prev, availType: e.target.value, partTimeShift: '' }))}
+                  className="w-full border border-gray-300 rounded-md p-2 text-sm mb-2"
+                >
+                  <option value="">Select availability</option>
+                  <option value="Full Time">Full Time</option>
+                  <option value="Part Time">Part Time</option>
+                </select>
+                {formData.availType === 'Part Time' && (
+                  <div className="flex gap-4 mt-1">
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="partTimeShift"
+                        value="AM"
+                        checked={formData.partTimeShift === 'AM'}
+                        onChange={() => setFormData(prev => ({ ...prev, partTimeShift: 'AM' }))}
+                        className="accent-orange-500"
+                      />
+                      AM (7:00 AM - 12:00 PM)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="partTimeShift"
+                        value="PM"
+                        checked={formData.partTimeShift === 'PM'}
+                        onChange={() => setFormData(prev => ({ ...prev, partTimeShift: 'PM' }))}
+                        className="accent-orange-500"
+                      />
+                      PM (1:00 PM - 5:00 PM)
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Service Role */}
@@ -1213,13 +1181,13 @@ function BecomeATasker() {
                         <p className="font-bold text-gray-900">{formData.experience || '—'}</p>
                       </div>
                       <div>
-                        <span className="text-gray-500">Working Hours:</span>
+                        <span className="text-gray-500">Availability:</span>
                         <p className="font-bold text-gray-900">
-                          {[
-                            formData.workMorning && 'Morning',
-                            formData.workAfternoon && 'Afternoon',
-                            formData.workEvening && 'Evening',
-                          ].filter(Boolean).join(', ') || '—'}
+                          {formData.availType === 'Full Time'
+                            ? 'Full Time'
+                            : formData.availType === 'Part Time' && formData.partTimeShift
+                            ? `Part Time - ${formData.partTimeShift}`
+                            : '—'}
                         </p>
                       </div>
                     </div>

@@ -157,6 +157,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const [leaveDates, setLeaveDates] = useState(new Set())
   const [bookingsByDate, setBookingsByDate] = useState({})
   const [loadingDates, setLoadingDates] = useState(true)
+  const [taskerAvailability, setTaskerAvailability] = useState(null)
 
   useEffect(() => {
     async function fetchAvailability() {
@@ -167,7 +168,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
         Authorization: `Bearer ${token}`,
       }
 
-      const [bookingsRes, leavesRes] = await Promise.all([
+      const [bookingsRes, leavesRes, availResult] = await Promise.all([
         fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(confirmed,accepted,on_the_way,in_progress)&select=scheduled_date,scheduled_time,duration_hours`,
           { headers }
@@ -176,9 +177,11 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/tasker_leaves?tasker_id=eq.${tasker.id}&status=eq.approved&select=leave_dates`,
           { headers }
         ),
+        supabase.from('taskers').select('availability').eq('id', tasker.id).single(),
       ])
 
       const [bookingsData, leavesData] = await Promise.all([bookingsRes.json(), leavesRes.json()])
+      setTaskerAvailability(availResult.data?.availability ?? null)
 
       // Group bookings by date
       const byDate = {}
@@ -370,16 +373,23 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                       {TIME_SLOTS.map((slot) => {
                         const h = parseInt(slot.split(':')[0])
                         const available = isSlotAvailable(h, selectedDateBookings, taskOptions)
+                        const avail = taskerAvailability
+                        const blockedByAvail = avail === 'Part Time - AM' ? h >= 13
+                          : avail === 'Part Time - PM' ? h <= 12
+                          : false
                         const isPickedSlot = selectedSlot === slot
+                        const isDisabled = !available || blockedByAvail
                         return (
                           <button
                             key={slot}
-                            disabled={!available}
+                            disabled={isDisabled}
                             onClick={() => setSelectedSlot(slot)}
+                            title={blockedByAvail ? 'Not Available' : undefined}
+                            style={blockedByAvail ? { opacity: 0.4 } : undefined}
                             className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors
                               ${isPickedSlot
                                 ? 'bg-orange-500 text-white border-orange-500'
-                                : available
+                                : !isDisabled
                                 ? 'bg-white text-gray-700 border-gray-200 hover:border-orange-400 hover:text-orange-500'
                                 : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
                               }`}

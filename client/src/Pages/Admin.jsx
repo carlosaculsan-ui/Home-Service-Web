@@ -803,6 +803,9 @@ function TaskerAccountsPanel() {
               <div><span className="text-gray-500">Service:</span> <span className="font-medium">{selectedTasker.role || '—'}</span></div>
               <div><span className="text-gray-500">Area:</span> <span className="font-medium">{selectedTasker.service_area || '—'}</span></div>
               <div><span className="text-gray-500">Joined:</span> <span className="font-medium">{selectedTasker.created_at ? new Date(selectedTasker.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}</span></div>
+              <div><span className="text-gray-500">Age:</span> <span className="font-medium">{selectedTasker.age ?? 'Not provided'}</span></div>
+              <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{selectedTasker.gender || 'Not provided'}</span></div>
+              <div><span className="text-gray-500">Availability:</span> <span className="font-medium">{selectedTasker.availability || 'Not provided'}</span></div>
             </div>
 
             {/* Documents */}
