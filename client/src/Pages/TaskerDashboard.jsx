@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset,
+  LogOut, Menu, X, MessageSquare, Headset, Home,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import {
@@ -729,6 +729,13 @@ function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose
             {taskerEmail && <p className="text-orange-200 text-xs truncate">{taskerEmail}</p>}
           </div>
         )}
+        <Link
+          to="/"
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-white/80 hover:bg-orange-600 hover:text-white transition-colors"
+        >
+          <Home size={17} className="flex-shrink-0" />
+          Back to Home
+        </Link>
         <button
           onClick={onLogout}
           className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-red-200 hover:bg-orange-600 hover:text-white transition-colors"
@@ -1149,6 +1156,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [personalFields, setPersonalFields] = useState({ phone: '', address: '', service_area: '' })
   const [workFields, setWorkFields] = useState({ working_hours: '', availability: '', bio: '' })
   const [saving, setSaving] = useState(false)
+  const [photoUploading, setPhotoUploading] = useState(false)
   const [toast, setToast] = useState(null)
 
   const showToast = (message, type = 'success') => {
@@ -1232,6 +1240,38 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
     showToast('Profile updated successfully!')
   }
 
+  async function handlePhotoUpload(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setPhotoUploading(true)
+    const ext = file.name.split('.').pop()
+    const path = `profile-photos/${taskerId}/avatar.${ext}`
+    const { error: uploadError } = await supabase.storage
+      .from('tasker-files')
+      .upload(path, file, { upsert: true })
+    if (uploadError) {
+      setPhotoUploading(false)
+      showToast('Photo upload failed. Please try again.', 'error')
+      return
+    }
+    const { data: urlData } = supabase.storage.from('tasker-files').getPublicUrl(path)
+    const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
+    await supabase.from('taskers').update({ profile_photo: publicUrl }).eq('id', taskerId)
+    setProfile(prev => ({ ...prev, profile_photo: publicUrl }))
+    setPhotoUploading(false)
+    showToast('Profile photo updated!')
+  }
+
+  async function handleRemovePhoto() {
+    const photo = profile.profile_photo
+    if (photo && !photo.startsWith('http')) {
+      await supabase.storage.from('tasker-files').remove([photo])
+    }
+    await supabase.from('taskers').update({ profile_photo: null }).eq('id', taskerId)
+    setProfile(prev => ({ ...prev, profile_photo: null }))
+    showToast('Profile photo removed')
+  }
+
   if (profileLoading) {
     return (
       <div className="flex justify-center mt-20">
@@ -1266,13 +1306,43 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
       {/* Section 1 — Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center gap-3">
-        {photoUrl ? (
-          <img src={photoUrl} alt={fullName} className="w-28 h-28 rounded-full object-cover border-4 border-orange-100" />
-        ) : (
-          <div className="w-28 h-28 rounded-full bg-orange-100 flex items-center justify-center">
-            <span className="text-3xl font-bold text-orange-400">{(profile.first_name?.[0] ?? '?').toUpperCase()}</span>
-          </div>
-        )}
+        <div style={{ position: 'relative' }}>
+          {photoUrl ? (
+            <img src={photoUrl} alt={fullName} className="w-28 h-28 rounded-full object-cover border-4 border-orange-100" />
+          ) : (
+            <div className="w-28 h-28 rounded-full bg-orange-100 flex items-center justify-center">
+              <span className="text-3xl font-bold text-orange-400">{(profile.first_name?.[0] ?? '?').toUpperCase()}</span>
+            </div>
+          )}
+          {photoUrl && !photoUploading && (
+            <button
+              onClick={handleRemovePhoto}
+              style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
+              title="Remove photo"
+            >
+              <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>✕</span>
+            </button>
+          )}
+          {photoUploading && (
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
+        </div>
+        <label className={`cursor-pointer text-sm font-semibold px-4 py-2 rounded-lg border transition-colors ${
+          photoUploading
+            ? 'opacity-50 pointer-events-none border-gray-200 text-gray-400'
+            : 'border-orange-400 text-orange-500 hover:bg-orange-50'
+        }`}>
+          {photoUploading ? 'Uploading…' : 'Upload Photo'}
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={handlePhotoUpload}
+            disabled={photoUploading}
+          />
+        </label>
         <div>
           <h3 className="text-2xl font-extrabold text-gray-800">{fullName}</h3>
           {profile.service_type && (
@@ -2046,6 +2116,17 @@ function TaskerDashboard() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!taskerId) return
+    const channel = supabase
+      .channel(`tasker-bookings-${taskerId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `tasker_id=eq.${taskerId}` },
+        () => { load(taskerId) }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [taskerId])
 
   async function handleLogout() {
     await supabase.auth.signOut()

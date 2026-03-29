@@ -523,12 +523,6 @@ function BookingCard({ booking, userId, onCancel }) {
               {reviewSubmitted && (
                 <p className="text-sm font-semibold text-green-600">Thank you for your review! ⭐</p>
               )}
-              <button
-                onClick={handleRebook}
-                className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Rebook
-              </button>
             </div>
           </div>
         )}
@@ -892,6 +886,14 @@ function CustomerProfile({ userId, userEmail }) {
     showToast('success', 'Profile photo updated!')
   }
 
+  async function handleRemoveAvatar() {
+    const path = `customer-avatars/${userId}/avatar`
+    await supabase.storage.from('avatars').remove([path])
+    await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
+    setAvatarUrl(null)
+    showToast('success', 'Profile photo removed')
+  }
+
   async function handleSave() {
     setSaving(true)
     const { error } = await supabase
@@ -946,6 +948,15 @@ function CustomerProfile({ userId, userEmail }) {
             <div style={{ width: 120, height: 120, borderRadius: '50%', background: '#f3f4f6', border: '2px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <span style={{ fontSize: '2.5rem', fontWeight: 700, color: '#f97316' }}>{initials}</span>
             </div>
+          )}
+          {avatarUrl && !uploading && (
+            <button
+              onClick={handleRemoveAvatar}
+              style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
+              title="Remove photo"
+            >
+              <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>✕</span>
+            </button>
           )}
           {uploading && (
             <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1117,6 +1128,17 @@ function Dashboard() {
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`customer-bookings-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings', filter: `client_id=eq.${userId}` },
+        () => { load(userId) }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
 
   async function handleLogout() {
     await supabase.auth.signOut()

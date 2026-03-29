@@ -1575,6 +1575,16 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
   useEffect(() => { fetchBookings() }, [])
 
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-bookings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' },
+        () => { fetchBookings() }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   async function updateBookingStatus(id, status) {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
@@ -2609,6 +2619,75 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       setLoading(false)
     }
     fetchDashboard()
+  }, [])
+
+  useEffect(() => {
+    const bookingsChannel = supabase
+      .channel('admin-dashboard-bookings')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' },
+        () => {
+          async function refetch() {
+            const [
+              { count: bookings },
+              { data: completedBookings },
+              { data: yearBookings },
+            ] = await Promise.all([
+              supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+              supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
+              supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
+            ])
+            const currentMonth = new Date().getMonth()
+            const completed = completedBookings ?? []
+            const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+            const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+            const thisMonthPlatformEarnings = completed.filter((b) => {
+              const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
+              return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+            }).reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+            setStats((prev) => ({ ...prev, bookings: bookings ?? 0 }))
+            setTotalRevenue(allRevenue)
+            setPlatformEarnings(allPlatformEarnings)
+            setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
+            setAllBookings(yearBookings ?? [])
+            const { data: recentData } = await supabase
+              .from('bookings')
+              .select('id, customer_name, service, scheduled_date, scheduled_time, status')
+              .order('created_at', { ascending: false })
+              .limit(5)
+            setRecentBookings(recentData || [])
+            const { data: bookingsData } = await supabase.from('bookings').select('service')
+            const serviceCounts = {}
+            bookingsData?.forEach((b) => {
+              if (b.service) serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1
+            })
+            const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
+            setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
+          }
+          refetch()
+        }
+      )
+      .subscribe()
+
+    const profilesChannel = supabase
+      .channel('admin-dashboard-profiles')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' },
+        () => {
+          async function refetchCounts() {
+            const [{ count: customers }, { count: taskers }] = await Promise.all([
+              supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
+              supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
+            ])
+            setStats((prev) => ({ ...prev, customers: customers ?? 0, taskers: taskers ?? 0 }))
+          }
+          refetchCounts()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(bookingsChannel)
+      supabase.removeChannel(profilesChannel)
+    }
   }, [])
 
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
