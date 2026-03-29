@@ -3231,6 +3231,17 @@ function AdminMessagesPanel({ adminUserId }) {
     const taskerMap = {}
     ;(taskers ?? []).forEach((t) => { taskerMap[t.user_id] = t })
 
+    // For IDs not found in taskers, fall back to profiles
+    const missingIds = otherIds.filter((id) => !taskerMap[id])
+    const profileMap = {}
+    if (missingIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, role')
+        .in('id', missingIds)
+      ;(profiles ?? []).forEach((p) => { profileMap[p.id] = p })
+    }
+
     // Build one entry per other user, using the first (most recent) message
     const seen = new Set()
     const convos = []
@@ -3240,6 +3251,7 @@ function AdminMessagesPanel({ adminUserId }) {
       seen.add(otherId)
 
       const tasker = taskerMap[otherId]
+      const profile = profileMap[otherId]
       const unreadCount = msgs.filter(
         (m) => m.sender_id === otherId && m.receiver_id === adminUserId && !m.is_read
       ).length
@@ -3250,10 +3262,14 @@ function AdminMessagesPanel({ adminUserId }) {
         ? raw.startsWith('http') ? raw : supabase.storage.from('tasker-files').getPublicUrl(raw).data.publicUrl
         : null
 
+      const role = tasker ? 'tasker' : (profile?.role ?? 'customer')
+      const name = tasker?.name ?? profile?.full_name ?? 'Unknown User'
+
       convos.push({
         userId: otherId,
-        name: tasker?.name ?? 'Unknown Tasker',
+        name,
         photoUrl,
+        role,
         lastMessage: msg.content,
         lastTime: msg.created_at,
         unreadCount,
@@ -3306,7 +3322,7 @@ function AdminMessagesPanel({ adminUserId }) {
       {/* Left panel — conversation list */}
       <div className={`w-full md:w-72 flex-shrink-0 border-r border-gray-100 flex flex-col ${selectedTasker ? 'hidden md:flex' : 'flex'}`}>
         <div className="px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-800 text-sm">Tasker Messages</p>
+          <p className="font-bold text-gray-800 text-sm">Messages</p>
           <p className="text-xs text-gray-400">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>
         </div>
         <div className="flex-1 overflow-y-auto">
@@ -3330,7 +3346,16 @@ function AdminMessagesPanel({ adminUserId }) {
                 )}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-1">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                      <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        c.role === 'tasker'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'bg-green-100 text-green-600'
+                      }`}>
+                        {c.role === 'tasker' ? 'Tasker' : 'Customer'}
+                      </span>
+                    </div>
                     <span className="text-xs text-gray-400 flex-shrink-0">{fmtTime(c.lastTime)}</span>
                   </div>
                   <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
