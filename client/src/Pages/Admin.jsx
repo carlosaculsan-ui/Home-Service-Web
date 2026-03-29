@@ -2564,6 +2564,8 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
+  const [topTaskers, setTopTaskers] = useState([])
+  const [leaderboardSort, setLeaderboardSort] = useState('jobs')
   const [loading, setLoading] = useState(true)
   const currentYear = new Date().getFullYear()
 
@@ -2616,6 +2618,34 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
       setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
 
+      // Top Taskers leaderboard
+      const { data: approvedTaskers } = await supabase
+        .from('taskers')
+        .select('id, name, role, profile_photo')
+        .eq('status', 'approved')
+      const { data: allCompletedBookings } = await supabase
+        .from('bookings')
+        .select('tasker_id')
+        .eq('status', 'completed')
+      const { data: allReviews } = await supabase
+        .from('reviews')
+        .select('tasker_id, rating')
+      const jobCounts = {}
+      allCompletedBookings?.forEach((b) => {
+        if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+      })
+      const ratingMap = {}
+      allReviews?.forEach((r) => {
+        if (!ratingMap[r.tasker_id]) ratingMap[r.tasker_id] = []
+        ratingMap[r.tasker_id].push(r.rating ?? 0)
+      })
+      const leaderboard = (approvedTaskers ?? []).map((t) => {
+        const ratings = ratingMap[t.id] ?? []
+        const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
+        return { ...t, jobs: jobCounts[t.id] || 0, avgRating }
+      }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
+      setTopTaskers(leaderboard)
+
       setLoading(false)
     }
     fetchDashboard()
@@ -2662,6 +2692,27 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             })
             const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
             setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
+            const { data: approvedTaskers } = await supabase
+              .from('taskers').select('id, name, role, profile_photo').eq('status', 'approved')
+            const { data: allCompletedBookings } = await supabase
+              .from('bookings').select('tasker_id').eq('status', 'completed')
+            const { data: allReviews } = await supabase
+              .from('reviews').select('tasker_id, rating')
+            const jobCounts = {}
+            allCompletedBookings?.forEach((b) => {
+              if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+            })
+            const ratingMap = {}
+            allReviews?.forEach((r) => {
+              if (!ratingMap[r.tasker_id]) ratingMap[r.tasker_id] = []
+              ratingMap[r.tasker_id].push(r.rating ?? 0)
+            })
+            const leaderboard = (approvedTaskers ?? []).map((t) => {
+              const ratings = ratingMap[t.id] ?? []
+              const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
+              return { ...t, jobs: jobCounts[t.id] || 0, avgRating }
+            }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
+            setTopTaskers(leaderboard)
           }
           refetch()
         }
@@ -2852,6 +2903,133 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Vortex Elite shimmer animation */}
+      <style>{`
+        @keyframes vortex-pulse {
+          0%, 100% { box-shadow: 0 0 8px rgba(255, 215, 0, 0.6); }
+          50% { box-shadow: 0 0 16px rgba(255, 165, 0, 0.9), 0 0 24px rgba(255, 215, 0, 0.4); }
+        }
+        .vortex-badge { animation: vortex-pulse 2s ease-in-out infinite; }
+      `}</style>
+
+      {/* Top Performing Taskers Leaderboard */}
+      <div className="bg-white rounded-xl shadow-sm p-4 md:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <h3 className="text-base font-bold text-gray-800">🏆 Top Performing Taskers</h3>
+          <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={() => setLeaderboardSort('jobs')}
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${leaderboardSort === 'jobs' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}
+            >
+              Sort by Jobs
+            </button>
+            <button
+              onClick={() => setLeaderboardSort('rating')}
+              className={`flex-1 sm:flex-none px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${leaderboardSort === 'rating' ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'}`}
+            >
+              Sort by Rating
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-8">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : topTaskers.length === 0 ? (
+          <p className="text-center text-gray-400 py-8 text-sm">No taskers yet</p>
+        ) : (() => {
+          const sorted = [...topTaskers].sort(
+            leaderboardSort === 'rating'
+              ? (a, b) => b.avgRating - a.avgRating || b.jobs - a.jobs
+              : (a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating
+          )
+          const maxJobs = Math.max(...sorted.map((t) => t.jobs), 1)
+          const rankEmoji = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
+          const borderAccent = (i) => i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : 'transparent'
+          return (
+            <div className="divide-y divide-gray-100 rounded-lg overflow-hidden border border-gray-100">
+              {sorted.map((t, i) => {
+                const photo = t.profile_photo
+                  ? t.profile_photo.startsWith('http')
+                    ? t.profile_photo
+                    : supabase.storage.from('tasker-files').getPublicUrl(t.profile_photo).data.publicUrl
+                  : null
+                const initials = (t.name?.[0] ?? '?').toUpperCase()
+                const barPct = maxJobs > 0 ? Math.round((t.jobs / maxJobs) * 100) : 0
+                return (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-3 px-3 py-3 md:px-4"
+                    style={i === 0 ? {
+                      background: 'rgba(255, 215, 0, 0.05)',
+                      borderLeft: '4px solid #FFD700',
+                      boxShadow: '0 0 12px rgba(255, 215, 0, 0.15)',
+                    } : {
+                      background: i % 2 === 0 ? '#ffffff' : '#f9fafb',
+                      borderLeft: `4px solid ${borderAccent(i)}`,
+                    }}
+                  >
+                    {/* Rank */}
+                    <div className="w-7 md:w-8 flex-shrink-0 text-center">
+                      {rankEmoji(i) ? (
+                        <span className="text-lg md:text-xl">{rankEmoji(i)}</span>
+                      ) : (
+                        <span className="text-xs md:text-sm font-bold text-gray-400">#{i + 1}</span>
+                      )}
+                    </div>
+
+                    {/* Avatar */}
+                    {photo ? (
+                      <img src={photo} alt={t.name} className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover flex-shrink-0" />
+                    ) : (
+                      <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-bold text-orange-500">{initials}</span>
+                      </div>
+                    )}
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <span className="font-bold text-gray-800 text-sm leading-tight truncate max-w-[140px] sm:max-w-none">{t.name}</span>
+                        {i === 0 && (
+                          <span
+                            className="vortex-badge"
+                            style={{
+                              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                              color: '#1a1a1a',
+                              fontWeight: 'bold',
+                              textTransform: 'uppercase',
+                              fontSize: '0.6rem',
+                              letterSpacing: '0.05em',
+                              padding: '2px 8px',
+                              borderRadius: '999px',
+                              whiteSpace: 'nowrap',
+                              flexShrink: 0,
+                            }}
+                          >
+                            ⚡ VORTEX TASKER ELITE
+                          </span>
+                        )}
+                        <span className="text-xs font-semibold text-orange-500 truncate">{t.role}</span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs text-gray-500">⭐ {t.avgRating > 0 ? t.avgRating.toFixed(1) : '—'}</span>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">✅ {t.jobs} jobs</span>
+                      </div>
+                      <div className="mt-1.5 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-orange-400 rounded-full transition-all" style={{ width: `${barPct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })()}
       </div>
 
     </div>
