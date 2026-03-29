@@ -1,10 +1,10 @@
 // NOTE: Run this SQL in Supabase if not already done:
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 
 const STATUS_STYLES = {
@@ -1062,6 +1062,454 @@ function CustomerProfile({ userId, userEmail }) {
 
 // ─── Coming Soon placeholder ──────────────────────────────────────────────────
 
+// ─── Support Inline Chat (customer ↔ admin, no booking) ──────────────────────
+
+function SupportInlineChat({ customerId, adminId, onBack }) {
+  const [messages, setMessages] = useState([])
+  const [input, setInput] = useState('')
+  const [sending, setSending] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  async function fetchMessages() {
+    const { data } = await supabase
+      .from('messages')
+      .select('*')
+      .is('booking_id', null)
+      .or(`sender_id.eq.${customerId},receiver_id.eq.${customerId}`)
+      .order('created_at', { ascending: true })
+    setMessages((data ?? []).filter(
+      (m) => (m.sender_id === customerId && m.receiver_id === adminId) ||
+             (m.sender_id === adminId && m.receiver_id === customerId)
+    ))
+  }
+
+  useEffect(() => {
+    fetchMessages()
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [customerId, adminId])
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`support-chat-${customerId}-${adminId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new
+        if (
+          msg.booking_id === null &&
+          ((msg.sender_id === customerId && msg.receiver_id === adminId) ||
+           (msg.sender_id === adminId && msg.receiver_id === customerId))
+        ) {
+          setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+          if (msg.receiver_id === customerId) {
+            supabase.from('messages').update({ is_read: true }).eq('id', msg.id)
+          }
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [customerId, adminId])
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || sending) return
+    setSending(true)
+    setInput('')
+    const optimistic = {
+      id: `optimistic-${Date.now()}`,
+      booking_id: null,
+      sender_id: customerId,
+      receiver_id: adminId,
+      content: text,
+      is_read: false,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimistic])
+    await supabase.from('messages').insert({
+      booking_id: null,
+      sender_id: customerId,
+      receiver_id: adminId,
+      content: text,
+      is_read: false,
+    })
+    setSending(false)
+    inputRef.current?.focus()
+  }
+
+  const fmtTime = (iso) => iso
+    ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    : ''
+
+  return (
+    <div className="support-chat-box">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '1.1rem', padding: '4px 6px', lineHeight: 1, flexShrink: 0 }}>←</button>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <MessageCircle size={17} color="#f97316" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Admin Support</p>
+          <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: 0 }}>Hanap.ph Support Team</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', WebkitOverflowScrolling: 'touch' }}>
+        {messages.length === 0 ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center' }}>No messages yet.<br />Send a message to get help!</p>
+          </div>
+        ) : messages.map((msg) => {
+          const isMine = msg.sender_id === customerId
+          return (
+            <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+              <div style={{ maxWidth: '82%' }}>
+                <div style={{
+                  padding: '8px 12px',
+                  borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                  background: isMine ? '#f97316' : '#f3f4f6',
+                  color: isMine ? '#fff' : '#1f2937',
+                  fontSize: '0.85rem',
+                  lineHeight: 1.5,
+                  wordBreak: 'break-word',
+                }}>
+                  {msg.content}
+                </div>
+                <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
+                  {fmtTime(msg.created_at)}
+                </p>
+              </div>
+            </div>
+          )
+        })}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a message..."
+          style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: '10px', padding: '9px 12px', fontSize: '16px', outline: 'none', color: '#1f2937', minWidth: 0 }}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || sending}
+          style={{ background: input.trim() && !sending ? '#f97316' : '#e5e7eb', border: 'none', borderRadius: '10px', padding: '9px 14px', cursor: input.trim() && !sending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        >
+          <Send size={16} color={input.trim() && !sending ? '#fff' : '#9ca3af'} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Support AI Chat ──────────────────────────────────────────────────────────
+
+const AI_RESPONSES = {
+  'Track my Booking': 'You can track your booking status in the My Bookings tab. Your booking will show its current status: Pending, Accepted, On The Way, In Progress or Completed.',
+  'Cancel a Booking': 'You can cancel a booking from the My Bookings tab. Click on your booking and select Cancel Booking. Note: cancellations may be subject to our cancellation policy.',
+  'Payment Issue': 'For payment concerns, please provide your booking reference number and describe the issue. Our team will review it within 24 hours.',
+  'Review Issue': 'Reviews can be submitted after a booking is completed. If you have an issue with an existing review, please describe it below and we\'ll look into it.',
+  'Rebooking Help': 'You can rebook a completed or cancelled booking from the My Bookings tab. Click the Rebook button on the booking card to get started.',
+  'Report a Tasker': 'We take tasker conduct seriously. Please describe the incident below including your booking reference number and we\'ll investigate within 48 hours.',
+}
+
+function SupportAIChat({ topic, onBack, onTalkToAdmin }) {
+  const [messages, setMessages] = useState([
+    { role: 'bot', content: AI_RESPONSES[topic] }
+  ])
+  const [input, setInput] = useState('')
+  const [thinking, setThinking] = useState(false)
+  const bottomRef = useRef(null)
+  const inputRef = useRef(null)
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  useEffect(() => {
+    setTimeout(() => inputRef.current?.focus(), 100)
+  }, [])
+
+  async function handleSend() {
+    const text = input.trim()
+    if (!text || thinking) return
+    setInput('')
+    const updated = [...messages, { role: 'user', content: text }]
+    setMessages(updated)
+    setThinking(true)
+    try {
+      const history = updated.map((m) => ({
+        role: m.role === 'bot' ? 'assistant' : 'user',
+        content: m.content,
+      }))
+      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          max_tokens: 200,
+          messages: [
+            { role: 'system', content: 'You are a helpful customer support assistant for Hanap.ph, a home services platform in the Philippines. Help customers with their questions about bookings, payments, taskers, and services. Be concise, friendly and helpful.' },
+            ...history,
+          ],
+        }),
+      })
+      const json = await res.json()
+      const reply = json.choices?.[0]?.message?.content?.trim() ?? 'Sorry, I couldn\'t get a response. Please try again or talk to an admin.'
+      setMessages((prev) => [...prev, { role: 'bot', content: reply }])
+    } catch {
+      setMessages((prev) => [...prev, { role: 'bot', content: 'Something went wrong. Please try again or contact admin support.' }])
+    }
+    setThinking(false)
+  }
+
+  return (
+    <div className="support-chat-box">
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 14px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: '1.1rem', padding: '4px 6px', lineHeight: 1, flexShrink: 0 }}>←</button>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Bot size={17} color="#f97316" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.875rem', margin: 0 }}>Hanap.ph Assistant</p>
+          <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Topic: {topic}</p>
+        </div>
+      </div>
+
+      {/* Messages */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '12px', WebkitOverflowScrolling: 'touch' }}>
+        {messages.map((msg, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: '7px', alignItems: 'flex-end' }}>
+            {msg.role === 'bot' && (
+              <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Bot size={13} color="#f97316" />
+              </div>
+            )}
+            <div style={{
+              maxWidth: '82%',
+              padding: '8px 12px',
+              borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+              background: msg.role === 'user' ? '#f97316' : '#f3f4f6',
+              color: msg.role === 'user' ? '#fff' : '#1f2937',
+              fontSize: '0.85rem',
+              lineHeight: 1.55,
+              wordBreak: 'break-word',
+            }}>
+              {msg.content}
+            </div>
+          </div>
+        ))}
+        {thinking && (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '7px' }}>
+            <div style={{ width: 26, height: 26, borderRadius: '50%', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Bot size={13} color="#f97316" />
+            </div>
+            <div style={{ padding: '9px 13px', borderRadius: '16px 16px 16px 4px', background: '#f3f4f6', display: 'flex', gap: '4px', alignItems: 'center' }}>
+              {[0,1,2].map((j) => (
+                <div key={j} style={{ width: 6, height: 6, borderRadius: '50%', background: '#9ca3af', animation: `bounce 1.2s ease-in-out ${j * 0.2}s infinite` }} />
+              ))}
+            </div>
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0 }}>
+        <input
+          ref={inputRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
+          placeholder="Type a follow-up..."
+          style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: '10px', padding: '9px 12px', fontSize: '16px', outline: 'none', color: '#1f2937', minWidth: 0 }}
+        />
+        <button
+          onClick={handleSend}
+          disabled={!input.trim() || thinking}
+          style={{ background: input.trim() && !thinking ? '#f97316' : '#e5e7eb', border: 'none', borderRadius: '10px', padding: '9px 14px', cursor: input.trim() && !thinking ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+        >
+          <Send size={16} color={input.trim() && !thinking ? '#fff' : '#9ca3af'} />
+        </button>
+      </div>
+
+      {/* Escalation */}
+      <div style={{ padding: '0 12px 12px', flexShrink: 0 }}>
+        <button
+          onClick={onTalkToAdmin}
+          style={{ width: '100%', padding: '8px', borderRadius: '10px', border: '1px solid #fdba74', background: '#fff7ed', color: '#f97316', fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+        >
+          <MessageCircle size={13} /> Still need help? Talk to Admin
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Customer Support Tab ─────────────────────────────────────────────────────
+
+const SUPPORT_TOPICS = [
+  { key: 'Track my Booking',  icon: Package,       label: 'Track my Booking' },
+  { key: 'Cancel a Booking',  icon: XCircle,        label: 'Cancel a Booking' },
+  { key: 'Payment Issue',     icon: CreditCard,     label: 'Payment Issue' },
+  { key: 'Review Issue',      icon: Star,           label: 'Review Issue' },
+  { key: 'Rebooking Help',    icon: RefreshCw,      label: 'Rebooking Help' },
+  { key: 'Report a Tasker',   icon: AlertTriangle,  label: 'Report a Tasker' },
+]
+
+function CustomerSupport({ userId }) {
+  const [view, setView] = useState('menu') // 'menu' | 'ai' | 'admin'
+  const [topic, setTopic] = useState(null)
+  const [adminId, setAdminId] = useState(null)
+  const [adminLoading, setAdminLoading] = useState(false)
+
+  async function openAdminChat() {
+    if (adminId) { setView('admin'); return }
+    setAdminLoading(true)
+    const { data } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle()
+    setAdminId(data?.id ?? null)
+    setAdminLoading(false)
+    setView('admin')
+  }
+
+  function selectTopic(key) {
+    setTopic(key)
+    setView('ai')
+  }
+
+  return (
+    <div style={{ maxWidth: 600, margin: '0 auto', width: '100%' }}>
+      <style>{`
+        @keyframes bounce {
+          0%, 80%, 100% { transform: translateY(0); }
+          40% { transform: translateY(-6px); }
+        }
+        .support-chat-box {
+          display: flex;
+          flex-direction: column;
+          height: clamp(420px, 62vh, 520px);
+          background: #fff;
+          border-radius: 16px;
+          border: 1px solid #f3f4f6;
+          overflow: hidden;
+        }
+        .support-topic-btn {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: 12px;
+          cursor: pointer;
+          text-align: left;
+          width: 100%;
+          transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .support-topic-btn:active {
+          border-color: #f97316;
+          box-shadow: 0 0 0 2px rgba(249,115,22,0.12);
+        }
+        @media (hover: hover) {
+          .support-topic-btn:hover {
+            border-color: #f97316;
+            box-shadow: 0 0 0 2px rgba(249,115,22,0.12);
+          }
+        }
+        @media (max-width: 400px) {
+          .support-chat-box {
+            height: clamp(380px, 65vh, 460px);
+            border-radius: 12px;
+          }
+          .support-topic-btn {
+            padding: 10px;
+            gap: 8px;
+          }
+        }
+      `}</style>
+
+      {view === 'menu' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {/* Header card */}
+          <div style={{ background: 'linear-gradient(135deg, #f97316, #fb923c)', borderRadius: '16px', padding: '20px 16px', color: '#fff', textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
+              <Headset size={24} color="#fff" />
+            </div>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 800, margin: '0 0 5px' }}>How can we help you?</h2>
+            <p style={{ fontSize: '0.82rem', opacity: 0.85, margin: 0 }}>Get instant answers or chat with our support team</p>
+          </div>
+
+          {/* Quick reply grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '9px' }}>
+            {SUPPORT_TOPICS.map(({ key, icon: Icon, label }) => (
+              <button
+                key={key}
+                onClick={() => selectTopic(key)}
+                className="support-topic-btn"
+              >
+                <div style={{ width: 32, height: 32, borderRadius: '8px', background: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon size={15} color="#f97316" />
+                </div>
+                <span style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151', lineHeight: 1.3, wordBreak: 'break-word' }}>{label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Talk to Admin button */}
+          <button
+            onClick={openAdminChat}
+            disabled={adminLoading}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '9px', padding: '13px', background: adminLoading ? '#e5e7eb' : '#f97316', border: 'none', borderRadius: '12px', cursor: adminLoading ? 'default' : 'pointer', color: '#fff', fontWeight: 700, fontSize: '0.875rem', touchAction: 'manipulation' }}
+          >
+            <MessageCircle size={17} />
+            {adminLoading ? 'Connecting...' : 'Talk to Admin'}
+          </button>
+        </div>
+      )}
+
+      {view === 'ai' && topic && (
+        <SupportAIChat
+          topic={topic}
+          onBack={() => setView('menu')}
+          onTalkToAdmin={openAdminChat}
+        />
+      )}
+
+      {view === 'admin' && adminId && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <button
+            onClick={() => setView('menu')}
+            style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontWeight: 600, fontSize: '0.85rem', padding: '4px 0', touchAction: 'manipulation' }}
+          >
+            ← Back to Support Menu
+          </button>
+          <SupportInlineChat customerId={userId} adminId={adminId} onBack={() => setView('menu')} />
+        </div>
+      )}
+
+      {view === 'admin' && !adminId && !adminLoading && (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: '#9ca3af' }}>
+          <p style={{ fontWeight: 600 }}>Admin not available right now.</p>
+          <button onClick={() => setView('menu')} style={{ marginTop: 12, color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.875rem' }}>← Back</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CustomerComingSoon() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -1272,10 +1720,7 @@ function Dashboard() {
           )}
 
           {tab === 'support' && (
-            <>
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Contact Support</h2>
-              <CustomerComingSoon />
-            </>
+            <CustomerSupport userId={userId} />
           )}
 
         </div>
