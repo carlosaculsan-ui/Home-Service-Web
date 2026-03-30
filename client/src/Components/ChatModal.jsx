@@ -47,18 +47,31 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
 
   // ── Realtime subscription ───────────────────────────────────────────────────
   useEffect(() => {
+    const channelName = bookingId
+      ? `messages-booking-${bookingId}`
+      : `messages-convo-${[currentUserId, otherUserId].sort().join('-')}`
+
+    const eventConfig = bookingId
+      ? { event: 'INSERT', schema: 'public', table: 'messages', filter: `booking_id=eq.${bookingId}` }
+      : { event: 'INSERT', schema: 'public', table: 'messages' }
+
     const channel = supabase
-      .channel(`messages:booking_id=eq.${bookingId}`)
+      .channel(channelName)
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `booking_id=eq.${bookingId}`,
-        },
+        eventConfig,
         (payload) => {
           const msg = payload.new
+
+          // For support chats (null bookingId), filter client-side to this conversation pair
+          if (!bookingId) {
+            if (msg.booking_id !== null) return
+            const isThisConvo =
+              (msg.sender_id === currentUserId && msg.receiver_id === otherUserId) ||
+              (msg.sender_id === otherUserId && msg.receiver_id === currentUserId)
+            if (!isThisConvo) return
+          }
+
           // Only add if it involves the current user
           if (msg.sender_id === currentUserId || msg.receiver_id === currentUserId) {
             setMessages((prev) => {
@@ -79,7 +92,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
-  }, [bookingId, currentUserId])
+  }, [bookingId, currentUserId, otherUserId])
 
   // ── Auto-scroll on new messages ─────────────────────────────────────────────
   useEffect(() => {

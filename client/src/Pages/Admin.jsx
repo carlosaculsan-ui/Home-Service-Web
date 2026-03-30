@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
-  TrendingUp, DollarSign, Calendar,
+  TrendingUp, DollarSign, Calendar, ChevronRight,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -3399,7 +3399,6 @@ const NAV_ITEMS = [
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
   { key: 'customers',       label: 'Customer Accounts',   icon: Users },
   { key: 'tasker-accounts', label: 'Employee Accounts',   icon: UserCheck },
-  { key: 'applications',    label: 'Applicants',          icon: ClipboardList },
   { key: 'bookings',        label: 'Bookings',            icon: CalendarDays },
   { key: 'services',        label: 'Services',            icon: Wrench },
   { key: 'reviews',         label: 'Reviews',             icon: Star },
@@ -3407,7 +3406,31 @@ const NAV_ITEMS = [
   { key: 'messages',        label: 'Messages',            icon: MessageSquare },
 ]
 
-function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, adminEmail, onLogout, onClose }) {
+  const [subOpen, setSubOpen] = useState(tab === 'dashboard')
+  const closeTimer = useRef(null)
+
+  function handleDashEnter() {
+    if (closeTimer.current) clearTimeout(closeTimer.current)
+    setSubOpen(true)
+  }
+
+  function handleDashLeave() {
+    closeTimer.current = setTimeout(() => setSubOpen(false), 275)
+  }
+
+  const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
+  const empCloseTimer = useRef(null)
+
+  function handleEmpEnter() {
+    if (empCloseTimer.current) clearTimeout(empCloseTimer.current)
+    setEmpSubOpen(true)
+  }
+
+  function handleEmpLeave() {
+    empCloseTimer.current = setTimeout(() => setEmpSubOpen(false), 275)
+  }
+
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -3439,7 +3462,101 @@ function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
+
+        {/* Dashboard with hover subtabs */}
+        <div onMouseEnter={handleDashEnter} onMouseLeave={handleDashLeave}>
+          <button
+            onClick={() => { setTab('dashboard'); onClose?.() }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === 'dashboard'
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <LayoutDashboard size={17} className="flex-shrink-0" />
+            Dashboard
+            <ChevronRight
+              size={14}
+              className="ml-auto flex-shrink-0 transition-transform duration-200"
+              style={{ transform: subOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+
+          {/* Subtab group */}
+          <div
+            style={{
+              maxHeight: subOpen ? '80px' : '0px',
+              overflow: 'hidden',
+              transition: 'max-height 0.2s ease',
+            }}
+          >
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'payroll',  label: 'Payroll'  },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setTab('dashboard'); setDashSubtab(key); onClose?.() }}
+                className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  tab === 'dashboard' && dashSubtab === key
+                    ? 'bg-white/20 text-white font-semibold'
+                    : 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Employee Accounts with hover subtabs */}
+        <div onMouseEnter={handleEmpEnter} onMouseLeave={handleEmpLeave}>
+          <button
+            onClick={() => { setTab('tasker-accounts'); onClose?.() }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === 'tasker-accounts'
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <UserCheck size={17} className="flex-shrink-0" />
+            Employee Accounts
+            <ChevronRight
+              size={14}
+              className="ml-auto flex-shrink-0 transition-transform duration-200"
+              style={{ transform: empSubOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+
+          {/* Subtab group */}
+          <div
+            style={{
+              maxHeight: empSubOpen ? '80px' : '0px',
+              overflow: 'hidden',
+              transition: 'max-height 0.2s ease',
+            }}
+          >
+            {[
+              { key: 'taskers',     label: 'Taskers'     },
+              { key: 'applicants',  label: 'Applicants'  },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setTab('tasker-accounts'); setEmpSubtab(key); onClose?.() }}
+                className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  tab === 'tasker-accounts' && empSubtab === key
+                    ? 'bg-white/20 text-white font-semibold'
+                    : 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* All other nav items */}
+        {NAV_ITEMS.filter((n) => n.key !== 'dashboard' && n.key !== 'tasker-accounts').map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => { setTab(key); onClose?.() }}
@@ -3475,6 +3592,8 @@ function AdminSidebar({ tab, setTab, adminEmail, onLogout, onClose }) {
 
 function Admin() {
   const [tab, setTab] = useState('dashboard')
+  const [dashSubtab, setDashSubtab] = useState('overview')
+  const [empSubtab, setEmpSubtab] = useState('taskers')
   const [bookingFilter, setBookingFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
@@ -3542,7 +3661,11 @@ function Admin() {
     navigate('/')
   }
 
-  const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
+  const activeLabel = tab === 'dashboard'
+    ? (dashSubtab === 'payroll' ? 'Payroll' : 'Overview')
+    : tab === 'tasker-accounts'
+      ? (empSubtab === 'applicants' ? 'Applicants' : 'Taskers')
+      : NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
 
   return (
     <div className="flex min-h-screen">
@@ -3552,6 +3675,10 @@ function Admin() {
         <AdminSidebar
           tab={tab}
           setTab={setTab}
+          dashSubtab={dashSubtab}
+          setDashSubtab={setDashSubtab}
+          empSubtab={empSubtab}
+          setEmpSubtab={setEmpSubtab}
           adminEmail={adminEmail}
           onLogout={handleLogout}
         />
@@ -3568,6 +3695,8 @@ function Admin() {
             <AdminSidebar
               tab={tab}
               setTab={setTab}
+              dashSubtab={dashSubtab}
+              setDashSubtab={setDashSubtab}
               adminEmail={adminEmail}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
@@ -3591,7 +3720,13 @@ function Admin() {
         </div>
 
         {tab === 'dashboard' ? (
-          <DashboardPanel setTab={setTab} setBookingFilter={setBookingFilter} />
+          dashSubtab === 'payroll' ? (
+            <div className="p-6 sm:p-8">
+              <div className="text-gray-500 text-sm">Payroll coming soon</div>
+            </div>
+          ) : (
+            <DashboardPanel setTab={setTab} setBookingFilter={setBookingFilter} />
+          )
         ) : tab === 'calendar' ? (
           <>
           <div className="p-3 sm:p-6 w-full">
@@ -3808,8 +3943,8 @@ function Admin() {
         ) : (
           <div className="w-full px-4 py-8">
             {tab === 'customers'       && <CustomerAccountsPanel />}
-            {tab === 'tasker-accounts' && <TaskerAccountsPanel />}
-            {tab === 'applications'    && <TaskerApplications />}
+            {tab === 'tasker-accounts' && empSubtab === 'taskers'    && <TaskerAccountsPanel />}
+            {tab === 'tasker-accounts' && empSubtab === 'applicants' && <TaskerApplications />}
             {tab === 'bookings'        && <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} />}
             {tab === 'services'        && <ServicesPanel />}
             {tab === 'reviews'         && <ReviewsPanel />}

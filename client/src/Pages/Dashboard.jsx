@@ -443,6 +443,11 @@ function BookingCard({ booking, userId, onCancel }) {
               : '—'],
             ['Task Size',  booking.task_size ?? '—'],
             ['Address',    booking.address ?? '—'],
+            ['Booked on',  booking.created_at
+              ? new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+                ' At ' +
+                new Date(booking.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+              : '—'],
             ['Reference',  booking.reference_number ?? '—'],
           ].map(([label, val]) => (
             <div key={label} className="flex gap-2">
