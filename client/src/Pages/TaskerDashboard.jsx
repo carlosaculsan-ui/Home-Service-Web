@@ -283,6 +283,9 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
           ['Date & Time', booking.scheduled_date
             ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
             : '—'],
+          ['Booked on',  booking.created_at
+            ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
+            : '—'],
           ['Task Size',   getTaskLabel(booking)],
           ['Address',     booking.address ?? '—'],
           ['Reference',   booking.reference_number ?? '—'],
