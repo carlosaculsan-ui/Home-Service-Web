@@ -1122,63 +1122,116 @@ function Step1({ service, onContinue }) {
   const [plumbingUrgency, setPlumbingUrgency] = useState('')
   const [plumbingExtras, setPlumbingExtras] = useState([])
 
-  const BASE_PRICES = {
-    'Basic Cleaning':  { 'Small (1 room)': 750, 'Medium (2-3 rooms)': 1500, 'Large (whole house)': 2250 },
-    'Deep Cleaning':   { 'Small (1 room)': 1200, 'Medium (2-3 rooms)': 2400, 'Large (whole house)': 3600 },
+  const [taskPrices, setTaskPrices] = useState(null)
+  const [pricesFetchError, setPricesFetchError] = useState(false)
+
+  useEffect(() => {
+    supabase.from('task_prices').select('*').then(({ data, error }) => {
+      if (error || !data) { setPricesFetchError(true); setTaskPrices({}); return }
+      const map = {}
+      data.forEach(r => { map[`${r.service_name}:${r.task_size}`] = Number(r.price) })
+      setTaskPrices(map)
+    })
+  }, [])
+
+  function tp(svc, size) {
+    return taskPrices?.[`${svc}:${size}`] ?? 0
   }
-  const EXTRAS_PRICES = { 'With Laundry': 200, 'With Appliances': 250 }
+
+  const BASE_PRICES = {
+    'Basic Cleaning':  {
+      'Small (1 room)':      tp('Cleaning', 'Basic Cleaning - Small (1 room)'),
+      'Medium (2-3 rooms)':  tp('Cleaning', 'Basic Cleaning - Medium (2-3 rooms)'),
+      'Large (whole house)': tp('Cleaning', 'Basic Cleaning - Large (whole house)'),
+    },
+    'Deep Cleaning': {
+      'Small (1 room)':      tp('Cleaning', 'Deep Cleaning - Small (1 room)'),
+      'Medium (2-3 rooms)':  tp('Cleaning', 'Deep Cleaning - Medium (2-3 rooms)'),
+      'Large (whole house)': tp('Cleaning', 'Deep Cleaning - Large (whole house)'),
+    },
+  }
+  const EXTRAS_PRICES = {
+    'With Laundry':    tp('Cleaning', 'Extra - With Laundry'),
+    'With Appliances': tp('Cleaning', 'Extra - With Appliances'),
+  }
 
   const CARPENTRY_ITEMS = {
     'Repair': [
-      { value: 'Door / Window', price: 500 },
-      { value: 'Cabinet / Drawer', price: 450 },
-      { value: 'Table / Chair', price: 400 },
-      { value: 'Bed Frame', price: 550 },
-      { value: 'Ceiling / Wall Panel', price: 600 },
+      { value: 'Door / Window',        price: tp('Carpentry', 'Repair - Door / Window') },
+      { value: 'Cabinet / Drawer',     price: tp('Carpentry', 'Repair - Cabinet / Drawer') },
+      { value: 'Table / Chair',        price: tp('Carpentry', 'Repair - Table / Chair') },
+      { value: 'Bed Frame',            price: tp('Carpentry', 'Repair - Bed Frame') },
+      { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Repair - Ceiling / Wall Panel') },
     ],
     'Install': [
-      { value: 'Door / Window', price: 800 },
-      { value: 'Cabinet', price: 750 },
-      { value: 'Shelves', price: 600 },
-      { value: 'Bed Frame', price: 700 },
-      { value: 'Ceiling / Wall Panel', price: 900 },
+      { value: 'Door / Window',        price: tp('Carpentry', 'Install - Door / Window') },
+      { value: 'Cabinet',              price: tp('Carpentry', 'Install - Cabinet') },
+      { value: 'Shelves',              price: tp('Carpentry', 'Install - Shelves') },
+      { value: 'Bed Frame',            price: tp('Carpentry', 'Install - Bed Frame') },
+      { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Install - Ceiling / Wall Panel') },
     ],
     'Custom Build': [
-      { value: 'Cabinet', price: 2500 },
-      { value: 'Shelves', price: 1500 },
-      { value: 'Table', price: 2000 },
-      { value: 'Bed Frame', price: 3000 },
-      { value: 'Ceiling / Wall Panel', price: 3500 },
+      { value: 'Cabinet',              price: tp('Carpentry', 'Custom Build - Cabinet') },
+      { value: 'Shelves',              price: tp('Carpentry', 'Custom Build - Shelves') },
+      { value: 'Table',                price: tp('Carpentry', 'Custom Build - Table') },
+      { value: 'Bed Frame',            price: tp('Carpentry', 'Custom Build - Bed Frame') },
+      { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Custom Build - Ceiling / Wall Panel') },
     ],
   }
-  const CARPENTRY_EXTRAS_PRICES = { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 }
+  const CARPENTRY_EXTRAS_PRICES = {
+    'Materials Included':       tp('Carpentry', 'Extra - Materials Included'),
+    'Varnishing / Finishing':   tp('Carpentry', 'Extra - Varnishing / Finishing'),
+    'Hauling / Debris Removal': tp('Carpentry', 'Extra - Hauling / Debris Removal'),
+  }
 
   const ELECTRICAL_TYPES = [
-    { value: 'Install Outlet', price: 600 },
-    { value: 'Repair Wiring', price: 800 },
-    { value: 'Install Lights', price: 700 },
+    { value: 'Install Outlet', price: tp('Electrical', 'Install Outlet') },
+    { value: 'Repair Wiring',  price: tp('Electrical', 'Repair Wiring') },
+    { value: 'Install Lights', price: tp('Electrical', 'Install Lights') },
   ]
-  const ELECTRICAL_EXTRAS_PRICES = { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 }
+  const ELECTRICAL_EXTRAS_PRICES = {
+    'Materials Included':       tp('Electrical', 'Extra - Materials Included'),
+    'Additional Outlet/Switch': tp('Electrical', 'Extra - Additional Outlet/Switch'),
+    'Circuit Breaker Check':    tp('Electrical', 'Extra - Circuit Breaker Check'),
+  }
 
   const AIRCON_PRICES = {
-    'Window Type': { 'Cleaning': 500, 'Cleaning + Checkup': 700 },
-    'Split Type':  { 'Cleaning': 700, 'Cleaning + Checkup': 950 },
+    'Window Type': {
+      'Cleaning':           tp('Aircon Maintenance', 'Window Type - Cleaning'),
+      'Cleaning + Checkup': tp('Aircon Maintenance', 'Window Type - Cleaning + Checkup'),
+    },
+    'Split Type': {
+      'Cleaning':           tp('Aircon Maintenance', 'Split Type - Cleaning'),
+      'Cleaning + Checkup': tp('Aircon Maintenance', 'Split Type - Cleaning + Checkup'),
+    },
   }
 
   const PLUMBING_PROBLEMS = [
-    { value: 'Leaking Faucet', price: 500 },
-    { value: 'Clogged Drain',  price: 600 },
-    { value: 'Pipe Repair',    price: 900 },
+    { value: 'Leaking Faucet', price: tp('Plumbing Repair', 'Leaking Faucet') },
+    { value: 'Clogged Drain',  price: tp('Plumbing Repair', 'Clogged Drain') },
+    { value: 'Pipe Repair',    price: tp('Plumbing Repair', 'Pipe Repair') },
   ]
-  const PLUMBING_EXTRAS_PRICES = { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 }
+  const PLUMBING_EXTRAS_PRICES = {
+    'Materials Included':                   tp('Plumbing Repair', 'Extra - Materials Included'),
+    'Multiple Points (2+ faucets/drains)':  tp('Plumbing Repair', 'Extra - Multiple Points (2+ faucets/drains)'),
+    'Waterproofing':                        tp('Plumbing Repair', 'Extra - Waterproofing'),
+  }
 
   const PAINTING_BASE_PRICES = {
-    'Wall':      { 'Small': 800,  'Medium': 1500, 'Large': 2500 },
-    'Ceiling':   { 'Small': 900,  'Medium': 1700, 'Large': 2800 },
-    'Furniture': { 'Small': 600,  'Medium': 1000, 'Large': 1800 },
+    'Wall':      { 'Small': tp('Painting', 'Wall - Small'),      'Medium': tp('Painting', 'Wall - Medium'),      'Large': tp('Painting', 'Wall - Large') },
+    'Ceiling':   { 'Small': tp('Painting', 'Ceiling - Small'),   'Medium': tp('Painting', 'Ceiling - Medium'),   'Large': tp('Painting', 'Ceiling - Large') },
+    'Furniture': { 'Small': tp('Painting', 'Furniture - Small'), 'Medium': tp('Painting', 'Furniture - Medium'), 'Large': tp('Painting', 'Furniture - Large') },
   }
-  const PAINTING_PAINT_COSTS = { 'Small': 500, 'Medium': 1000, 'Large': 1800 }
-  const PAINTING_EXTRAS_PRICES = { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 }
+  const PAINTING_PAINT_COSTS = {
+    'Small':  tp('Painting', 'Paint Cost - Small'),
+    'Medium': tp('Painting', 'Paint Cost - Medium'),
+    'Large':  tp('Painting', 'Paint Cost - Large'),
+  }
+  const PAINTING_EXTRAS_PRICES = {
+    'Primer Coat':           tp('Painting', 'Extra - Primer Coat'),
+    'Two Coats':             tp('Painting', 'Extra - Two Coats'),
+    'Wall Putty / Patching': tp('Painting', 'Extra - Wall Putty / Patching'),
+  }
 
   // Cleaning pricing
   const basePrice = cleaningType && cleaningArea ? BASE_PRICES[cleaningType]?.[cleaningArea] ?? 0 : 0
@@ -1352,6 +1405,14 @@ function Step1({ service, onContinue }) {
   }
 
   const handleContinue = () => {
+    if (taskPrices === null) {
+      setError('Prices are still loading, please wait.')
+      return
+    }
+    if (pricesFetchError) {
+      setError('Could not load prices. Please refresh the page.')
+      return
+    }
     if (!address.trim() || !details.trim()) {
       setError('Please fill in all required fields')
       return
@@ -1617,7 +1678,9 @@ function Step1({ service, onContinue }) {
               ))}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{finalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${finalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
@@ -1726,7 +1789,9 @@ function Step1({ service, onContinue }) {
               ))}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{carpentryFinalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${carpentryFinalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
@@ -1845,7 +1910,9 @@ function Step1({ service, onContinue }) {
               ))}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{electricalFinalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${electricalFinalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
@@ -1978,7 +2045,9 @@ function Step1({ service, onContinue }) {
               )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{airconFinalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${airconFinalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
@@ -2123,7 +2192,9 @@ function Step1({ service, onContinue }) {
               ))}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{paintingFinalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${paintingFinalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
@@ -2242,7 +2313,9 @@ function Step1({ service, onContinue }) {
               ))}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
-                <span className="text-orange-500">₱{plumbingFinalPrice.toLocaleString()}</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${plumbingFinalPrice.toLocaleString()}`}
+                </span>
               </div>
               <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>

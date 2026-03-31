@@ -1729,6 +1729,123 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
 const EMPTY_FORM = { icon: '', title: '', description: '', is_active: true }
 
+function ManagePricesPanel() {
+  const [taskPrices, setTaskPrices] = useState([])
+  const [pricesLoading, setPricesLoading] = useState(true)
+  const [editPriceId, setEditPriceId] = useState(null)
+  const [editPriceValue, setEditPriceValue] = useState('')
+  const [priceToast, setPriceToast] = useState({ msg: '', type: '' })
+
+  async function fetchTaskPrices() {
+    const { data } = await supabase
+      .from('task_prices')
+      .select('*')
+      .order('service_name', { ascending: true })
+      .order('task_size', { ascending: true })
+    setTaskPrices(data ?? [])
+    setPricesLoading(false)
+  }
+
+  async function handlePriceSave(row) {
+    const val = parseFloat(editPriceValue)
+    if (isNaN(val) || val < 0) return
+    const { error } = await supabase
+      .from('task_prices')
+      .update({ price: val, updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+    if (error) {
+      setPriceToast({ msg: 'Failed to update price.', type: 'error' })
+    } else {
+      setTaskPrices((prev) => prev.map((r) => r.id === row.id ? { ...r, price: val } : r))
+      setPriceToast({ msg: 'Price updated successfully.', type: 'success' })
+    }
+    setEditPriceId(null)
+    setTimeout(() => setPriceToast({ msg: '', type: '' }), 3000)
+  }
+
+  useEffect(() => { fetchTaskPrices() }, [])
+
+  return (
+    <div>
+      {priceToast.msg && (
+        <div className={`mb-3 px-4 py-2 rounded-lg text-sm font-medium border ${
+          priceToast.type === 'success'
+            ? 'bg-green-50 text-green-700 border-green-200'
+            : 'bg-red-50 text-red-700 border-red-200'
+        }`}>
+          {priceToast.msg}
+        </div>
+      )}
+      {pricesLoading ? (
+        <div className="flex justify-center py-8">
+          <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Service</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Task Size</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Current Price</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wide">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {taskPrices.map((row) => (
+                <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
+                  <td className="px-4 py-3 text-gray-700 font-medium">{row.service_name}</td>
+                  <td className="px-4 py-3 text-gray-600">{row.task_size}</td>
+                  <td className="px-4 py-3 text-right">
+                    {editPriceId === row.id ? (
+                      <input
+                        type="number"
+                        value={editPriceValue}
+                        onChange={(e) => setEditPriceValue(e.target.value)}
+                        className="w-28 px-2 py-1 border border-orange-400 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        min="0"
+                        step="1"
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="font-medium text-gray-800">₱{Number(row.price).toLocaleString()}</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    {editPriceId === row.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => handlePriceSave(row)}
+                          className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditPriceId(null)}
+                          className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setEditPriceId(row.id); setEditPriceValue(String(row.price)) }}
+                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                      >
+                        Edit
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ServicesPanel() {
   const [services, setServices] = useState([])
   const [loading, setLoading] = useState(true)
@@ -3406,30 +3523,38 @@ const NAV_ITEMS = [
   { key: 'messages',        label: 'Messages',            icon: MessageSquare },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, adminEmail, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, adminEmail, onLogout, onClose }) {
+  // ── Mobile detection ────────────────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth < 768) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // ── Subtab open state ───────────────────────────────────────────────────────
   const [subOpen, setSubOpen] = useState(tab === 'dashboard')
-  const closeTimer = useRef(null)
-
-  function handleDashEnter() {
-    if (closeTimer.current) clearTimeout(closeTimer.current)
-    setSubOpen(true)
-  }
-
-  function handleDashLeave() {
-    closeTimer.current = setTimeout(() => setSubOpen(false), 275)
-  }
-
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
+  const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
+
+  const closeTimer = useRef(null)
   const empCloseTimer = useRef(null)
+  const svcCloseTimer = useRef(null)
 
-  function handleEmpEnter() {
-    if (empCloseTimer.current) clearTimeout(empCloseTimer.current)
-    setEmpSubOpen(true)
-  }
+  // ── Desktop hover handlers ──────────────────────────────────────────────────
+  function handleDashEnter() { if (closeTimer.current) clearTimeout(closeTimer.current); setSubOpen(true) }
+  function handleDashLeave() { closeTimer.current = setTimeout(() => setSubOpen(false), 275) }
 
-  function handleEmpLeave() {
-    empCloseTimer.current = setTimeout(() => setEmpSubOpen(false), 275)
-  }
+  function handleEmpEnter() { if (empCloseTimer.current) clearTimeout(empCloseTimer.current); setEmpSubOpen(true) }
+  function handleEmpLeave() { empCloseTimer.current = setTimeout(() => setEmpSubOpen(false), 275) }
+
+  function handleSvcEnter() { if (svcCloseTimer.current) clearTimeout(svcCloseTimer.current); setSvcSubOpen(true) }
+  function handleSvcLeave() { svcCloseTimer.current = setTimeout(() => setSvcSubOpen(false), 275) }
+
+  // ── Mobile tap handlers (toggle open, close others) ─────────────────────────
+  function handleDashTap() { setSubOpen((v) => !v); setEmpSubOpen(false); setSvcSubOpen(false) }
+  function handleEmpTap()  { setEmpSubOpen((v) => !v); setSubOpen(false); setSvcSubOpen(false) }
+  function handleSvcTap()  { setSvcSubOpen((v) => !v); setSubOpen(false); setEmpSubOpen(false) }
 
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
@@ -3463,10 +3588,13 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
 
-        {/* Dashboard with hover subtabs */}
-        <div onMouseEnter={handleDashEnter} onMouseLeave={handleDashLeave}>
+        {/* Dashboard with subtabs */}
+        <div
+          onMouseEnter={!isMobile ? handleDashEnter : undefined}
+          onMouseLeave={!isMobile ? handleDashLeave : undefined}
+        >
           <button
-            onClick={() => { setTab('dashboard'); onClose?.() }}
+            onClick={isMobile ? handleDashTap : undefined}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
               tab === 'dashboard'
                 ? 'bg-white text-orange-600'
@@ -3482,21 +3610,14 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             />
           </button>
 
-          {/* Subtab group */}
-          <div
-            style={{
-              maxHeight: subOpen ? '80px' : '0px',
-              overflow: 'hidden',
-              transition: 'max-height 0.2s ease',
-            }}
-          >
+          <div style={{ maxHeight: subOpen ? '80px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
             {[
               { key: 'overview', label: 'Overview' },
               { key: 'payroll',  label: 'Payroll'  },
             ].map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => { setTab('dashboard'); setDashSubtab(key); onClose?.() }}
+                onClick={() => { setTab('dashboard'); setDashSubtab(key); setSubOpen(false); onClose?.() }}
                 className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                   tab === 'dashboard' && dashSubtab === key
                     ? 'bg-white/20 text-white font-semibold'
@@ -3509,10 +3630,13 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           </div>
         </div>
 
-        {/* Employee Accounts with hover subtabs */}
-        <div onMouseEnter={handleEmpEnter} onMouseLeave={handleEmpLeave}>
+        {/* Employee Accounts with subtabs */}
+        <div
+          onMouseEnter={!isMobile ? handleEmpEnter : undefined}
+          onMouseLeave={!isMobile ? handleEmpLeave : undefined}
+        >
           <button
-            onClick={() => { setTab('tasker-accounts'); onClose?.() }}
+            onClick={isMobile ? handleEmpTap : undefined}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
               tab === 'tasker-accounts'
                 ? 'bg-white text-orange-600'
@@ -3528,21 +3652,14 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             />
           </button>
 
-          {/* Subtab group */}
-          <div
-            style={{
-              maxHeight: empSubOpen ? '80px' : '0px',
-              overflow: 'hidden',
-              transition: 'max-height 0.2s ease',
-            }}
-          >
+          <div style={{ maxHeight: empSubOpen ? '80px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
             {[
-              { key: 'taskers',     label: 'Taskers'     },
-              { key: 'applicants',  label: 'Applicants'  },
+              { key: 'taskers',    label: 'Taskers'    },
+              { key: 'applicants', label: 'Applicants' },
             ].map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => { setTab('tasker-accounts'); setEmpSubtab(key); onClose?.() }}
+                onClick={() => { setTab('tasker-accounts'); setEmpSubtab(key); setEmpSubOpen(false); onClose?.() }}
                 className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                   tab === 'tasker-accounts' && empSubtab === key
                     ? 'bg-white/20 text-white font-semibold'
@@ -3555,8 +3672,50 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           </div>
         </div>
 
+        {/* Services with subtabs */}
+        <div
+          onMouseEnter={!isMobile ? handleSvcEnter : undefined}
+          onMouseLeave={!isMobile ? handleSvcLeave : undefined}
+        >
+          <button
+            onClick={isMobile ? handleSvcTap : undefined}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === 'services'
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <Wrench size={17} className="flex-shrink-0" />
+            Services
+            <ChevronRight
+              size={14}
+              className="ml-auto flex-shrink-0 transition-transform duration-200"
+              style={{ transform: svcSubOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+
+          <div style={{ maxHeight: svcSubOpen ? '80px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+            {[
+              { key: 'overview', label: 'Overview' },
+              { key: 'prices',   label: 'Prices'   },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setTab('services'); setSvcSubtab(key); setSvcSubOpen(false); onClose?.() }}
+                className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  tab === 'services' && svcSubtab === key
+                    ? 'bg-white/20 text-white font-semibold'
+                    : 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* All other nav items */}
-        {NAV_ITEMS.filter((n) => n.key !== 'dashboard' && n.key !== 'tasker-accounts').map(({ key, label, icon: Icon }) => (
+        {NAV_ITEMS.filter((n) => n.key !== 'dashboard' && n.key !== 'tasker-accounts' && n.key !== 'services').map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => { setTab(key); onClose?.() }}
@@ -3594,6 +3753,7 @@ function Admin() {
   const [tab, setTab] = useState('dashboard')
   const [dashSubtab, setDashSubtab] = useState('overview')
   const [empSubtab, setEmpSubtab] = useState('taskers')
+  const [svcSubtab, setSvcSubtab] = useState('overview')
   const [bookingFilter, setBookingFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
@@ -3665,6 +3825,8 @@ function Admin() {
     ? (dashSubtab === 'payroll' ? 'Payroll' : 'Overview')
     : tab === 'tasker-accounts'
       ? (empSubtab === 'applicants' ? 'Applicants' : 'Taskers')
+      : tab === 'services'
+        ? (svcSubtab === 'prices' ? 'Prices' : 'Services')
       : NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
 
   return (
@@ -3679,6 +3841,8 @@ function Admin() {
           setDashSubtab={setDashSubtab}
           empSubtab={empSubtab}
           setEmpSubtab={setEmpSubtab}
+          svcSubtab={svcSubtab}
+          setSvcSubtab={setSvcSubtab}
           adminEmail={adminEmail}
           onLogout={handleLogout}
         />
@@ -3697,6 +3861,10 @@ function Admin() {
               setTab={setTab}
               dashSubtab={dashSubtab}
               setDashSubtab={setDashSubtab}
+              empSubtab={empSubtab}
+              setEmpSubtab={setEmpSubtab}
+              svcSubtab={svcSubtab}
+              setSvcSubtab={setSvcSubtab}
               adminEmail={adminEmail}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
@@ -3946,7 +4114,8 @@ function Admin() {
             {tab === 'tasker-accounts' && empSubtab === 'taskers'    && <TaskerAccountsPanel />}
             {tab === 'tasker-accounts' && empSubtab === 'applicants' && <TaskerApplications />}
             {tab === 'bookings'        && <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} />}
-            {tab === 'services'        && <ServicesPanel />}
+            {tab === 'services' && svcSubtab === 'overview' && <ServicesPanel />}
+            {tab === 'services' && svcSubtab === 'prices'   && <ManagePricesPanel />}
             {tab === 'reviews'         && <ReviewsPanel />}
             {tab === 'leave-requests'  && <LeaveRequestsPanel />}
             {tab === 'messages'        && <AdminMessagesPanel adminUserId={adminUserId} />}
