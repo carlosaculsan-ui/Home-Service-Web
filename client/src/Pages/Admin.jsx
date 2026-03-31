@@ -2690,20 +2690,16 @@ function PayrollPanel() {
 
     const [year, month] = period.split('-').map(Number)
 
-    // Fetch ALL completed bookings — filter by date client-side so that bookings
-    // with a null scheduled_date (filtered by created_at fallback) are not dropped.
+    // Fetch ALL completed bookings — filter by date client-side
     const { data: allBookings } = await supabase
       .from('bookings')
-      .select('id, tasker_id, estimated_total, platform_fee, scheduled_date, created_at')
+      .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, scheduled_date')
       .eq('status', 'completed')
 
-    // Filter to the selected month using scheduled_date when present, created_at otherwise
+    // Filter to the selected month using scheduled_date only
     const bookings = (allBookings ?? []).filter(b => {
-      const raw = b.scheduled_date
-        ? b.scheduled_date + 'T00:00:00'
-        : b.created_at
-      if (!raw) return false
-      const d = new Date(raw)
+      if (!b.scheduled_date) return false
+      const d = new Date(b.scheduled_date + 'T00:00:00')
       return d.getFullYear() === year && d.getMonth() + 1 === month
     })
 
@@ -2731,8 +2727,8 @@ function PayrollPanel() {
         agg[b.tasker_id] = { tasker_id: b.tasker_id, name: nameMap[b.tasker_id] ?? '—', photo: photoMap[b.tasker_id] ?? null, jobs: 0, gross: 0, platform_cut: 0, payout: 0 }
       }
       const gross        = Number(b.estimated_total) || 0
-      const platformCut  = Number(b.platform_fee)    || Math.round(gross * 0.3)
-      const taskerPayout = gross - platformCut
+      const platformCut  = Number(b.platform_fee)    || 0
+      const taskerPayout = Number(b.tasker_payout)   || 0
       agg[b.tasker_id].jobs         += 1
       agg[b.tasker_id].gross        += gross
       agg[b.tasker_id].platform_cut += platformCut
