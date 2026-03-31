@@ -1123,16 +1123,6 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
     if (!text || sending) return
     setSending(true)
     setInput('')
-    const optimistic = {
-      id: `optimistic-${Date.now()}`,
-      booking_id: null,
-      sender_id: customerId,
-      receiver_id: adminId,
-      content: text,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, optimistic])
     await supabase.from('messages').insert({
       booking_id: null,
       sender_id: customerId,

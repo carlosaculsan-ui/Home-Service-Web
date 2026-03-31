@@ -2671,6 +2671,229 @@ function LeaveRequestsPanel() {
   )
 }
 
+// ─── Payroll Panel ───────────────────────────────────────────────────────────
+
+function PayrollPanel() {
+  const now = new Date()
+  const [period, setPeriod] = useState(
+    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  )
+  const [rows, setRows] = useState([])       // per-tasker aggregated rows
+  const [payRecords, setPayRecords] = useState({}) // { tasker_id: payroll_record }
+  const [loading, setLoading] = useState(false)
+  const [toast, setToast] = useState('')
+
+  useEffect(() => { fetchPayroll() }, [period])
+
+  async function fetchPayroll() {
+    setLoading(true)
+
+    const [year, month] = period.split('-').map(Number)
+
+    // Fetch ALL completed bookings — filter by date client-side so that bookings
+    // with a null scheduled_date (filtered by created_at fallback) are not dropped.
+    const { data: allBookings } = await supabase
+      .from('bookings')
+      .select('id, tasker_id, estimated_total, platform_fee, scheduled_date, created_at')
+      .eq('status', 'completed')
+
+    // Filter to the selected month using scheduled_date when present, created_at otherwise
+    const bookings = (allBookings ?? []).filter(b => {
+      const raw = b.scheduled_date
+        ? b.scheduled_date + 'T00:00:00'
+        : b.created_at
+      if (!raw) return false
+      const d = new Date(raw)
+      return d.getFullYear() === year && d.getMonth() + 1 === month
+    })
+
+    if (bookings.length === 0) {
+      setRows([])
+      setPayRecords({})
+      setLoading(false)
+      return
+    }
+
+    // Fetch tasker names + profile photos for the IDs present
+    const taskerIds = [...new Set(bookings.map(b => b.tasker_id).filter(Boolean))]
+    const { data: taskers } = await supabase
+      .from('taskers')
+      .select('id, name, profile_photo')
+      .in('id', taskerIds)
+    const nameMap  = Object.fromEntries((taskers ?? []).map(t => [t.id, t.name]))
+    const photoMap = Object.fromEntries((taskers ?? []).map(t => [t.id, t.profile_photo]))
+
+    // Aggregate per tasker
+    const agg = {}
+    for (const b of bookings) {
+      if (!b.tasker_id) continue
+      if (!agg[b.tasker_id]) {
+        agg[b.tasker_id] = { tasker_id: b.tasker_id, name: nameMap[b.tasker_id] ?? '—', photo: photoMap[b.tasker_id] ?? null, jobs: 0, gross: 0, platform_cut: 0, payout: 0 }
+      }
+      const gross        = Number(b.estimated_total) || 0
+      const platformCut  = Number(b.platform_fee)    || Math.round(gross * 0.3)
+      const taskerPayout = gross - platformCut
+      agg[b.tasker_id].jobs         += 1
+      agg[b.tasker_id].gross        += gross
+      agg[b.tasker_id].platform_cut += platformCut
+      agg[b.tasker_id].payout       += taskerPayout
+    }
+
+    // Fetch existing payroll_records for this period
+    const { data: records } = await supabase
+      .from('payroll_records')
+      .select('*')
+      .eq('period', period)
+      .in('tasker_id', taskerIds)
+    const recMap = Object.fromEntries((records ?? []).map(r => [r.tasker_id, r]))
+
+    setRows(Object.values(agg).sort((a, b) => a.name.localeCompare(b.name)))
+    setPayRecords(recMap)
+    setLoading(false)
+  }
+
+  async function markAsPaid(row) {
+    const { data, error } = await supabase
+      .from('payroll_records')
+      .upsert({
+        tasker_id:    row.tasker_id,
+        period,
+        total_jobs:   row.jobs,
+        gross_amount: row.gross,
+        platform_cut: row.platform_cut,
+        tasker_payout: row.payout,
+        is_paid:      true,
+        paid_at:      new Date().toISOString(),
+      }, { onConflict: 'tasker_id,period' })
+      .select()
+      .single()
+
+    if (error) { setToast('Failed to mark as paid.'); setTimeout(() => setToast(''), 3000); return }
+
+    setPayRecords(prev => ({ ...prev, [row.tasker_id]: data }))
+    setToast(`${row.name} marked as paid.`)
+    setTimeout(() => setToast(''), 3000)
+  }
+
+  const totalJobs     = rows.reduce((s, r) => s + r.jobs, 0)
+  const totalGross    = rows.reduce((s, r) => s + r.gross, 0)
+  const totalPlatform = rows.reduce((s, r) => s + r.platform_cut, 0)
+  const totalPayout   = rows.reduce((s, r) => s + r.payout, 0)
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6">
+
+      {/* Header row */}
+      <div className="flex items-center gap-4 flex-wrap">
+        <h2 className="text-xl font-bold text-gray-800">Payroll</h2>
+        <input
+          type="month"
+          value={period}
+          onChange={e => { if (e.target.value) setPeriod(e.target.value) }}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+        />
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="px-4 py-2 rounded-lg text-sm font-medium bg-green-50 border border-green-200 text-green-700">
+          {toast}
+        </div>
+      )}
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          { label: 'Total Taskers',      value: rows.length,                              fmt: v => v },
+          { label: 'Total Jobs',         value: totalJobs,                                fmt: v => v },
+          { label: 'Total Payouts',      value: totalPayout,                              fmt: v => `₱${v.toLocaleString()}` },
+          { label: 'Platform Earnings',  value: totalPlatform,                            fmt: v => `₱${v.toLocaleString()}` },
+        ].map(({ label, value, fmt }) => (
+          <div key={label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <p className="text-xs text-gray-400 font-medium mb-1">{label}</p>
+            <p className="text-2xl font-bold text-gray-800">{fmt(value)}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Table */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center text-gray-400 text-sm">
+          No completed bookings for this period.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+          <table className="w-full text-sm min-w-[700px]">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <th className="px-4 py-3 text-left">Tasker Name</th>
+                <th className="px-4 py-3 text-right">Completed Jobs</th>
+                <th className="px-4 py-3 text-right">Total Earnings</th>
+                <th className="px-4 py-3 text-right">Platform Cut (30%)</th>
+                <th className="px-4 py-3 text-right">Tasker Payout (70%)</th>
+                <th className="px-4 py-3 text-center">Status</th>
+                <th className="px-4 py-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(row => {
+                const rec = payRecords[row.tasker_id]
+                const paid = rec?.is_paid === true
+                return (
+                  <tr key={row.tasker_id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        {row.photo ? (
+                          <img src={row.photo} alt={row.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                            {row.name.charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="font-medium text-gray-800">{row.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right text-gray-600">{row.jobs}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">₱{row.gross.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-red-500">₱{row.platform_cut.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-green-600">₱{row.payout.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-center">
+                      {paid ? (
+                        <span className="inline-flex flex-col items-center gap-0.5">
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(rec.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">Unpaid</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {!paid && (
+                        <button
+                          onClick={() => markAsPaid(row)}
+                          className="px-3 py-1 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                        >
+                          Mark as Paid
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Dashboard Panel ─────────────────────────────────────────────────────────
 
 function DashboardPanel({ setTab, setBookingFilter }) {
@@ -3222,16 +3445,6 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
     if (!text || sending) return
     setSending(true)
     setInput('')
-    const optimistic = {
-      id: `optimistic-${Date.now()}`,
-      booking_id: null,
-      sender_id: adminUserId,
-      receiver_id: otherUserId,
-      content: text,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, optimistic])
     await supabase.from('messages').insert({
       booking_id: null,
       sender_id: adminUserId,
@@ -3889,9 +4102,7 @@ function Admin() {
 
         {tab === 'dashboard' ? (
           dashSubtab === 'payroll' ? (
-            <div className="p-6 sm:p-8">
-              <div className="text-gray-500 text-sm">Payroll coming soon</div>
-            </div>
+            <PayrollPanel />
           ) : (
             <DashboardPanel setTab={setTab} setBookingFilter={setBookingFilter} />
           )

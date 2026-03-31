@@ -1636,16 +1636,6 @@ function ContactAdminChat({ taskerUserId }) {
     if (!text || sending || !adminUserId) return
     setSending(true)
     setInput('')
-    const optimistic = {
-      id: `optimistic-${Date.now()}`,
-      booking_id: null,
-      sender_id: taskerUserId,
-      receiver_id: adminUserId,
-      content: text,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, optimistic])
     await supabase.from('messages').insert({
       booking_id: null,
       sender_id: taskerUserId,

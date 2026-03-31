@@ -106,17 +106,6 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     setSending(true)
     setInput('')
 
-    const optimistic = {
-      id: `optimistic-${Date.now()}`,
-      booking_id: bookingId,
-      sender_id: currentUserId,
-      receiver_id: otherUserId,
-      content: text,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    }
-    setMessages((prev) => [...prev, optimistic])
-
     await supabase.from('messages').insert({
       booking_id: bookingId,
       sender_id: currentUserId,
