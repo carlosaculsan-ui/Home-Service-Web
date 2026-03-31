@@ -22,7 +22,7 @@ const LEAVE_STATUS_STYLES = {
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
-  confirmed:   'bg-blue-100 text-blue-700',
+  accept:   'bg-blue-100 text-blue-700',
   accepted:    'bg-green-100 text-green-700',
   on_the_way:  'bg-blue-100 text-blue-700',
   in_progress: 'bg-orange-100 text-orange-700',
@@ -188,6 +188,57 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [unreadCount, setUnreadCount] = useState(0)
   const [showProposeModal, setShowProposeModal] = useState(false)
   const [toast, setToast] = useState('')
+  const [sharingLocation, setSharingLocation] = useState(false)
+  const watchIdRef = useRef(null)
+  const locationChannelRef = useRef(null)
+
+  function startLocationSharing() {
+    if (!navigator.geolocation) return
+    navigator.geolocation.getCurrentPosition(
+      () => {
+        // Permission granted — start watching
+        const channel = supabase.channel(`tasker-location-${booking.id}`)
+        channel.subscribe()
+        locationChannelRef.current = channel
+
+        const watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const { latitude: lat, longitude: lng } = pos.coords
+            // Broadcast to Realtime
+            channel.send({ type: 'broadcast', event: 'location', payload: { lat, lng } })
+            // Persist to DB
+            supabase.from('bookings').update({ tasker_lat: lat, tasker_lng: lng }).eq('id', booking.id)
+          },
+          () => {},
+          { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+        )
+        watchIdRef.current = watchId
+        setSharingLocation(true)
+      },
+      () => {
+        alert('Location permission is required to share your location with the customer.')
+      }
+    )
+  }
+
+  function stopLocationSharing() {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+    if (locationChannelRef.current) {
+      supabase.removeChannel(locationChannelRef.current)
+      locationChannelRef.current = null
+    }
+    setSharingLocation(false)
+  }
+
+  // Stop sharing if booking moves away from on_the_way
+  useEffect(() => {
+    if (booking.status !== 'on_the_way' && sharingLocation) {
+      stopLocationSharing()
+    }
+  }, [booking.status])
 
   function handleProposeSent() {
     setShowProposeModal(false)
@@ -241,6 +292,8 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       setStatusError('Failed to update status. Try again.')
       return
     }
+    if (newStatus === 'on_the_way') startLocationSharing()
+    if (newStatus === 'in_progress') stopLocationSharing()
     onStatusChange()
   }
 
@@ -407,6 +460,18 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
           >
             {actionLoading === 'completed' ? 'Updating…' : <span className="flex items-center gap-1"><CheckCircle2 size={15} />Complete Job</span>}
+          </button>
+        </div>
+      )}
+
+      {sharingLocation && (
+        <div className="flex items-center justify-between gap-3 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+          <span>📍 Your location is being shared with the customer</span>
+          <button
+            onClick={stopLocationSharing}
+            className="text-xs font-semibold text-green-700 underline hover:text-green-900 flex-shrink-0"
+          >
+            Stop Sharing
           </button>
         </div>
       )}

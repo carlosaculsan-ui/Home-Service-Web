@@ -6,6 +6,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
+import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import L from 'leaflet'
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
@@ -220,6 +222,174 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
   )
 }
 
+// ─── Track Tasker Map ────────────────────────────────────────────────────────
+
+function LiveMapContent({ taskerPos, customerPos }) {
+  const map = useMap()
+  const taskerMarkerRef = useRef(null)
+  const customerMarkerRef = useRef(null)
+  const polylineRef = useRef(null)
+
+  useEffect(() => {
+    if (!customerPos) return
+
+    // Customer (house) marker — orange house emoji
+    if (!customerMarkerRef.current) {
+      const icon = L.divIcon({ html: '🏠', className: '', iconSize: [28, 28], iconAnchor: [14, 14] })
+      customerMarkerRef.current = L.marker(customerPos, { icon }).addTo(map)
+        .bindPopup('Your location')
+    }
+
+    // Tasker (red circle) marker
+    if (taskerPos) {
+      if (!taskerMarkerRef.current) {
+        const icon = L.divIcon({
+          html: '<div style="width:16px;height:16px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
+          className: '',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        })
+        taskerMarkerRef.current = L.marker(taskerPos, { icon }).addTo(map)
+          .bindPopup('Tasker location')
+      } else {
+        taskerMarkerRef.current.setLatLng(taskerPos)
+      }
+
+      // Polyline
+      if (!polylineRef.current) {
+        polylineRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
+      } else {
+        polylineRef.current.setLatLngs([taskerPos, customerPos])
+      }
+
+      map.fitBounds([taskerPos, customerPos], { padding: [50, 50] })
+    } else {
+      map.setView(customerPos, 15)
+    }
+  }, [taskerPos, customerPos])
+
+  return null
+}
+
+function TrackTaskerModal({ booking, onClose, onArrived }) {
+  const [customerPos, setCustomerPos] = useState(null)
+  const [taskerPos, setTaskerPos] = useState(
+    booking.tasker_lat && booking.tasker_lng
+      ? [Number(booking.tasker_lat), Number(booking.tasker_lng)]
+      : null
+  )
+
+  // Geocode customer address
+  useEffect(() => {
+    if (!booking.address) return
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(booking.address)}&countrycodes=ph`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+      })
+      .catch(() => {})
+  }, [booking.address])
+
+  // Realtime: live tasker location + status change to in_progress
+  useEffect(() => {
+    const locationChannel = supabase
+      .channel(`tasker-location-${booking.id}`)
+      .on('broadcast', { event: 'location' }, ({ payload }) => {
+        if (payload?.lat && payload?.lng) setTaskerPos([payload.lat, payload.lng])
+      })
+      .subscribe()
+
+    const statusChannel = supabase
+      .channel(`track-booking-status-${booking.id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'bookings',
+        filter: `id=eq.${booking.id}`,
+      }, (payload) => {
+        if (payload.new?.status === 'in_progress') {
+          onArrived()
+          onClose()
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(locationChannel)
+      supabase.removeChannel(statusChannel)
+    }
+  }, [booking.id])
+
+  const mapCenter = taskerPos ?? customerPos ?? [14.5995, 120.9842]
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000 }}
+        onClick={onClose}
+      />
+      {/* Modal */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div
+          style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%', maxWidth: '520px', overflow: 'hidden' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6' }}>
+            <p style={{ fontWeight: 700, fontSize: '16px', color: '#1f2937' }}>
+              🔴 {booking.taskerName ?? 'Your tasker'} is on the way!
+            </p>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+              Live location updates automatically
+            </p>
+          </div>
+
+          {/* Map */}
+          <div style={{ height: '340px', position: 'relative' }}>
+            {!customerPos && !taskerPos ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', border: '4px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <p style={{ fontSize: '13px', color: '#9ca3af' }}>Locating positions…</p>
+              </div>
+            ) : (
+              <MapContainer
+                center={mapCenter}
+                zoom={14}
+                style={{ height: '100%', width: '100%', zIndex: 1 }}
+                zoomControl={true}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
+                <LiveMapContent taskerPos={taskerPos} customerPos={customerPos} />
+              </MapContainer>
+            )}
+          </div>
+
+          {/* Legend */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '10px 20px', borderTop: '1px solid #f3f4f6', fontSize: '12px', color: '#6b7280' }}>
+            <span>🔴 Tasker</span>
+            <span>🏠 Your location</span>
+            {!taskerPos && <span style={{ color: '#f97316' }}>Waiting for tasker to start sharing…</span>}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '12px 20px', borderTop: '1px solid #f3f4f6' }}>
+            <button
+              onClick={onClose}
+              style={{ width: '100%', padding: '10px', background: '#f3f4f6', border: 'none', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function BookingCard({ booking, userId, onCancel }) {
   const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
@@ -233,6 +403,7 @@ function BookingCard({ booking, userId, onCancel }) {
   const [selectedProposedDate, setSelectedProposedDate] = useState(null)
   const [proposalLoading, setProposalLoading] = useState(null)
   const [toast, setToast] = useState('')
+  const [showTrackModal, setShowTrackModal] = useState(false)
 
   const proposedDates = (() => {
     try { return JSON.parse(booking.proposed_dates) } catch { return [] }
@@ -381,6 +552,17 @@ function BookingCard({ booking, userId, onCancel }) {
         />
       )}
 
+      {showTrackModal && (
+        <TrackTaskerModal
+          booking={booking}
+          onClose={() => setShowTrackModal(false)}
+          onArrived={() => {
+            setToast('Your tasker has arrived!')
+            setTimeout(() => setToast(''), 4000)
+          }}
+        />
+      )}
+
       {toast && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
           {toast}
@@ -458,9 +640,18 @@ function BookingCard({ booking, userId, onCancel }) {
         </div>
 
         {booking.status === 'on_the_way' && (
-          <div className="flex items-center gap-2 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2">
-            <MapPin size={16} />
-            <span>Your tasker is heading to your location</span>
+          <div className="flex items-center justify-between gap-3 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <MapPin size={16} />
+              <span>Your tasker is heading to your location</span>
+            </div>
+            <button
+              onClick={() => setShowTrackModal(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-orange-500 border border-orange-400 hover:bg-orange-50 px-3 py-1 rounded-lg transition-colors flex-shrink-0"
+            >
+              <MapPin size={13} />
+              Track Tasker
+            </button>
           </div>
         )}
 
