@@ -898,9 +898,17 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-4">Your Tasker</p>
         <div className="flex gap-4 mb-4">
-          <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
-            <User size={28} />
-          </div>
+          {tasker?.profile_photo ? (
+            <img
+              src={tasker.profile_photo.startsWith('http') ? tasker.profile_photo : supabase.storage.from('tasker-files').getPublicUrl(tasker.profile_photo).data.publicUrl}
+              alt={tasker.name}
+              className="w-14 h-14 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-14 h-14 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+              <User size={28} />
+            </div>
+          )}
           <div>
             <p className="font-bold text-gray-800 text-base leading-tight">{tasker?.name}</p>
             <p className="text-sm text-orange-500 font-medium">{tasker?.role}</p>
@@ -2833,20 +2841,27 @@ function Booking() {
       if (error) {
         setTaskersError(true)
       } else {
-        const { data: completedBookings } = await supabase
-          .from('bookings')
-          .select('tasker_id')
-          .eq('status', 'completed')
+        const taskerIds = data.map(t => t.id)
+        const [{ data: completedBookings }, { data: reviewsData }] = await Promise.all([
+          supabase.from('bookings').select('tasker_id').eq('status', 'completed'),
+          supabase.from('reviews').select('tasker_id, rating').in('tasker_id', taskerIds).eq('is_hidden', false).eq('is_flagged', false),
+        ])
         const taskCountMap = {}
         completedBookings?.forEach(b => {
           taskCountMap[b.tasker_id] = (taskCountMap[b.tasker_id] || 0) + 1
+        })
+        const reviewCountMap = {}
+        const reviewSumMap = {}
+        reviewsData?.forEach(r => {
+          reviewCountMap[r.tasker_id] = (reviewCountMap[r.tasker_id] || 0) + 1
+          reviewSumMap[r.tasker_id]   = (reviewSumMap[r.tasker_id]   || 0) + (r.rating ?? 0)
         })
         setTaskers(data.map((t) => ({
           id: t.id,
           name: t.name,
           role: t.role,
-          rating: t.rating,
-          reviews: t.reviews_count,
+          rating: reviewCountMap[t.id] ? reviewSumMap[t.id] / reviewCountMap[t.id] : 0,
+          reviews: reviewCountMap[t.id] ?? 0,
           tasks: taskCountMap[t.id] || 0,
           price: `₱${t.hourly_rate}/hr`,
           bio: t.bio,
