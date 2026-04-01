@@ -1675,6 +1675,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ['Tasker',    b.taskerName],
                   ['Client',    b.customer_name || b.clientEmail],
                   ['Date',      formatBookingDate(b.scheduled_date, b.scheduled_time)],
+                  ['Booked on', b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ['Task',      getTaskLabel(b)],
                   ['Address',   b.address],
                 ].map(([label, val]) => (
@@ -1735,6 +1736,7 @@ function ManagePricesPanel() {
   const [editPriceId, setEditPriceId] = useState(null)
   const [editPriceValue, setEditPriceValue] = useState('')
   const [priceToast, setPriceToast] = useState({ msg: '', type: '' })
+  const [priceSearch, setPriceSearch] = useState('')
 
   async function fetchTaskPrices() {
     const { data } = await supabase
@@ -1776,11 +1778,28 @@ function ManagePricesPanel() {
           {priceToast.msg}
         </div>
       )}
+      <div className="mb-3">
+        <input
+          type="text"
+          value={priceSearch}
+          onChange={e => setPriceSearch(e.target.value)}
+          placeholder="Search by service or task size..."
+          className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+        />
+      </div>
       {pricesLoading ? (
         <div className="flex justify-center py-8">
           <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : (
+      ) : (() => {
+        const q = priceSearch.toLowerCase()
+        const filtered = taskPrices.filter(r =>
+          r.service_name?.toLowerCase().includes(q) ||
+          r.task_size?.toLowerCase().includes(q)
+        )
+        return filtered.length === 0 ? (
+          <p className="text-center text-gray-400 py-10 text-sm">No results found.</p>
+        ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
           <table className="w-full text-sm min-w-[540px]">
             <thead>
@@ -1792,7 +1811,7 @@ function ManagePricesPanel() {
               </tr>
             </thead>
             <tbody>
-              {taskPrices.map((row) => (
+              {filtered.map((row) => (
                 <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
                   <td className="px-4 py-3 text-gray-700 font-medium">{row.service_name}</td>
                   <td className="px-4 py-3 text-gray-600">{row.task_size}</td>
@@ -1841,7 +1860,8 @@ function ManagePricesPanel() {
             </tbody>
           </table>
         </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
@@ -2822,69 +2842,137 @@ function PayrollPanel() {
           No completed bookings for this period.
         </div>
       ) : (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-          <table className="w-full text-sm min-w-[700px]">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                <th className="px-4 py-3 text-left">Tasker Name</th>
-                <th className="px-4 py-3 text-right">Completed Jobs</th>
-                <th className="px-4 py-3 text-right">Total Earnings</th>
-                <th className="px-4 py-3 text-right">Platform Cut (30%)</th>
-                <th className="px-4 py-3 text-right">Tasker Payout (70%)</th>
-                <th className="px-4 py-3 text-center">Status</th>
-                <th className="px-4 py-3 text-center">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => {
-                const rec = payRecords[row.tasker_id]
-                const paid = rec?.is_paid === true
-                return (
-                  <tr key={row.tasker_id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {row.photo ? (
-                          <img src={row.photo} alt={row.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
-                            {row.name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <span className="font-medium text-gray-800">{row.name}</span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-right text-gray-600">{row.jobs}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">₱{row.gross.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-red-500">₱{row.platform_cut.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-green-600">₱{row.payout.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-center">
-                      {paid ? (
-                        <span className="inline-flex flex-col items-center gap-0.5">
-                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
-                          <span className="text-xs text-gray-400">
-                            {new Date(rec.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </span>
+        <>
+          {/* Mobile cards */}
+          <div className="flex flex-col gap-3 md:hidden">
+            {rows.map(row => {
+              const rec = payRecords[row.tasker_id]
+              const paid = rec?.is_paid === true
+              return (
+                <div key={row.tasker_id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3">
+                  {/* Tasker identity + status */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
+                      {row.photo ? (
+                        <img src={row.photo} alt={row.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">Unpaid</span>
+                        <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                          {row.name.charAt(0).toUpperCase()}
+                        </div>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {!paid && (
-                        <button
-                          onClick={() => markAsPaid(row)}
-                          className="px-3 py-1 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
-                        >
-                          Mark as Paid
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <span className="font-semibold text-gray-800 truncate">{row.name}</span>
+                    </div>
+                    {paid ? (
+                      <span className="inline-flex flex-col items-center gap-0.5 flex-shrink-0">
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
+                        <span className="text-xs text-gray-400">
+                          {new Date(rec.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600 flex-shrink-0">Unpaid</span>
+                    )}
+                  </div>
+                  {/* Stats grid */}
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-gray-50 rounded-lg px-2 py-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Jobs</p>
+                      <p className="text-sm font-bold text-gray-800">{row.jobs}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg px-2 py-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Earnings</p>
+                      <p className="text-sm font-bold text-gray-700">₱{row.gross.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg px-2 py-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Platform</p>
+                      <p className="text-sm font-bold text-red-500">₱{row.platform_cut.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  {/* Payout + action */}
+                  <div className="flex items-center justify-between pt-1 border-t border-gray-50">
+                    <div>
+                      <p className="text-xs text-gray-400">Tasker Payout</p>
+                      <p className="text-base font-bold text-green-600">₱{row.payout.toLocaleString()}</p>
+                    </div>
+                    {!paid && (
+                      <button
+                        onClick={() => markAsPaid(row)}
+                        className="px-4 py-1.5 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                      >
+                        Mark as Paid
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Desktop table */}
+          <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
+            <table className="w-full text-sm min-w-[700px]">
+              <thead>
+                <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="px-4 py-3 text-left">Tasker Name</th>
+                  <th className="px-4 py-3 text-right">Completed Jobs</th>
+                  <th className="px-4 py-3 text-right">Total Earnings</th>
+                  <th className="px-4 py-3 text-right">Platform Cut (30%)</th>
+                  <th className="px-4 py-3 text-right">Tasker Payout (70%)</th>
+                  <th className="px-4 py-3 text-center">Status</th>
+                  <th className="px-4 py-3 text-center">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(row => {
+                  const rec = payRecords[row.tasker_id]
+                  const paid = rec?.is_paid === true
+                  return (
+                    <tr key={row.tasker_id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {row.photo ? (
+                            <img src={row.photo} alt={row.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="w-8 h-8 rounded-full bg-orange-100 text-orange-500 flex items-center justify-center text-xs font-bold flex-shrink-0">
+                              {row.name.charAt(0).toUpperCase()}
+                            </div>
+                          )}
+                          <span className="font-medium text-gray-800">{row.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-600">{row.jobs}</td>
+                      <td className="px-4 py-3 text-right text-gray-700">₱{row.gross.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-red-500">₱{row.platform_cut.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-green-600">₱{row.payout.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-center">
+                        {paid ? (
+                          <span className="inline-flex flex-col items-center gap-0.5">
+                            <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
+                            <span className="text-xs text-gray-400">
+                              {new Date(rec.paid_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-orange-100 text-orange-600">Unpaid</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {!paid && (
+                          <button
+                            onClick={() => markAsPaid(row)}
+                            className="px-3 py-1 text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white rounded-lg transition-colors"
+                          >
+                            Mark as Paid
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )
