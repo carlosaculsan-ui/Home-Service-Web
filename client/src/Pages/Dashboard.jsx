@@ -620,9 +620,15 @@ function BookingCard({ booking, userId, onCancel }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
           {[
             ['Tasker',     booking.taskerName ?? '—'],
-            ['Date & Time', booking.scheduled_date
-              ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
-              : '—'],
+            ['Date & Time', (() => {
+              if (!booking.scheduled_date) return '—'
+              const d = new Date(booking.scheduled_date + 'T00:00:00')
+              const datePart = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+              if (!booking.scheduled_time) return datePart
+              const [h, m] = booking.scheduled_time.split(':')
+              const t = new Date(); t.setHours(+h, +m)
+              return `${datePart} at ${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+            })()],
             ['Task Size',  booking.task_size ?? '—'],
             ['Address',    booking.address ?? '—'],
             ['Booked on',  booking.created_at

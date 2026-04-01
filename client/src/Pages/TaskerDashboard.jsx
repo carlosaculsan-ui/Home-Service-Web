@@ -333,9 +333,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
         {[
-          ['Date & Time', booking.scheduled_date
-            ? `${booking.scheduled_date}${booking.scheduled_time ? ' at ' + booking.scheduled_time : ''}`
-            : '—'],
+          ['Date & Time', fmtHistoryDate(booking.scheduled_date, booking.scheduled_time)],
           ['Booked on',  booking.created_at
             ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
             : '—'],
@@ -2070,6 +2068,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
                     ['Duration',   b.duration_hours ? `${b.duration_hours} hr${b.duration_hours !== 1 ? 's' : ''}` : '—'],
                     ['Customer',   b.customer_name ?? '—'],
                     ['Scheduled',  fmtHistoryDate(b.scheduled_date, b.scheduled_time)],
+                    ['Booked on',  b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ].map(([label, val]) => (
                     <div key={label} className="flex gap-2">
                       <span className="text-gray-400 w-24 flex-shrink-0">{label}</span>
