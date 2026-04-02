@@ -2415,25 +2415,11 @@ function Step1({ service, onContinue }) {
 
 function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
   const navigate = useNavigate()
-  const [paymentMethod, setPaymentMethod] = useState('gcash')
+  const [paymentMethod, setPaymentMethod] = useState('')
+  const [cardDetails, setCardDetails] = useState({ number: '4343 4343 4343 4345', exp_month: '12', exp_year: '2026', cvc: '123' })
   const [promoCode, setPromoCode] = useState('')
-  const [confirmed, setConfirmed] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
-  const [bookingRef, setBookingRef] = useState('')
-  const [paymentPending, setPaymentPending] = useState(false)
-  const [verifying, setVerifying] = useState(false)
-
-  // Detect PayMongo redirect back with ?payment=success
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('payment') === 'success') {
-      const ref = params.get('ref') || sessionStorage.getItem('pendingBookingRef') || ''
-      setBookingRef(ref)
-      setConfirmed(true)
-      sessionStorage.removeItem('pendingBookingRef')
-    }
-  }, [])
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
@@ -2453,46 +2439,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
   const priceBreakdown = buildPriceBreakdown(taskOptions)
 
-  if (confirmed) {
-    return (
-      <div className="flex flex-col items-center text-center py-8 space-y-5">
-        <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-          <CheckCircle2 size={44} className="text-green-500" />
-        </div>
-        <div>
-          <p className="text-2xl font-bold text-gray-800">Booking Confirmed!</p>
-          <p className="text-sm text-gray-500 mt-2 max-w-sm mx-auto">
-            Thank you for booking with hanap.ph! Your tasker has been notified and will contact you shortly.
-          </p>
-        </div>
-        <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-3">
-          <p className="text-xs text-gray-400 mb-1">Booking Reference</p>
-          <p className="text-lg font-bold text-orange-500 tracking-widest">{bookingRef}</p>
-        </div>
-        <div className="w-full border border-gray-100 rounded-xl p-5 text-left space-y-2">
-          <p className="font-semibold text-gray-700 text-sm mb-3">Booking Summary</p>
-          {[
-            ['Service', service],
-            ['Tasker', tasker?.name],
-            ['Date & Time', formattedDate],
-            ['Task Size', taskOptions?.type || taskOptions?.problem || taskOptions?.what_to_paint || taskOptions?.aircon_type || taskSize],
-            ['Address', taskAddress],
-          ].map(([label, val]) => (
-            <div key={label} className="flex gap-3 text-sm">
-              <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
-              <span className="text-gray-800 capitalize">{val}</span>
-            </div>
-          ))}
-        </div>
-        <button
-          onClick={() => navigate('/')}
-          className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
-        >
-          Back to Home
-        </button>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-5">
@@ -2558,6 +2504,25 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           </div>
         </label>
 
+        {/* PayMaya option */}
+        <label className={`flex items-start gap-3 border rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'paymaya' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
+          <input
+            type="radio"
+            name="payment"
+            value="paymaya"
+            checked={paymentMethod === 'paymaya'}
+            onChange={() => setPaymentMethod('paymaya')}
+            className="accent-orange-500 mt-0.5 w-4 h-4"
+          />
+          <div className="flex-1">
+            <div className="flex items-center gap-2">
+              <Smartphone size={18} className="text-green-500" />
+              <span className="font-semibold text-gray-800">PayMaya</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">You'll be redirected to a secure PayMongo checkout to pay via PayMaya.</p>
+          </div>
+        </label>
+
         {/* Credit/Debit Card option */}
         <label className={`flex items-start gap-3 border rounded-xl p-4 cursor-pointer transition-colors ${paymentMethod === 'card' ? 'border-orange-400 bg-orange-50' : 'border-gray-200'}`}>
           <input
@@ -2576,6 +2541,46 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             <p className="text-xs text-gray-400 mt-0.5">Visa, Mastercard accepted — enter details securely on PayMongo checkout.</p>
           </div>
         </label>
+
+        {/* Inline card fields */}
+        {paymentMethod === 'card' && (
+          <div className="space-y-2 pt-1">
+            <input
+              type="text"
+              placeholder="4343 4343 4343 4345"
+              maxLength={19}
+              value={cardDetails.number}
+              onChange={e => setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() }))}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 tracking-widest"
+            />
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="12"
+                maxLength={2}
+                value={cardDetails.exp_month}
+                onChange={e => setCardDetails(p => ({ ...p, exp_month: e.target.value.replace(/\D/g, '') }))}
+                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
+              />
+              <input
+                type="text"
+                placeholder="2026"
+                maxLength={4}
+                value={cardDetails.exp_year}
+                onChange={e => setCardDetails(p => ({ ...p, exp_year: e.target.value.replace(/\D/g, '') }))}
+                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
+              />
+              <input
+                type="text"
+                placeholder="123"
+                maxLength={3}
+                value={cardDetails.cvc}
+                onChange={e => setCardDetails(p => ({ ...p, cvc: e.target.value.replace(/\D/g, '') }))}
+                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Section 3 – Promo Code */}
@@ -2615,7 +2620,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const { data: { session } } = await supabase.auth.getSession()
               const client_id = session?.user?.id ?? null
 
-              // Fetch customer's own profile for name/phone (user reads their own row — no RLS block)
               let customerName = null
               let customerPhone = null
               if (client_id) {
@@ -2629,13 +2633,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               }
 
               const ref = 'VE-' + Date.now()
-              const isMobile = /iPhone|iPad|Android|webOS|BlackBerry|Windows Phone/i.test(navigator.userAgent)
+              const finalAmount = taskOptions?.final_price ?? estimatedTotal
+              const platformFee = Math.round(finalAmount * 0.3)
+              const taskerPayout = finalAmount - platformFee
 
-              // SQL to run in Supabase if not already done:
-              // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_name text;
-              // ALTER TABLE bookings ADD COLUMN IF NOT EXISTS customer_phone text;
-
-              const bookingData = {
+              const { error: insertError } = await supabase.from('bookings').insert({
                 client_id,
                 tasker_id: tasker?.id,
                 service,
@@ -2653,24 +2655,21 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 customer_phone: customerPhone,
                 task_options: taskOptions ? JSON.stringify(taskOptions) : null,
                 taskers_needed: taskersNeeded,
-                estimated_total: estimatedTotal,
+                estimated_total: finalAmount,
+                platform_fee: platformFee,
+                tasker_payout: taskerPayout,
                 duration_hours: taskDuration ?? 8,
+                status: 'pending_payment',
                 ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
-              }
-
-              // Save booking as pending_payment
-              const { error } = await supabase.from('bookings').insert({ ...bookingData, status: 'pending_payment' })
-              if (error) {
-                setSaveError(`Error saving booking: ${error.message}`)
+              })
+              if (insertError) {
+                setSaveError(`Error saving booking: ${insertError.message}`)
                 setSaving(false)
                 return
               }
 
-              // Store ref so we can retrieve it after redirect
-              sessionStorage.setItem('pendingBookingRef', ref)
-
-              // Create PayMongo payment link
-              const pmResponse = await fetch('https://api.paymongo.com/v1/links', {
+              // Step 7 — Create Payment Intent
+              const piRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
                 method: 'POST',
                 headers: {
                   'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
@@ -2679,35 +2678,96 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 body: JSON.stringify({
                   data: {
                     attributes: {
-                      amount: Math.round(estimatedTotal * 100),
-                      description: `hanap.ph booking - ${service}`,
-                      remarks: ref,
+                      amount: Math.round(finalAmount * 100),
+                      currency: 'PHP',
+                      payment_method_allowed: [paymentMethod],
+                      capture_type: 'automatic',
                     },
                   },
                 }),
               })
-              const pmData = await pmResponse.json()
-              if (!pmResponse.ok) {
-                const errMsg = pmData?.errors?.[0]?.detail || 'Payment setup failed. Please try again.'
-                setSaveError(errMsg)
+              const piData = await piRes.json()
+              if (!piRes.ok) {
+                setSaveError(piData?.errors?.[0]?.detail || 'Failed to create payment. Please try again.')
                 setSaving(false)
                 return
               }
-              const checkoutUrl = pmData.data.attributes.checkout_url
-              if (isMobile) {
-                window.location.href = checkoutUrl
-              } else {
-                window.open(checkoutUrl, '_blank')
-              }
-              setSaving(false)
-              setPaymentPending(true)
-            } catch (err) {
+              const piId = piData.data.id
 
-              setSaveError('Payment setup failed. Please try again.')
+              // Step 8 — Create Payment Method
+              const pmRes = await fetch('https://api.paymongo.com/v1/payment_methods', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_PUBLIC_KEY + ':')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  data: {
+                    attributes: paymentMethod === 'card'
+                      ? {
+                          type: 'card',
+                          details: {
+                            card_number: cardDetails.number.replace(/\s/g, ''),
+                            exp_month: parseInt(cardDetails.exp_month),
+                            exp_year: parseInt(cardDetails.exp_year),
+                            cvc: cardDetails.cvc
+                          }
+                        }
+                      : { type: paymentMethod }
+                  }
+                }),
+              })
+              const pmData = await pmRes.json()
+              if (!pmRes.ok) {
+                setSaveError(pmData?.errors?.[0]?.detail || 'Failed to create payment method. Please try again.')
+                setSaving(false)
+                return
+              }
+              const pmId = pmData.data.id
+
+              // Step 9 — Attach Payment Method to Payment Intent
+              const returnUrl = `${window.location.origin}/booking-confirmation`
+              const attachRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}/attach`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  data: {
+                    attributes: {
+                      payment_method: pmId,
+                      return_url: returnUrl,
+                    },
+                  },
+                }),
+              })
+              const attachData = await attachRes.json()
+              if (!attachRes.ok) {
+                setSaveError(attachData?.errors?.[0]?.detail || 'Failed to process payment. Please try again.')
+                setSaving(false)
+                return
+              }
+
+              const attachStatus = attachData.data?.attributes?.status
+
+              // Step 10 — Redirect to PayMongo authorization page
+              if (attachStatus === 'awaiting_next_action') {
+                window.location.href = attachData.data.attributes.next_action.redirect.url
+              // Step 11 — Payment succeeded immediately (card payments)
+              } else if (attachStatus === 'succeeded') {
+                await supabase.from('bookings').update({ status: 'confirmed' }).eq('reference_number', ref)
+                window.location.href = `${window.location.origin}/booking-confirmation?payment_intent_id=${piId}`
+              } else {
+                setSaveError('Payment could not be processed. Please try again.')
+                setSaving(false)
+              }
+            } catch (err) {
+              setSaveError(err?.message || 'Payment setup failed. Please try again.')
               setSaving(false)
             }
           }}
-          disabled={saving || paymentPending}
+          disabled={saving || !paymentMethod}
           className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2"
         >
           {saving ? (
@@ -2716,42 +2776,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
-              Creating payment link...
+              Processing...
             </>
           ) : 'Confirm & Pay'}
         </button>
-
-        {paymentPending && (
-          <div className="mt-6 p-5 bg-blue-50 border border-blue-200 rounded-xl text-center space-y-3">
-            <p className="text-blue-800 font-semibold text-sm flex items-center justify-center gap-1"><CreditCard size={16} /> Complete your payment in the new tab.</p>
-            <p className="text-blue-600 text-sm">Once done, click the button below to confirm your booking.</p>
-            <button
-              onClick={async () => {
-                setVerifying(true)
-                const ref = sessionStorage.getItem('pendingBookingRef')
-                await supabase
-                  .from('bookings')
-                  .update({ status: 'confirmed' })
-                  .eq('reference_number', ref)
-                setBookingRef(ref)
-                setConfirmed(true)
-                sessionStorage.removeItem('pendingBookingRef')
-              }}
-              disabled={verifying}
-              className="bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white font-semibold px-6 py-2.5 rounded-lg text-sm flex items-center gap-2 mx-auto"
-            >
-              {verifying ? (
-                <>
-                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  Confirming...
-                </>
-              ) : "I've completed my payment"}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   )

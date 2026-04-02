@@ -5,11 +5,88 @@ import { CheckCircle2 } from 'lucide-react'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
+function fmtDate(dateStr, timeStr) {
+  if (!dateStr) return '—'
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const base = `${MONTHS[m - 1]} ${d}, ${y}`
+  if (!timeStr) return base
+  const [h, min] = timeStr.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  const minutes = min === 0 ? '' : `:${String(min).padStart(2, '0')}`
+  return `${base} at ${hour}${minutes} ${ampm}`
+}
+
+function fmtNow() {
+  const now = new Date()
+  const m = now.getMonth()
+  const d = now.getDate()
+  const y = now.getFullYear()
+  let h = now.getHours()
+  const min = now.getMinutes()
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  h = h % 12 || 12
+  const minutes = min === 0 ? '' : `:${String(min).padStart(2, '0')}`
+  return `${MONTHS[m]} ${d}, ${y} at ${h}${minutes} ${ampm}`
+}
+
+function capitalize(str) {
+  if (!str) return '—'
+  return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
+const EXTRAS_LOOKUP = {
+  'Cleaning':           { 'With Laundry': 200, 'With Appliances': 250 },
+  'Carpentry':          { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 },
+  'Electrical':         { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 },
+  'Aircon Maintenance': { 'Same Day Service': 300 },
+  'Painting':           { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 },
+  'Plumbing Repair':    { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 },
+}
+
+function buildPriceBreakdown(taskOptions) {
+  if (!taskOptions) return []
+  const { service } = taskOptions
+  const lines = []
+
+  if (service === 'Cleaning') {
+    lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: taskOptions.base_price })
+  } else if (service === 'Carpentry') {
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: taskOptions.base_price })
+  } else if (service === 'Electrical') {
+    lines.push({ label: taskOptions.type, price: taskOptions.base_price })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  } else if (service === 'Aircon Maintenance') {
+    const u = taskOptions.units || 1
+    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
+  } else if (service === 'Painting') {
+    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: taskOptions.base_price })
+    if (taskOptions.paint_cost > 0) {
+      lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
+    }
+  } else if (service === 'Plumbing Repair') {
+    lines.push({ label: taskOptions.problem, price: taskOptions.base_price })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  }
+
+  const extrasMap = EXTRAS_LOOKUP[service] || {}
+  ;(taskOptions.extras || []).forEach((extra) => {
+    const p = service === 'Aircon Maintenance' && extra === 'Freon Recharge'
+      ? 500 * (taskOptions.units || 1)
+      : (extrasMap[extra] ?? 0)
+    lines.push({ label: extra, price: p, isExtra: true })
+  })
+
+  return lines
+}
+
 export default function BookingConfirmation() {
   const navigate = useNavigate()
   const hasSaved = useRef(false)
-  const [status, setStatus] = useState('loading')
+  const [status, setStatus] = useState('loading') // 'loading' | 'success' | 'failed'
   const [booking, setBooking] = useState(null)
+  const [taskerName, setTaskerName] = useState('—')
+  const [receiptDate] = useState(fmtNow())
 
   useEffect(() => {
     if (hasSaved.current) return
@@ -18,96 +95,192 @@ export default function BookingConfirmation() {
     async function confirm() {
       const params = new URLSearchParams(window.location.search)
       const piId = params.get('payment_intent_id')
-      if (!piId) { setStatus('failed'); return }
+      if (!piId) {
+        setStatus('failed')
+        return
+      }
 
-      const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}`, {
-        headers: { Authorization: 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':') }
-      })
-      const piData = await piRes.json()
-      const piStatus = piData?.data?.attributes?.status
+      try {
+        const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}`, {
+          headers: {
+            'Authorization': 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':'),
+          },
+        })
+        const piData = await piRes.json()
+        const piStatus = piData?.data?.attributes?.status
 
-      if (piStatus !== 'succeeded') { setStatus('failed'); return }
+        if (piStatus !== 'succeeded') {
+          setStatus('failed')
+          window.history.replaceState({}, '', window.location.pathname)
+          return
+        }
 
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session?.user) { setStatus('failed'); return }
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) {
+          setStatus('failed')
+          return
+        }
 
-      const { data: bookingRow } = await supabase
-        .from('bookings')
-        .select('*')
-        .eq('client_id', session.user.id)
-        .eq('status', 'pending_payment')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
+        const { data: bookingRow, error } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('client_id', session.user.id)
+          .eq('status', 'pending_payment')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
 
-      if (!bookingRow) { setStatus('failed'); return }
+        if (error || !bookingRow) {
+          setStatus('failed')
+          return
+        }
 
-      await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingRow.id)
-      setBooking(bookingRow)
-      setStatus('confirmed')
+        await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingRow.id)
+
+        if (bookingRow.tasker_id) {
+          const { data: taskerData } = await supabase
+            .from('taskers')
+            .select('name')
+            .eq('id', bookingRow.tasker_id)
+            .single()
+          if (taskerData?.name) setTaskerName(taskerData.name)
+        }
+
+        window.history.replaceState({}, '', window.location.pathname)
+        setBooking(bookingRow)
+        setStatus('success')
+      } catch (err) {
+        console.error('BookingConfirmation error:', err)
+        setStatus('failed')
+      }
     }
 
     confirm()
   }, [])
 
-  if (status === 'loading') return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="flex flex-col items-center gap-4">
-        <svg className="animate-spin h-10 w-10 text-orange-500" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-        </svg>
-        <p className="text-gray-500 text-sm">Verifying your payment...</p>
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center gap-4">
+          <svg className="animate-spin h-10 w-10 text-orange-500" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+          <p className="text-gray-500 text-sm font-medium">Verifying your payment...</p>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  if (status === 'failed') return (
-    <div className="min-h-screen flex items-center justify-center px-4">
-      <div className="text-center space-y-4">
-        <p className="text-xl font-bold text-gray-800">Payment Failed</p>
-        <p className="text-sm text-gray-500">Something went wrong. Please try again.</p>
-        <button onClick={() => navigate('/')} className="bg-orange-500 text-white font-semibold px-6 py-3 rounded-xl">Go Home</button>
+  if (status === 'failed') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <div className="text-center space-y-4">
+          <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mx-auto">
+            <svg className="w-10 h-10 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </div>
+          <p className="text-xl font-bold text-gray-800">Payment Failed</p>
+          <p className="text-sm text-gray-500">Something went wrong. Please try again.</p>
+          <button
+            onClick={() => navigate('/')}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
+          >
+            Go Home
+          </button>
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
-  const [year, month, day] = (booking?.scheduled_date || '').split('-').map(Number)
-  const formattedDate = booking?.scheduled_date
-    ? `${MONTHS[month - 1]} ${day}, ${year} at ${booking.scheduled_time}`
-    : ''
+  const taskOptions = (() => {
+    try { return booking?.task_options ? JSON.parse(booking.task_options) : null }
+    catch { return null }
+  })()
+
+  const priceBreakdown = buildPriceBreakdown(taskOptions)
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-8 space-y-5">
-        <div className="flex flex-col items-center text-center space-y-3">
-          <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-            <CheckCircle2 size={44} className="text-green-500" />
-          </div>
-          <p className="text-2xl font-bold text-gray-800">Booking Confirmed!</p>
-          <p className="text-sm text-gray-500">Thank you for booking with hanap.ph! Your tasker has been notified.</p>
-          <div className="bg-gray-50 border border-gray-200 rounded-xl px-6 py-3">
-            <p className="text-xs text-gray-400 mb-1">Booking Reference</p>
-            <p className="text-lg font-bold text-orange-500 tracking-widest">{booking?.reference_number}</p>
-          </div>
-        </div>
-        <div className="border border-gray-100 rounded-xl p-5 space-y-2">
-          <p className="font-semibold text-gray-700 text-sm mb-3">Order Summary</p>
-          {[
-            ['Service', booking?.service],
-            ['Date & Time', formattedDate],
-            ['Address', booking?.address],
-            ['Estimated Total', `₱${booking?.estimated_total?.toLocaleString()}`],
-          ].map(([label, val]) => (
-            <div key={label} className="flex gap-3 text-sm border-b border-gray-50 pb-2 last:border-0">
-              <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
-              <span className="text-gray-800">{val}</span>
+    <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 py-10">
+      <div className="w-full max-w-md">
+
+        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+
+          {/* Header */}
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-8 pb-10 flex flex-col items-center text-center text-white">
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4">
+              <CheckCircle2 size={44} className="text-white" />
             </div>
-          ))}
+            <p className="text-2xl font-bold">Booking Confirmed!</p>
+            <p className="text-orange-100 text-sm mt-1">Payment Successful</p>
+            <div className="mt-4 bg-white/10 border border-white/20 rounded-xl px-6 py-3 w-full">
+              <p className="text-orange-100 text-xs uppercase tracking-widest mb-1">Reference Number</p>
+              <p className="text-xl font-bold tracking-widest">{booking?.reference_number ?? '—'}</p>
+            </div>
+          </div>
+
+          {/* Tear edge decoration */}
+          <div className="relative h-4 bg-white">
+            <div className="absolute -top-3 left-0 right-0 flex justify-between px-2">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <div key={i} className="w-5 h-5 rounded-full bg-gray-50" />
+              ))}
+            </div>
+          </div>
+
+          {/* Receipt body */}
+          <div className="bg-white px-6 pb-6 space-y-4">
+            <p className="text-xs text-gray-400 uppercase tracking-widest text-center pt-2">Receipt Details</p>
+
+            <div className="space-y-3 text-sm">
+              {[
+                ['Receipt Date',    receiptDate],
+                ['Service',        booking?.service ?? '—'],
+                ['Tasker',         taskerName],
+                ['Scheduled',      fmtDate(booking?.scheduled_date, booking?.scheduled_time)],
+                ['Address',        booking?.address ?? '—'],
+                ['Payment Method', capitalize(booking?.payment_method)],
+              ].map(([label, val]) => (
+                <div key={label} className="flex justify-between gap-4 border-b border-gray-50 pb-2 last:border-0">
+                  <span className="text-gray-400 flex-shrink-0">{label}</span>
+                  <span className="text-gray-800 text-right">{val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Price breakdown */}
+            {priceBreakdown.length > 0 && (
+              <div className="border border-gray-100 rounded-xl p-4 space-y-2">
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Price Breakdown</p>
+                {priceBreakdown.map((line, i) => (
+                  <div key={i} className="flex justify-between text-sm">
+                    <span className="text-gray-500">{line.label}</span>
+                    <span className="text-gray-700">
+                      {line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Total */}
+            <div className="flex justify-between items-center bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+              <span className="font-bold text-gray-800">Estimated Total</span>
+              <span className="font-bold text-orange-500 text-lg">
+                ₱{Number(booking?.estimated_total ?? 0).toLocaleString()}
+              </span>
+            </div>
+
+            <button
+              onClick={() => navigate('/')}
+              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base mt-2"
+            >
+              Back to Home
+            </button>
+          </div>
+
         </div>
-        <button onClick={() => navigate('/')} className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors">
-          Back to Home
-        </button>
       </div>
     </div>
   )
