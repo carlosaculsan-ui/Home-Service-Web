@@ -2702,8 +2702,6 @@ function PayrollPanel() {
   const [payRecords, setPayRecords] = useState({}) // { tasker_id: payroll_record }
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
-  const [showHelperModal, setShowHelperModal] = useState(false)
-  const [helperPayRows, setHelperPayRows] = useState([])
 
   useEffect(() => { fetchPayroll() }, [period])
 
@@ -2715,7 +2713,7 @@ function PayrollPanel() {
     // Fetch ALL completed bookings — filter by date client-side
     const { data: allBookings } = await supabase
       .from('bookings')
-      .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, helper_fee, helper_names, duration_hours, scheduled_date')
+      .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, scheduled_date')
       .eq('status', 'completed')
 
     // Filter to the selected month using scheduled_date only
@@ -2728,7 +2726,6 @@ function PayrollPanel() {
     if (bookings.length === 0) {
       setRows([])
       setPayRecords({})
-      setHelperPayRows([])
       setLoading(false)
       return
     }
@@ -2757,24 +2754,6 @@ function PayrollPanel() {
       agg[b.tasker_id].platform_cut += platformCut
       agg[b.tasker_id].payout       += taskerPayout
     }
-
-    // Aggregate helper payroll from bookings where helper_fee > 0
-    const helperAgg = {}
-    for (const b of bookings) {
-      if (!b.helper_fee || Number(b.helper_fee) <= 0) continue
-      let helpers = []
-      try { helpers = b.helper_names ? JSON.parse(b.helper_names) : [] } catch { helpers = [] }
-      if (!Array.isArray(helpers) || helpers.length === 0) continue
-      const isHeavy = (b.duration_hours ?? 0) >= 8
-      const perHelper = isHeavy ? 600 : 300
-      for (const h of helpers) {
-        if (!h.name) continue
-        if (!helperAgg[h.name]) helperAgg[h.name] = { name: h.name, jobs: 0, earned: 0 }
-        helperAgg[h.name].jobs   += 1
-        helperAgg[h.name].earned += perHelper
-      }
-    }
-    setHelperPayRows(Object.values(helperAgg).sort((a, b) => a.name.localeCompare(b.name)))
 
     // Fetch existing payroll_records for this period
     const { data: records } = await supabase
@@ -2821,22 +2800,14 @@ function PayrollPanel() {
     <div className="p-4 sm:p-6 space-y-6">
 
       {/* Header row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="flex items-center gap-4 flex-wrap">
-          <h2 className="text-xl font-bold text-gray-800">Payroll</h2>
-          <input
-            type="month"
-            value={period}
-            onChange={e => { if (e.target.value) setPeriod(e.target.value) }}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
-          />
-        </div>
-        <button
-          onClick={() => setShowHelperModal(true)}
-          className="w-full sm:w-auto px-3 py-2 sm:py-1.5 text-xs font-medium border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
-        >
-          View Helper Payroll
-        </button>
+      <div className="flex items-center gap-4 flex-wrap">
+        <h2 className="text-xl font-bold text-gray-800">Payroll</h2>
+        <input
+          type="month"
+          value={period}
+          onChange={e => { if (e.target.value) setPeriod(e.target.value) }}
+          className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+        />
       </div>
 
       {/* Toast */}
@@ -3003,75 +2974,6 @@ function PayrollPanel() {
           </div>
         </>
       )}
-
-      {/* Helper Payroll Modal */}
-      {showHelperModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40">
-          <div className="bg-white w-full h-full sm:h-auto sm:max-w-lg sm:rounded-2xl sm:mx-4 shadow-xl overflow-hidden flex flex-col">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-              <h3 className="text-base font-bold text-gray-800">
-                Helper Payroll — {new Date(period + '-01').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </h3>
-              <button
-                onClick={() => setShowHelperModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Modal body */}
-            <div className="px-6 py-5 overflow-y-auto flex-1">
-              {helperPayRows.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No helper fees recorded for this period.</p>
-              ) : (
-                <>
-                  {/* Mobile cards */}
-                  <div className="flex flex-col gap-3 sm:hidden">
-                    {helperPayRows.map(h => (
-                      <div key={h.name} className="bg-gray-50 rounded-xl p-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-semibold text-gray-800 text-sm">{h.name}</p>
-                          <p className="text-xs text-gray-400 mt-0.5">{h.jobs} job{h.jobs !== 1 ? 's' : ''} assisted</p>
-                        </div>
-                        <span className="font-bold text-green-600 text-sm flex-shrink-0">₱{h.earned.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Desktop table */}
-                  <table className="hidden sm:table w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                        <th className="pb-2 text-left">Helper Name</th>
-                        <th className="pb-2 text-right">Jobs Assisted</th>
-                        <th className="pb-2 text-right">Total Earned</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {helperPayRows.map(h => (
-                        <tr key={h.name} className="border-b border-gray-50 last:border-0">
-                          <td className="py-2.5 text-gray-800 font-medium">{h.name}</td>
-                          <td className="py-2.5 text-right text-gray-600">{h.jobs}</td>
-                          <td className="py-2.5 text-right font-semibold text-green-600">₱{h.earned.toLocaleString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-
-                  <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-gray-700">Total Helper Fees</span>
-                    <span className="text-base font-bold text-green-600">
-                      ₱{helperPayRows.reduce((s, h) => s + h.earned, 0).toLocaleString()}
-                    </span>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -3083,7 +2985,6 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [platformEarnings, setPlatformEarnings] = useState(0)
   const [monthlyPlatformEarnings, setMonthlyPlatformEarnings] = useState(0)
-  const [helperFeesCollected, setHelperFeesCollected] = useState(0)
   const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
@@ -3105,7 +3006,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-        supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
+        supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
 
@@ -3113,7 +3014,6 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       const completed = completedBookings ?? []
       const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
       const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
-      const allHelperFees = completed.reduce((sum, b) => sum + (Number(b.helper_fee) || 0), 0)
       const thisMonthPlatformEarnings = completed.filter((b) => {
         const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear
@@ -3121,7 +3021,6 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0 })
       setTotalRevenue(allRevenue)
       setPlatformEarnings(allPlatformEarnings)
-      setHelperFeesCollected(allHelperFees)
       setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
 
       // Recent Bookings
@@ -3188,14 +3087,13 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               { data: yearBookings },
             ] = await Promise.all([
               supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-              supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
+              supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
               supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
             ])
             const currentMonth = new Date().getMonth()
             const completed = completedBookings ?? []
             const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
             const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
-            const allHelperFees = completed.reduce((sum, b) => sum + (Number(b.helper_fee) || 0), 0)
             const thisMonthPlatformEarnings = completed.filter((b) => {
               const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
               return d.getMonth() === currentMonth && d.getFullYear() === currentYear
@@ -3203,7 +3101,6 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             setStats((prev) => ({ ...prev, bookings: bookings ?? 0 }))
             setTotalRevenue(allRevenue)
             setPlatformEarnings(allPlatformEarnings)
-            setHelperFeesCollected(allHelperFees)
             setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
             setAllBookings(yearBookings ?? [])
             const { data: recentData } = await supabase
@@ -3320,7 +3217,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
     <div className="space-y-6 p-3 md:p-6 w-full">
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon, accent, num, onClick }) => (
           <div key={label} onClick={onClick} className={`bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 ${accent} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200`}>
             <div className="mb-2">{icon}</div>
@@ -3350,14 +3247,6 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="text-2xl md:text-4xl font-bold text-blue-600">{'₱' + monthlyPlatformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">This Month's Earnings</div>
           <div className="text-xs text-gray-400 mt-1">Platform earnings this month</div>
-        </div>
-
-        {/* Helper Fees Collected card */}
-        <div onClick={() => { setBookingFilter('completed'); setTab('bookings') }} className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200" style={{ borderLeft: '4px solid #0d9488' }}>
-          <div className="mb-2"><Users className="w-8 h-8" style={{ color: '#0d9488' }} /></div>
-          <div className="text-2xl md:text-4xl font-bold" style={{ color: '#0d9488' }}>{'₱' + helperFeesCollected.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div className="text-xs md:text-sm text-gray-500 mt-1">Helper Fees Collected</div>
-          <div className="text-xs text-gray-400 mt-1">Paid out to helpers</div>
         </div>
       </div>
 
@@ -4051,140 +3940,84 @@ function HelpersPanel() {
         </button>
       </div>
 
-      {/* Table / Cards */}
+      {/* Table */}
       {helpers.length === 0 ? (
         <p className="text-center text-gray-400 mt-16">No helpers yet. Add one to get started.</p>
       ) : (
-        <>
-          {/* Mobile cards */}
-          <div className="flex flex-col gap-3 md:hidden">
-            {helpers.map((h) => {
-              const helperAssignments = assignments[h.id] ?? []
-              return (
-                <div key={h.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-gray-800">{h.name}</span>
-                    <button
-                      onClick={() => handleToggleActive(h)}
-                      className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors flex-shrink-0 ${
-                        h.is_active
-                          ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                          : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                      }`}
-                    >
-                      {h.is_active ? 'Active' : 'Inactive'}
-                    </button>
-                  </div>
-                  {helperAssignments.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {helperAssignments.map((a, i) => (
-                        <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
-                          {a.tasker_name} (Slot {a.slot})
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <div className="flex flex-col gap-2 pt-1 border-t border-gray-50">
-                    <button
-                      onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
-                      className="w-full text-sm py-2 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                    >
-                      Assign
-                    </button>
-                    <button
-                      onClick={() => { setEditHelper(h); setEditName(h.name); setEditError('') }}
-                      className="w-full text-sm py-2 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(h)}
-                      className="w-full text-sm py-2 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Assigned Taskers</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {helpers.map((h) => {
+                  const helperAssignments = assignments[h.id] ?? []
+                  return (
+                    <tr key={h.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
 
-          {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Assigned Taskers</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {helpers.map((h) => {
-                    const helperAssignments = assignments[h.id] ?? []
-                    return (
-                      <tr key={h.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleToggleActive(h)}
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                            h.is_active
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {h.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
 
-                        <td className="px-4 py-3">
-                          <button
-                            onClick={() => handleToggleActive(h)}
-                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
-                              h.is_active
-                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                            }`}
-                          >
-                            {h.is_active ? 'Active' : 'Inactive'}
-                          </button>
-                        </td>
-
-                        <td className="px-4 py-3">
-                          {helperAssignments.length === 0 ? (
-                            <span className="text-gray-400 text-xs">—</span>
-                          ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {helperAssignments.map((a, i) => (
-                                <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
-                                  {a.tasker_name} (Slot {a.slot})
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </td>
-
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
-                              className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
-                            >
-                              Assign
-                            </button>
-                            <button
-                              onClick={() => { setEditHelper(h); setEditName(h.name); setEditError('') }}
-                              className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(h)}
-                              className="text-xs px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                            >
-                              Delete
-                            </button>
+                      <td className="px-4 py-3">
+                        {helperAssignments.length === 0 ? (
+                          <span className="text-gray-400 text-xs">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {helperAssignments.map((a, i) => (
+                              <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
+                                {a.tasker_name} (Slot {a.slot})
+                              </span>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
+                            className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          >
+                            Assign
+                          </button>
+                          <button
+                            onClick={() => { setEditHelper(h); setEditName(h.name); setEditError('') }}
+                            className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(h)}
+                            className="text-xs px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
-        </>
+        </div>
       )}
 
       {/* Add Helper Modal */}

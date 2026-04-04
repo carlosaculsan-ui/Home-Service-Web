@@ -366,43 +366,52 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
             </div>
 
             {/* Time slots */}
-            {selectedDate && !isFullDay && (
+            {selectedDate && (
               <div className="mb-4">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Select a Time</p>
-                <div className="grid grid-cols-3 gap-2">
-                  {TIME_SLOTS.map((slot) => {
-                    const h = parseInt(slot.split(':')[0])
-                    const available = isSlotAvailable(h, selectedDateBookings, taskOptions)
-                    const avail = taskerAvailability
-                    const blockedByAvail = avail === 'Part Time - AM' ? h >= 13
-                      : avail === 'Part Time - PM' ? h <= 12
-                      : false
-                    const isPickedSlot = selectedSlot === slot
-                    const isDisabled = !available || blockedByAvail
-                    return (
-                      <button
-                        key={slot}
-                        disabled={isDisabled}
-                        onClick={() => setSelectedSlot(slot)}
-                        title={blockedByAvail ? 'Not Available' : undefined}
-                        style={blockedByAvail ? { opacity: 0.4 } : undefined}
-                        className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors
-                          ${isPickedSlot
-                            ? 'bg-orange-500 text-white border-orange-500'
-                            : !isDisabled
-                            ? 'bg-white text-gray-700 border-gray-200 hover:border-orange-400 hover:text-orange-500'
-                            : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
-                          }`}
-                      >
-                        {formatTimeSlot(slot)}
-                      </button>
-                    )
-                  })}
-                </div>
-                {selectedSlot && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    Estimated duration: {taskDuration} hours (including {BUFFER_HOURS} hour buffer time)
-                  </p>
+                {isFullDay ? (
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-3 flex items-start gap-2 text-sm text-blue-700">
+                    <Info size={16} className="mt-0.5 flex-shrink-0" />
+                    <span>The tasker will be fully booked for this entire day. No other bookings will be accepted on this date.</span>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Select a Time</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {TIME_SLOTS.map((slot) => {
+                        const h = parseInt(slot.split(':')[0])
+                        const available = isSlotAvailable(h, selectedDateBookings, taskOptions)
+                        const avail = taskerAvailability
+                        const blockedByAvail = avail === 'Part Time - AM' ? h >= 13
+                          : avail === 'Part Time - PM' ? h <= 12
+                          : false
+                        const isPickedSlot = selectedSlot === slot
+                        const isDisabled = !available || blockedByAvail
+                        return (
+                          <button
+                            key={slot}
+                            disabled={isDisabled}
+                            onClick={() => setSelectedSlot(slot)}
+                            title={blockedByAvail ? 'Not Available' : undefined}
+                            style={blockedByAvail ? { opacity: 0.4 } : undefined}
+                            className={`py-2 px-1 rounded-lg text-xs font-medium border transition-colors
+                              ${isPickedSlot
+                                ? 'bg-orange-500 text-white border-orange-500'
+                                : !isDisabled
+                                ? 'bg-white text-gray-700 border-gray-200 hover:border-orange-400 hover:text-orange-500'
+                                : 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
+                              }`}
+                          >
+                            {formatTimeSlot(slot)}
+                          </button>
+                        )
+                      })}
+                    </div>
+                    {selectedSlot && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Estimated duration: {taskDuration} hours (including {BUFFER_HOURS} hour buffer time)
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -641,6 +650,12 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
 function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions }) {
   return (
     <div className="space-y-4">
+      {taskersNeeded >= 2 && (
+        <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 mb-4 text-sm text-blue-700">
+          <Info size={16} className="mt-0.5 flex-shrink-0" />
+          <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+        </div>
+      )}
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
         <Users size={24} className="text-blue-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
@@ -842,9 +857,14 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-3">Booking Details</p>
         <DetailRow label="Service" value={service} valueClass="capitalize" />
-        <DetailRow label="Tasker" value={tasker?.name} />
+        <DetailRow label="Tasker" value={
+          taskersNeeded > 1
+            ? <>{tasker?.name} <span className="text-orange-500">({taskersNeeded} crew)</span></>
+            : tasker?.name
+        } />
         <DetailRow label="Date &amp; Time" value={formattedDate} />
-        {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hours`} />}
+        {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hrs + 1 hr buffer`} />}
+        <DetailRow label="Task Size" value={taskOptions?.type || taskOptions?.problem || taskOptions?.what_to_paint || taskOptions?.aircon_type || taskSize} />
         <DetailRow label="Address" value={taskAddress} />
         <DetailRow label="Task Description" value={taskDetails} />
         {taskOptions && taskOptions.service === 'Cleaning' && (
@@ -852,7 +872,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <DetailRow label="Type" value={taskOptions.type} />
             <DetailRow label="Area" value={taskOptions.area} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
@@ -861,16 +881,16 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <DetailRow label="Type of Work" value={taskOptions.type} />
             <DetailRow label="Item" value={taskOptions.item} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
         {taskOptions && taskOptions.service === 'Electrical' && (
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
-            {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
+            <DetailRow label="Urgency" value={taskOptions.urgency} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
@@ -880,7 +900,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <DetailRow label="Number of Units" value={String(taskOptions.units)} />
             <DetailRow label="Service Type" value={taskOptions.service_type} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
@@ -890,16 +910,16 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <DetailRow label="Area Size" value={taskOptions.area} />
             <DetailRow label="Paint Provided" value={taskOptions.paint_provided ? 'Yes' : 'No'} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
         {taskOptions && taskOptions.service === 'Plumbing Repair' && (
           <>
             <DetailRow label="Problem" value={taskOptions.problem} />
-            {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
+            <DetailRow label="Urgency" value={taskOptions.urgency} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
-            <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
+            <DetailRow label="Taskers Needed" value={String(taskersNeeded)} />
             <DetailRow label="Estimated Total" value={`₱${taskOptions.final_price?.toLocaleString()}`} />
           </>
         )}
@@ -2516,7 +2536,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState({ number: '4343 4343 4343 4345', exp_month: '12', exp_year: '2026', cvc: '123' })
-
+  const [promoCode, setPromoCode] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
@@ -2682,7 +2702,22 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         )}
       </div>
 
-
+      {/* Section 3 – Promo Code */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <p className="font-bold text-gray-800 text-base mb-3">Promo Code</p>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={promoCode}
+            onChange={(e) => setPromoCode(e.target.value)}
+            placeholder="Enter promo code"
+            className="flex-1 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400"
+          />
+          <button className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-5 py-2.5 rounded-xl transition-colors text-sm">
+            Apply
+          </button>
+        </div>
+      </div>
 
       {/* Buttons */}
       {saveError && (
