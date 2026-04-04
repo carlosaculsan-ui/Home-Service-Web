@@ -133,6 +133,13 @@ function buildPriceBreakdown(taskOptions) {
     lines.push({ label: extra, price: p, isExtra: true })
   })
 
+  if ((taskOptions.helper_fee ?? 0) > 0) {
+    const perHelper = taskOptions.is_heavy ? 600 : 300
+    const helperCount = Math.round(taskOptions.helper_fee / perHelper)
+    const helperLabel = `${helperCount} Helper${helperCount > 1 ? 's' : ''} (${taskOptions.is_heavy ? 'Full' : 'Half'} Day)`
+    lines.push({ label: helperLabel, price: taskOptions.helper_fee, isExtra: true })
+  }
+
   return lines
 }
 
@@ -493,10 +500,10 @@ function TeamDetailsModal({ tasker, taskersNeeded, onClose }) {
 
         <p className="text-xs text-gray-400 mt-4 pt-4 border-t border-gray-100">
           {taskersNeeded === 1
-            ? 'This task only requires 1 tasker.'
+            ? 'This task only requires 1 tasker. No additional helpers needed.'
             : taskersNeeded === 2
-            ? 'This task requires 2 taskers. The lead tasker will be assisted by 1 Hanap.ph staff member.'
-            : 'This task requires 3 taskers. The lead tasker will be assisted by 2 Hanap.ph staff members.'}
+            ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+            : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'}
         </p>
       </div>
     </div>
@@ -1318,6 +1325,28 @@ function Step1({ service, onContinue }) {
     return 1
   })()
 
+  const helpers = taskersNeeded - 1
+  const currentPartialOptions = (() => {
+    if (service?.toLowerCase() === 'cleaning' && cleaningType && cleaningArea)
+      return { service: 'Cleaning', type: cleaningType, area: cleaningArea }
+    if (service?.toLowerCase() === 'carpentry' && carpentryType && carpentryItem)
+      return { service: 'Carpentry', type: carpentryType, item: carpentryItem }
+    if (service?.toLowerCase() === 'electrical' && electricalType)
+      return { service: 'Electrical', type: electricalType }
+    if (service?.toLowerCase() === 'aircon cleaning')
+      return { service: 'Aircon Maintenance', units: airconUnits }
+    if (service?.toLowerCase() === 'painting' && paintingArea)
+      return { service: 'Painting', area: paintingArea }
+    if (service?.toLowerCase() === 'plumbing repair' && plumbingProblem)
+      return { service: 'Plumbing Repair', problem: plumbingProblem }
+    return null
+  })()
+  const isHeavy = currentPartialOptions ? getTaskDuration(currentPartialOptions) >= 8 : false
+  const helperFee = helpers > 0 ? helpers * (isHeavy ? 600 : 300) : 0
+  const helperLabel = helpers > 0
+    ? `${helpers} Helper${helpers > 1 ? 's' : ''} (${isHeavy ? 'Full' : 'Half'} Day)`
+    : ''
+
   const handleDetectLocation = () => {
     setDetectingLocation(true)
     setLocationError('')
@@ -1471,9 +1500,12 @@ function Step1({ service, onContinue }) {
           base_price: basePrice,
           extras_total: extrasTotal,
           final_price: finalPrice,
+          helper_fee: helperFee,
+          total_price: finalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: finalPrice,
+        estimatedTotal: finalPrice + helperFee,
       } : {}),
       ...(isCarpentry && carpentryType && carpentryItem ? {
         taskOptions: {
@@ -1484,9 +1516,12 @@ function Step1({ service, onContinue }) {
           base_price: carpentryItemPrice,
           extras_total: carpentryExtrasTotal,
           final_price: carpentryFinalPrice,
+          helper_fee: helperFee,
+          total_price: carpentryFinalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: carpentryFinalPrice,
+        estimatedTotal: carpentryFinalPrice + helperFee,
       } : {}),
       ...(isElectrical && electricalType && electricalUrgency ? {
         taskOptions: {
@@ -1498,9 +1533,12 @@ function Step1({ service, onContinue }) {
           urgency_surcharge: electricalUrgencySurcharge,
           extras_total: electricalExtrasTotal,
           final_price: electricalFinalPrice,
+          helper_fee: helperFee,
+          total_price: electricalFinalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: electricalFinalPrice,
+        estimatedTotal: electricalFinalPrice + helperFee,
       } : {}),
       ...(isAircon && airconType && airconServiceType ? {
         taskOptions: {
@@ -1513,9 +1551,12 @@ function Step1({ service, onContinue }) {
           base_price: airconBasePrice,
           extras_total: airconExtrasTotal,
           final_price: airconFinalPrice,
+          helper_fee: helperFee,
+          total_price: airconFinalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: airconFinalPrice,
+        estimatedTotal: airconFinalPrice + helperFee,
       } : {}),
       ...(isPainting && paintingWhat && paintingArea && paintingPaintProvided !== '' ? {
         taskOptions: {
@@ -1528,9 +1569,12 @@ function Step1({ service, onContinue }) {
           paint_cost: paintingPaintCost,
           extras_total: paintingExtrasTotal,
           final_price: paintingFinalPrice,
+          helper_fee: helperFee,
+          total_price: paintingFinalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: paintingFinalPrice,
+        estimatedTotal: paintingFinalPrice + helperFee,
       } : {}),
       ...(isPlumbing && plumbingProblem && plumbingUrgency ? {
         taskOptions: {
@@ -1542,9 +1586,12 @@ function Step1({ service, onContinue }) {
           urgency_surcharge: plumbingUrgencySurcharge,
           extras_total: plumbingExtrasTotal,
           final_price: plumbingFinalPrice,
+          helper_fee: helperFee,
+          total_price: plumbingFinalPrice + helperFee,
+          is_heavy: isHeavy,
         },
         taskersNeeded,
-        estimatedTotal: plumbingFinalPrice,
+        estimatedTotal: plumbingFinalPrice + helperFee,
       } : {}),
     })
   }
@@ -1684,18 +1731,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱{EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${finalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(finalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -1795,18 +1850,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱{CARPENTRY_EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${carpentryFinalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(carpentryFinalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -1916,18 +1979,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱{ELECTRICAL_EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${electricalFinalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(electricalFinalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -2051,18 +2122,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱300</span>
                 </div>
               )}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${airconFinalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(airconFinalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -2198,18 +2277,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱{PAINTING_EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${paintingFinalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(paintingFinalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -2319,18 +2406,26 @@ function Step1({ service, onContinue }) {
                   <span>+₱{PLUMBING_EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
               <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
                 <span>Estimated Total</span>
                 <span className="text-orange-500">
-                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${plumbingFinalPrice.toLocaleString()}`}
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(plumbingFinalPrice + helperFee).toLocaleString()}`}
                 </span>
               </div>
-              <p className="text-gray-400">Taskers needed: {taskersNeeded}</p>
             </div>
             {taskersNeeded >= 2 && (
               <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
                 <Info size={16} className="mt-0.5 flex-shrink-0" />
-                <p>This job requires {taskersNeeded} taskers. You are selecting the lead tasker. Additional Hanap.ph staff will be assigned.</p>
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
               </div>
             )}
           </div>
@@ -2475,7 +2570,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           ))}
           <div className={`flex justify-between font-bold text-gray-800 text-base ${priceBreakdown.length > 0 ? 'border-t border-orange-200 mt-1 pt-2' : 'pt-1'}`}>
             <span>Estimated Total</span>
-            <span className="text-orange-500">₱{(taskOptions?.final_price ?? estimatedTotal).toLocaleString()}</span>
+            <span className="text-orange-500">₱{(taskOptions?.total_price ?? estimatedTotal).toLocaleString()}</span>
           </div>
         </div>
         <p className="text-xs text-gray-400">Price is fixed based on your selected options.</p>
@@ -2633,9 +2728,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               }
 
               const ref = 'VE-' + Date.now()
-              const finalAmount = taskOptions?.final_price ?? estimatedTotal
-              const platformFee = Math.round(finalAmount * 0.3)
-              const taskerPayout = finalAmount - platformFee
+              const finalAmount = taskOptions?.total_price ?? estimatedTotal
+              const baseServicePrice = taskOptions?.final_price ?? estimatedTotal
+              const helperFeeAmount = taskOptions?.helper_fee ?? 0
+              const platformFee = Math.round(baseServicePrice * 0.3) + helperFeeAmount
+              const taskerPayout = Math.round(baseServicePrice * 0.7)
 
               const { error: insertError } = await supabase.from('bookings').insert({
                 client_id,
@@ -2658,6 +2755,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 estimated_total: finalAmount,
                 platform_fee: platformFee,
                 tasker_payout: taskerPayout,
+                helper_fee: helperFeeAmount,
                 duration_hours: taskDuration ?? 8,
                 status: 'pending_payment',
                 ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
