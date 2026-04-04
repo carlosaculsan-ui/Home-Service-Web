@@ -3808,6 +3808,361 @@ function AdminMessagesPanel({ adminUserId }) {
   )
 }
 
+// ─── Helpers Panel ───────────────────────────────────────────────────────────
+
+function HelpersPanel() {
+  const [helpers, setHelpers] = useState([])
+  const [approvedTaskers, setApprovedTaskers] = useState([])
+  const [assignments, setAssignments] = useState({}) // { helper_id: [{ tasker_id, tasker_name, slot }] }
+  const [loading, setLoading] = useState(true)
+
+  // Add modal
+  const [showAddModal, setShowAddModal] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [addError, setAddError] = useState('')
+  const [addSaving, setAddSaving] = useState(false)
+
+  // Edit modal
+  const [editHelper, setEditHelper] = useState(null)
+  const [editName, setEditName] = useState('')
+  const [editError, setEditError] = useState('')
+  const [editSaving, setEditSaving] = useState(false)
+
+  // Assign modal
+  const [assignHelper, setAssignHelper] = useState(null)
+  const [assignTaskerId, setAssignTaskerId] = useState('')
+  const [assignSlot, setAssignSlot] = useState('1')
+  const [assignWarning, setAssignWarning] = useState('')
+  const [assignSaving, setAssignSaving] = useState(false)
+
+  async function fetchData() {
+    const [{ data: helpersData }, { data: assignData }, { data: taskersData }] = await Promise.all([
+      supabase.from('helpers').select('*').order('created_at', { ascending: false }),
+      supabase.from('tasker_helpers').select('helper_id, slot, tasker_id, taskers(id, name)'),
+      supabase.from('taskers').select('id, name').eq('status', 'approved').order('name'),
+    ])
+    setHelpers(helpersData ?? [])
+    setApprovedTaskers(taskersData ?? [])
+    const map = {}
+    for (const row of assignData ?? []) {
+      if (!map[row.helper_id]) map[row.helper_id] = []
+      map[row.helper_id].push({
+        tasker_id: row.taskers?.id ?? row.tasker_id,
+        tasker_name: row.taskers?.name ?? '—',
+        slot: row.slot,
+      })
+    }
+    setAssignments(map)
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchData() }, [])
+
+  async function handleToggleActive(helper) {
+    const next = !helper.is_active
+    setHelpers((prev) => prev.map((h) => h.id === helper.id ? { ...h, is_active: next } : h))
+    await supabase.from('helpers').update({ is_active: next }).eq('id', helper.id)
+  }
+
+  async function handleAddHelper() {
+    if (!newName.trim()) { setAddError('Name is required.'); return }
+    setAddSaving(true)
+    const { error } = await supabase.from('helpers').insert({ name: newName.trim(), is_active: true })
+    if (error) { setAddError('Failed to add helper.'); setAddSaving(false); return }
+    setNewName(''); setAddError(''); setShowAddModal(false); setAddSaving(false)
+    fetchData()
+  }
+
+  async function handleEditSave() {
+    if (!editName.trim()) { setEditError('Name is required.'); return }
+    setEditSaving(true)
+    const { error } = await supabase.from('helpers').update({ name: editName.trim() }).eq('id', editHelper.id)
+    if (error) { setEditError('Failed to save.'); setEditSaving(false); return }
+    setEditHelper(null); setEditSaving(false)
+    fetchData()
+  }
+
+  async function handleDelete(helper) {
+    if (!window.confirm(`Are you sure? This will also remove all tasker assignments for ${helper.name}.`)) return
+    await supabase.from('helpers').delete().eq('id', helper.id)
+    fetchData()
+  }
+
+  function checkAssignConflict(taskerId, slot) {
+    if (!taskerId || !slot) { setAssignWarning(''); return }
+    for (const [hid, rows] of Object.entries(assignments)) {
+      for (const row of rows) {
+        if (String(row.tasker_id) === String(taskerId) && String(row.slot) === String(slot)) {
+          if (String(hid) !== String(assignHelper?.id)) {
+            const existing = helpers.find((h) => String(h.id) === String(hid))
+            setAssignWarning(`This slot is already taken by ${existing?.name ?? 'another helper'}. Reassign?`)
+            return
+          }
+        }
+      }
+    }
+    setAssignWarning('')
+  }
+
+  async function handleAssignSave() {
+    if (!assignTaskerId || !assignSlot) return
+    setAssignSaving(true)
+    // Remove any existing assignment for this tasker+slot, then insert fresh
+    await supabase.from('tasker_helpers').delete()
+      .eq('tasker_id', assignTaskerId).eq('slot', parseInt(assignSlot))
+    await supabase.from('tasker_helpers').insert({
+      helper_id: assignHelper.id,
+      tasker_id: assignTaskerId,
+      slot: parseInt(assignSlot),
+    })
+    setAssignHelper(null); setAssignSaving(false)
+    fetchData()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-800">Helpers</h2>
+        <button
+          onClick={() => { setNewName(''); setAddError(''); setShowAddModal(true) }}
+          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
+        >
+          + Add Helper
+        </button>
+      </div>
+
+      {/* Table */}
+      {helpers.length === 0 ? (
+        <p className="text-center text-gray-400 mt-16">No helpers yet. Add one to get started.</p>
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Status</th>
+                  <th className="px-4 py-3 font-medium">Assigned Taskers</th>
+                  <th className="px-4 py-3 font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {helpers.map((h) => {
+                  const helperAssignments = assignments[h.id] ?? []
+                  return (
+                    <tr key={h.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
+
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() => handleToggleActive(h)}
+                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                            h.is_active
+                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                          }`}
+                        >
+                          {h.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      </td>
+
+                      <td className="px-4 py-3">
+                        {helperAssignments.length === 0 ? (
+                          <span className="text-gray-400 text-xs">—</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1">
+                            {helperAssignments.map((a, i) => (
+                              <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
+                                {a.tasker_name} (Slot {a.slot})
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
+                            className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                          >
+                            Assign
+                          </button>
+                          <button
+                            onClick={() => { setEditHelper(h); setEditName(h.name); setEditError('') }}
+                            className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(h)}
+                            className="text-xs px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Add Helper Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-gray-800 text-base mb-4">Add Helper</h3>
+            <label className="block text-xs text-gray-500 mb-1">Name</label>
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => { setNewName(e.target.value); setAddError('') }}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddHelper()}
+              placeholder="Helper's full name"
+              autoFocus
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
+            />
+            {addError && <p className="text-xs text-red-500 mb-3">{addError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddHelper}
+                disabled={addSaving}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
+              >
+                {addSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Helper Modal */}
+      {editHelper && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEditHelper(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-gray-800 text-base mb-4">Edit Helper</h3>
+            <label className="block text-xs text-gray-500 mb-1">Name</label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => { setEditName(e.target.value); setEditError('') }}
+              onKeyDown={(e) => e.key === 'Enter' && handleEditSave()}
+              autoFocus
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
+            />
+            {editError && <p className="text-xs text-red-500 mb-3">{editError}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleEditSave}
+                disabled={editSaving}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
+              >
+                {editSaving ? 'Saving...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditHelper(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assign to Tasker Modal */}
+      {assignHelper && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setAssignHelper(null)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-gray-800 text-base mb-1">Assign to Tasker</h3>
+            <p className="text-xs text-gray-400 mb-4">
+              Assigning: <span className="font-semibold text-gray-700">{assignHelper.name}</span>
+            </p>
+
+            <label className="block text-xs text-gray-500 mb-1">Tasker</label>
+            <select
+              value={assignTaskerId}
+              onChange={(e) => { setAssignTaskerId(e.target.value); checkAssignConflict(e.target.value, assignSlot) }}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-4"
+            >
+              <option value="">— Select a tasker —</option>
+              {approvedTaskers.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+
+            <label className="block text-xs text-gray-500 mb-2">Slot</label>
+            <div className="flex gap-3 mb-4">
+              {[{ value: '1', label: 'Assistant 1' }, { value: '2', label: 'Assistant 2' }].map((opt) => (
+                <label
+                  key={opt.value}
+                  className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                    assignSlot === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="assignSlot"
+                    value={opt.value}
+                    checked={assignSlot === opt.value}
+                    onChange={() => { setAssignSlot(opt.value); checkAssignConflict(assignTaskerId, opt.value) }}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">{opt.label}</span>
+                </label>
+              ))}
+            </div>
+
+            {assignWarning && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-800 mb-4">
+                ⚠️ {assignWarning}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleAssignSave}
+                disabled={assignSaving || !assignTaskerId}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
+              >
+                {assignSaving ? 'Saving...' : assignWarning ? 'Confirm & Reassign' : 'Assign'}
+              </button>
+              <button
+                onClick={() => setAssignHelper(null)}
+                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -3949,10 +4304,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             />
           </button>
 
-          <div style={{ maxHeight: empSubOpen ? '80px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+          <div style={{ maxHeight: empSubOpen ? '120px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
             {[
               { key: 'taskers',    label: 'Taskers'    },
               { key: 'applicants', label: 'Applicants' },
+              { key: 'helpers',    label: 'Helpers'    },
             ].map(({ key, label }) => (
               <button
                 key={key}
@@ -4121,7 +4477,7 @@ function Admin() {
   const activeLabel = tab === 'dashboard'
     ? (dashSubtab === 'payroll' ? 'Payroll' : 'Overview')
     : tab === 'tasker-accounts'
-      ? (empSubtab === 'applicants' ? 'Applicants' : 'Taskers')
+      ? (empSubtab === 'applicants' ? 'Applicants' : empSubtab === 'helpers' ? 'Helpers' : 'Taskers')
       : tab === 'services'
         ? (svcSubtab === 'prices' ? 'Prices' : 'Services')
       : NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
@@ -4408,6 +4764,7 @@ function Admin() {
             {tab === 'customers'       && <CustomerAccountsPanel />}
             {tab === 'tasker-accounts' && empSubtab === 'taskers'    && <TaskerAccountsPanel />}
             {tab === 'tasker-accounts' && empSubtab === 'applicants' && <TaskerApplications />}
+            {tab === 'tasker-accounts' && empSubtab === 'helpers'    && <HelpersPanel />}
             {tab === 'bookings'        && <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} />}
             {tab === 'services' && svcSubtab === 'overview' && <ServicesPanel />}
             {tab === 'services' && svcSubtab === 'prices'   && <ManagePricesPanel />}

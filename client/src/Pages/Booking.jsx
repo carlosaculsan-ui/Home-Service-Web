@@ -446,6 +446,26 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
 }
 
 function TeamDetailsModal({ tasker, taskersNeeded, onClose }) {
+  const [helpersBySlot, setHelpersBySlot] = useState({})
+  const [loadingHelpers, setLoadingHelpers] = useState(true)
+
+  useEffect(() => {
+    if (!tasker?.id) { setLoadingHelpers(false); return }
+    supabase
+      .from('tasker_helpers')
+      .select('slot, helpers(name)')
+      .eq('tasker_id', tasker.id)
+      .order('slot', { ascending: true })
+      .then(({ data }) => {
+        const map = {}
+        for (const row of data ?? []) {
+          map[row.slot] = row.helpers?.name ?? null
+        }
+        setHelpersBySlot(map)
+        setLoadingHelpers(false)
+      })
+  }, [tasker?.id])
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -481,7 +501,9 @@ function TeamDetailsModal({ tasker, taskersNeeded, onClose }) {
             <div className="flex items-center gap-3">
               <User size={16} className="text-gray-400 flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-gray-800">Hanap.ph Staff</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {loadingHelpers ? '—' : (helpersBySlot[1] ?? 'Hanap.ph Staff')}
+                </p>
                 <p className="text-xs text-gray-400">Assistant{taskersNeeded >= 3 ? ' 1' : ''}</p>
               </div>
             </div>
@@ -491,7 +513,9 @@ function TeamDetailsModal({ tasker, taskersNeeded, onClose }) {
             <div className="flex items-center gap-3">
               <User size={16} className="text-gray-400 flex-shrink-0" />
               <div>
-                <p className="text-sm font-semibold text-gray-800">Hanap.ph Staff</p>
+                <p className="text-sm font-semibold text-gray-800">
+                  {loadingHelpers ? '—' : (helpersBySlot[2] ?? 'Hanap.ph Staff')}
+                </p>
                 <p className="text-xs text-gray-400">Assistant 2</p>
               </div>
             </div>
@@ -2734,6 +2758,21 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const platformFee = Math.round(baseServicePrice * 0.3)
               const taskerPayout = Math.round(baseServicePrice * 0.7)
 
+              let helperNames = []
+              const helperSlotCount = taskersNeeded - 1
+              if (tasker?.id && helperSlotCount > 0) {
+                const { data: helperRows } = await supabase
+                  .from('tasker_helpers')
+                  .select('slot, helpers(name)')
+                  .eq('tasker_id', tasker.id)
+                  .order('slot', { ascending: true })
+                for (const row of helperRows ?? []) {
+                  if (row.slot <= helperSlotCount && row.helpers?.name) {
+                    helperNames.push({ slot: row.slot, name: row.helpers.name })
+                  }
+                }
+              }
+
               const { error: insertError } = await supabase.from('bookings').insert({
                 client_id,
                 tasker_id: tasker?.id,
@@ -2756,6 +2795,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 platform_fee: platformFee,
                 tasker_payout: taskerPayout,
                 helper_fee: helperFeeAmount,
+                helper_names: helperNames.length > 0 ? JSON.stringify(helperNames) : null,
                 duration_hours: taskDuration ?? 8,
                 status: 'pending_payment',
                 ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
