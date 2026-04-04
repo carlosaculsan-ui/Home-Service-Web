@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { CheckCircle2 } from 'lucide-react'
+import { toPng } from 'html-to-image'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
 
@@ -87,6 +88,26 @@ export default function BookingConfirmation() {
   const [booking, setBooking] = useState(null)
   const [taskerName, setTaskerName] = useState('—')
   const [receiptDate] = useState(fmtNow())
+  const [downloading, setDownloading] = useState(false)
+
+  async function handleDownloadReceipt() {
+    setDownloading(true)
+    const node = document.getElementById('receipt-content')
+    toPng(node, { cacheBust: true, pixelRatio: 2 })
+      .then((dataUrl) => {
+        const link = document.createElement('a')
+        link.href = dataUrl
+        link.download = `Hanap-Receipt-${booking?.reference_number ?? 'receipt'}.png`
+        link.click()
+        URL.revokeObjectURL(dataUrl)
+      })
+      .catch((err) => {
+        console.error('Download receipt failed:', err)
+      })
+      .finally(() => {
+        setDownloading(false)
+      })
+  }
 
   useEffect(() => {
     if (hasSaved.current) return
@@ -205,7 +226,7 @@ export default function BookingConfirmation() {
     <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 py-10">
       <div className="w-full max-w-md">
 
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
+        <div id="receipt-content" className="bg-white rounded-2xl shadow-lg overflow-hidden">
 
           {/* Header */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-8 pb-10 flex flex-col items-center text-center text-white">
@@ -266,18 +287,27 @@ export default function BookingConfirmation() {
 
             {/* Total */}
             <div className="flex justify-between items-center bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
-              <span className="font-bold text-gray-800">Estimated Total</span>
+              <span className="font-bold text-gray-800">Total Paid</span>
               <span className="font-bold text-orange-500 text-lg">
                 ₱{Number(booking?.estimated_total ?? 0).toLocaleString()}
               </span>
             </div>
 
-            <button
-              onClick={() => navigate('/')}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base mt-2"
-            >
-              Back to Home
-            </button>
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={() => navigate('/')}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
+              >
+                Back to Home
+              </button>
+              <button
+                onClick={handleDownloadReceipt}
+                disabled={downloading}
+                className="w-full bg-white border border-orange-500 text-orange-500 font-semibold py-3 rounded-xl transition-colors text-base hover:bg-orange-50 disabled:opacity-60"
+              >
+                {downloading ? 'Downloading...' : 'Download Receipt'}
+              </button>
+            </div>
           </div>
 
         </div>
