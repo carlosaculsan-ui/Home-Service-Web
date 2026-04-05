@@ -399,11 +399,6 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                     )
                   })}
                 </div>
-                {selectedSlot && (
-                  <p className="text-xs text-gray-400 mt-2">
-                    Estimated duration: {taskDuration} hours (including {BUFFER_HOURS} hour buffer time)
-                  </p>
-                )}
               </div>
             )}
 
@@ -538,9 +533,95 @@ function getTaskOptionsSummary(taskOptions) {
   return { label, extras: taskOptions.extras ?? [] }
 }
 
+const REVIEW_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function ReviewsModal({ tasker, onClose }) {
+  const [reviews, setReviews] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    supabase
+      .from('reviews')
+      .select('rating, comment, reviewer_name, created_at')
+      .eq('tasker_id', tasker.id)
+      .eq('is_hidden', false)
+      .eq('is_flagged', false)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => {
+        setReviews(data ?? [])
+        setLoading(false)
+      })
+  }, [tasker.id])
+
+  useEffect(() => {
+    const handleKeyDown = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onClose])
+
+  const avg = reviews.length
+    ? (reviews.reduce((sum, r) => sum + (r.rating ?? 0), 0) / reviews.length).toFixed(1)
+    : null
+
+  function fmtReviewDate(str) {
+    if (!str) return ''
+    const d = new Date(str)
+    return `${REVIEW_MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50" />
+      <div
+        className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 max-h-[85vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-bold transition-colors"
+        >
+          ✕
+        </button>
+
+        <div className="mb-4">
+          <p className="font-bold text-gray-800 text-base">{tasker.name}</p>
+          {avg && (
+            <div className="flex items-center gap-1.5 mt-1">
+              <span className="text-yellow-500">★</span>
+              <span className="font-semibold text-gray-800">{avg}</span>
+              <span className="text-sm text-gray-400">({reviews.length} review{reviews.length !== 1 ? 's' : ''})</span>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-gray-100 pt-4 overflow-y-auto flex-1 space-y-4">
+          {loading && <p className="text-sm text-gray-400 text-center py-4">Loading reviews...</p>}
+          {!loading && reviews.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-4">No reviews yet.</p>
+          )}
+          {!loading && reviews.map((r, i) => (
+            <div key={i} className="border-b border-gray-50 pb-3 last:border-0">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-yellow-500 text-sm">{'★'.repeat(r.rating ?? 0)}<span className="text-gray-200">{'★'.repeat(5 - (r.rating ?? 0))}</span></span>
+              </div>
+              {r.comment && <p className="text-sm text-gray-700 leading-relaxed">{r.comment}</p>}
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs text-gray-500 font-medium">{r.reviewer_name || 'Anonymous'}</span>
+                <span className="text-gray-300 text-xs">·</span>
+                <span className="text-xs text-gray-400">{fmtReviewDate(r.created_at)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptions }) {
   const [expanded, setExpanded] = useState(false)
   const [showTeamModal, setShowTeamModal] = useState(false)
+  const [showReviewsModal, setShowReviewsModal] = useState(false)
   const bio = tasker.bio ?? ''
   const shortBio = bio.length > 90 ? bio.slice(0, 90) + '...' : bio
   const summary = getTaskOptionsSummary(taskOptions)
@@ -554,6 +635,9 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
           taskersNeeded={taskersNeeded ?? 1}
           onClose={() => setShowTeamModal(false)}
         />
+      )}
+      {showReviewsModal && (
+        <ReviewsModal tasker={tasker} onClose={() => setShowReviewsModal(false)} />
       )}
 
       <div className="border border-gray-200 rounded-xl p-5 space-y-3">
@@ -583,7 +667,9 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
             <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
-              <span className="text-gray-400">({formatReviews(tasker.reviews ?? 0)} reviews)</span>
+              <button onClick={() => setShowReviewsModal(true)} className="text-gray-400 hover:text-orange-500 underline">
+                ({formatReviews(tasker.reviews ?? 0)} reviews)
+              </button>
               <span className="text-gray-300">•</span>
               <span>✅ {(tasker.tasks ?? 0).toLocaleString()} completed jobs</span>
             </div>
@@ -719,6 +805,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [formPhoneError, setFormPhoneError] = useState('')
   const [formSaving, setFormSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [showReviewsModal, setShowReviewsModal] = useState(false)
 
   const PH_PHONE_RE = /^(09|\+639)\d{9}$/
   const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
@@ -905,6 +992,10 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         )}
       </div>
 
+      {showReviewsModal && tasker && (
+        <ReviewsModal tasker={tasker} onClose={() => setShowReviewsModal(false)} />
+      )}
+
       {/* Section 3 – Tasker Information */}
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-4">Your Tasker</p>
@@ -926,7 +1017,9 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker?.rating ?? 0).toFixed(1)}</span>
-              <span className="text-gray-400">({formatReviews(tasker?.reviews ?? 0)} reviews)</span>
+              <button onClick={() => setShowReviewsModal(true)} className="text-gray-400 hover:text-orange-500 underline">
+                ({formatReviews(tasker?.reviews ?? 0)} reviews)
+              </button>
             </div>
           </div>
         </div>
@@ -2980,6 +3073,7 @@ function Booking() {
           reviewCountMap[r.tasker_id] = (reviewCountMap[r.tasker_id] || 0) + 1
           reviewSumMap[r.tasker_id]   = (reviewSumMap[r.tasker_id]   || 0) + (r.rating ?? 0)
         })
+        console.log('tasker availability sample:', data[0]?.availability)
         setTaskers(data.map((t) => ({
           id: t.id,
           name: t.name,
@@ -2990,7 +3084,7 @@ function Booking() {
           price: `₱${t.hourly_rate}/hr`,
           bio: t.bio,
           profile_photo: t.profile_photo ?? null,
-          availability: t.availability ?? null,
+          availability: t.availability?.trim() ?? null,
         })))
       }
       setLoadingTaskers(false)
@@ -3072,16 +3166,29 @@ function Booking() {
         {step === 0 && <Step1 service={service} onContinue={handleStep1Continue} />}
 
         {step === 1 && (
-          <Step2
-            onSelect={handleOpenModal}
-            onBack={() => setStep(0)}
-            taskers={taskers}
-            loadingTaskers={loadingTaskers}
-            taskersError={taskersError}
-            taskersNeeded={taskersNeeded}
-            estimatedTotal={estimatedTotal}
-            taskOptions={taskOptions}
-          />
+          (() => {
+            const taskDurationForFilter = getTaskDuration(taskOptions)
+            const isFullDayTask = taskDurationForFilter >= 8
+            const visibleTaskers = isFullDayTask
+              ? taskers.filter(t => !t.availability || t.availability.trim() === 'Full Time')
+              : taskers
+            console.log('isFullDayTask:', isFullDayTask)
+            console.log('taskers count:', taskers.length)
+            console.log('visibleTaskers count:', visibleTaskers.length)
+            console.log('tasker availabilities:', taskers.map(t => t.availability))
+            return (
+              <Step2
+                onSelect={handleOpenModal}
+                onBack={() => setStep(0)}
+                taskers={visibleTaskers}
+                loadingTaskers={loadingTaskers}
+                taskersError={taskersError}
+                taskersNeeded={taskersNeeded}
+                estimatedTotal={estimatedTotal}
+                taskOptions={taskOptions}
+              />
+            )
+          })()
         )}
 
         {step === 2 && (
