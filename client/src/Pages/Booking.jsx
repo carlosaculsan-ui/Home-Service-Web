@@ -3073,7 +3073,6 @@ function Booking() {
           reviewCountMap[r.tasker_id] = (reviewCountMap[r.tasker_id] || 0) + 1
           reviewSumMap[r.tasker_id]   = (reviewSumMap[r.tasker_id]   || 0) + (r.rating ?? 0)
         })
-        console.log('tasker availability sample:', data[0]?.availability)
         setTaskers(data.map((t) => ({
           id: t.id,
           name: t.name,
@@ -3172,10 +3171,6 @@ function Booking() {
             const visibleTaskers = isFullDayTask
               ? taskers.filter(t => !t.availability || t.availability.trim() === 'Full Time')
               : taskers
-            console.log('isFullDayTask:', isFullDayTask)
-            console.log('taskers count:', taskers.length)
-            console.log('visibleTaskers count:', visibleTaskers.length)
-            console.log('tasker availabilities:', taskers.map(t => t.availability))
             return (
               <Step2
                 onSelect={handleOpenModal}
