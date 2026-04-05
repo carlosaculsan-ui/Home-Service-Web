@@ -3816,15 +3816,20 @@ function HelpersPanel() {
   const [assignments, setAssignments] = useState({}) // { helper_id: [{ tasker_id, tasker_name, slot }] }
   const [loading, setLoading] = useState(true)
 
+  // Search
+  const [search, setSearch] = useState('')
+
   // Add modal
   const [showAddModal, setShowAddModal] = useState(false)
   const [newName, setNewName] = useState('')
+  const [newPhone, setNewPhone] = useState('')
   const [addError, setAddError] = useState('')
   const [addSaving, setAddSaving] = useState(false)
 
   // Edit modal
   const [editHelper, setEditHelper] = useState(null)
   const [editName, setEditName] = useState('')
+  const [editPhone, setEditPhone] = useState('')
   const [editError, setEditError] = useState('')
   const [editSaving, setEditSaving] = useState(false)
 
@@ -3866,17 +3871,19 @@ function HelpersPanel() {
 
   async function handleAddHelper() {
     if (!newName.trim()) { setAddError('Name is required.'); return }
+    if (newPhone.trim() && newPhone.trim().length !== 11) { setAddError('Phone number must be exactly 11 digits.'); return }
     setAddSaving(true)
-    const { error } = await supabase.from('helpers').insert({ name: newName.trim(), is_active: true })
+    const { error } = await supabase.from('helpers').insert({ name: newName.trim(), phone: newPhone.trim() || null, is_active: true })
     if (error) { setAddError('Failed to add helper.'); setAddSaving(false); return }
-    setNewName(''); setAddError(''); setShowAddModal(false); setAddSaving(false)
+    setNewName(''); setNewPhone(''); setAddError(''); setShowAddModal(false); setAddSaving(false)
     fetchData()
   }
 
   async function handleEditSave() {
     if (!editName.trim()) { setEditError('Name is required.'); return }
+    if (editPhone.trim() && editPhone.trim().length !== 11) { setEditError('Phone number must be exactly 11 digits.'); return }
     setEditSaving(true)
-    const { error } = await supabase.from('helpers').update({ name: editName.trim() }).eq('id', editHelper.id)
+    const { error } = await supabase.from('helpers').update({ name: editName.trim(), phone: editPhone.trim() || null }).eq('id', editHelper.id)
     if (error) { setEditError('Failed to save.'); setEditSaving(false); return }
     setEditHelper(null); setEditSaving(false)
     fetchData()
@@ -3940,6 +3947,17 @@ function HelpersPanel() {
         </button>
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search helpers by name or phone..."
+          className="w-full max-w-sm border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 transition-colors"
+        />
+      </div>
+
       {/* Table */}
       {helpers.length === 0 ? (
         <p className="text-center text-gray-400 mt-16">No helpers yet. Add one to get started.</p>
@@ -3950,17 +3968,23 @@ function HelpersPanel() {
               <thead>
                 <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
                   <th className="px-4 py-3 font-medium">Name</th>
+                  <th className="px-4 py-3 font-medium">Contact Number</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Assigned Taskers</th>
                   <th className="px-4 py-3 font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {helpers.map((h) => {
+                {helpers.filter((h) => {
+                  const q = search.trim().toLowerCase()
+                  if (!q) return true
+                  return h.name?.toLowerCase().includes(q) || h.phone?.toLowerCase().includes(q)
+                }).map((h) => {
                   const helperAssignments = assignments[h.id] ?? []
                   return (
                     <tr key={h.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
+                      <td className="px-4 py-3 text-gray-600">{h.phone || <span className="text-gray-300">—</span>}</td>
 
                       <td className="px-4 py-3">
                         <button
@@ -3998,7 +4022,7 @@ function HelpersPanel() {
                             Assign
                           </button>
                           <button
-                            onClick={() => { setEditHelper(h); setEditName(h.name); setEditError('') }}
+                            onClick={() => { setEditHelper(h); setEditName(h.name); setEditPhone(h.phone ?? ''); setEditError('') }}
                             className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
                           >
                             Edit
@@ -4031,9 +4055,21 @@ function HelpersPanel() {
               type="text"
               value={newName}
               onChange={(e) => { setNewName(e.target.value); setAddError('') }}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddHelper()}
               placeholder="Helper's full name"
               autoFocus
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
+            />
+            <label className="block text-xs text-gray-500 mb-1">Contact Number <span className="text-gray-300 font-normal">(optional)</span></label>
+            <input
+              type="tel"
+              value={newPhone}
+              onChange={(e) => setNewPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab' && e.key !== 'Delete') e.preventDefault()
+                if (e.key === 'Enter') handleAddHelper()
+              }}
+              maxLength={11}
+              placeholder="e.g. 09171234567"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
             />
             {addError && <p className="text-xs text-red-500 mb-3">{addError}</p>}
@@ -4067,8 +4103,20 @@ function HelpersPanel() {
               type="text"
               value={editName}
               onChange={(e) => { setEditName(e.target.value); setEditError('') }}
-              onKeyDown={(e) => e.key === 'Enter' && handleEditSave()}
               autoFocus
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
+            />
+            <label className="block text-xs text-gray-500 mb-1">Contact Number <span className="text-gray-300 font-normal">(optional)</span></label>
+            <input
+              type="tel"
+              value={editPhone}
+              onChange={(e) => setEditPhone(e.target.value)}
+              onKeyDown={(e) => {
+                if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab' && e.key !== 'Delete') e.preventDefault()
+                if (e.key === 'Enter') handleEditSave()
+              }}
+              maxLength={11}
+              placeholder="e.g. 09171234567"
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
             />
             {editError && <p className="text-xs text-red-500 mb-3">{editError}</p>}
