@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
-  TrendingUp, DollarSign, Calendar, ChevronRight,
+  TrendingUp, DollarSign, Calendar, ChevronRight, Megaphone,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -4163,6 +4163,161 @@ function HelpersPanel() {
   )
 }
 
+// ─── Announcements Panel ─────────────────────────────────────────────────────
+
+function AnnouncementsPanel() {
+  const [announcements, setAnnouncements] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function fetchAnnouncements() {
+    const { data } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false })
+    setAnnouncements(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchAnnouncements() }, [])
+
+  function startEdit(ann) {
+    setEditingId(ann.id)
+    setTitle(ann.title)
+    setMessage(ann.message)
+    setError('')
+  }
+
+  function cancelEdit() {
+    setEditingId(null)
+    setTitle('')
+    setMessage('')
+    setError('')
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Delete this announcement? This cannot be undone.')) return
+    await supabase.from('announcements').delete().eq('id', id)
+    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!title.trim() || !message.trim()) { setError('Title and message are required.'); return }
+    setSaving(true)
+    setError('')
+
+    if (editingId) {
+      const { error: err } = await supabase
+        .from('announcements')
+        .update({ title: title.trim(), message: message.trim() })
+        .eq('id', editingId)
+      if (err) { setError('Failed to update.'); setSaving(false); return }
+    } else {
+      const { error: err } = await supabase
+        .from('announcements')
+        .insert({ title: title.trim(), message: message.trim() })
+      if (err) { setError('Failed to post.'); setSaving(false); return }
+    }
+
+    setSaving(false)
+    cancelEdit()
+    fetchAnnouncements()
+  }
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6">
+      <h2 className="text-xl font-bold text-gray-800">Announcements</h2>
+
+      {/* List */}
+      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center py-10">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : announcements.length === 0 ? (
+          <p className="text-center text-gray-400 text-sm py-10">No announcements yet.</p>
+        ) : (
+          <div className="divide-y divide-gray-50">
+            {announcements.map((ann) => (
+              <div key={ann.id} className="px-5 py-4 flex items-start gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-gray-800 text-sm">{ann.title}</p>
+                  <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{ann.message}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {new Date(ann.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => startEdit(ann)}
+                    className="text-xs font-semibold text-orange-500 border border-orange-300 hover:bg-orange-50 px-3 py-1 rounded-lg transition-colors"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(ann.id)}
+                    className="text-xs font-semibold text-red-500 border border-red-200 hover:bg-red-50 px-3 py-1 rounded-lg transition-colors"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Create / Edit Form */}
+      <div className="bg-white rounded-2xl shadow-sm p-5">
+        <p className="font-bold text-gray-800 text-sm mb-4">
+          {editingId ? 'Edit Announcement' : 'New Announcement'}
+        </p>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title"
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
+          />
+          <textarea
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Message"
+            rows={4}
+            style={{ minHeight: 100 }}
+            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors resize-none"
+          />
+          {error && <p className="text-xs text-red-500">{error}</p>}
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={saving}
+              className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors"
+            >
+              {saving ? 'Saving…' : editingId ? 'Update Announcement' : 'Post Announcement'}
+            </button>
+            {editingId && (
+              <button
+                type="button"
+                onClick={cancelEdit}
+                className="text-sm font-semibold text-gray-500 border border-gray-300 hover:border-gray-400 hover:text-gray-700 px-5 py-2.5 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -4175,7 +4330,7 @@ const NAV_ITEMS = [
   { key: 'messages',        label: 'Messages',            icon: MessageSquare },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, adminEmail, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, onLogout, onClose }) {
   // ── Mobile detection ────────────────────────────────────────────────────────
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -4188,10 +4343,12 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
   const [subOpen, setSubOpen] = useState(tab === 'dashboard')
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
   const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
+  const [msgSubOpen, setMsgSubOpen] = useState(tab === 'messages')
 
   const closeTimer = useRef(null)
   const empCloseTimer = useRef(null)
   const svcCloseTimer = useRef(null)
+  const msgCloseTimer = useRef(null)
 
   // ── Desktop hover handlers ──────────────────────────────────────────────────
   function handleDashEnter() { if (closeTimer.current) clearTimeout(closeTimer.current); setSubOpen(true) }
@@ -4203,10 +4360,14 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
   function handleSvcEnter() { if (svcCloseTimer.current) clearTimeout(svcCloseTimer.current); setSvcSubOpen(true) }
   function handleSvcLeave() { svcCloseTimer.current = setTimeout(() => setSvcSubOpen(false), 275) }
 
+  function handleMsgEnter() { if (msgCloseTimer.current) clearTimeout(msgCloseTimer.current); setMsgSubOpen(true) }
+  function handleMsgLeave() { msgCloseTimer.current = setTimeout(() => setMsgSubOpen(false), 275) }
+
   // ── Mobile tap handlers (toggle open, close others) ─────────────────────────
-  function handleDashTap() { setSubOpen((v) => !v); setEmpSubOpen(false); setSvcSubOpen(false) }
-  function handleEmpTap()  { setEmpSubOpen((v) => !v); setSubOpen(false); setSvcSubOpen(false) }
-  function handleSvcTap()  { setSvcSubOpen((v) => !v); setSubOpen(false); setEmpSubOpen(false) }
+  function handleDashTap() { setSubOpen((v) => !v); setEmpSubOpen(false); setSvcSubOpen(false); setMsgSubOpen(false) }
+  function handleEmpTap()  { setEmpSubOpen((v) => !v); setSubOpen(false); setSvcSubOpen(false); setMsgSubOpen(false) }
+  function handleSvcTap()  { setSvcSubOpen((v) => !v); setSubOpen(false); setEmpSubOpen(false); setMsgSubOpen(false) }
+  function handleMsgTap()  { setMsgSubOpen((v) => !v); setSubOpen(false); setEmpSubOpen(false); setSvcSubOpen(false) }
 
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
@@ -4367,8 +4528,50 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           </div>
         </div>
 
+        {/* Messages with subtabs */}
+        <div
+          onMouseEnter={!isMobile ? handleMsgEnter : undefined}
+          onMouseLeave={!isMobile ? handleMsgLeave : undefined}
+        >
+          <button
+            onClick={isMobile ? handleMsgTap : undefined}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
+              tab === 'messages'
+                ? 'bg-white text-orange-600'
+                : 'text-white hover:bg-orange-600'
+            }`}
+          >
+            <MessageSquare size={17} className="flex-shrink-0" />
+            Messages
+            <ChevronRight
+              size={14}
+              className="ml-auto flex-shrink-0 transition-transform duration-200"
+              style={{ transform: msgSubOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+
+          <div style={{ maxHeight: msgSubOpen ? '80px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+            {[
+              { key: 'inbox',         label: 'Inbox'         },
+              { key: 'announcements', label: 'Announcements' },
+            ].map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => { setTab('messages'); setMsgSubtab(key); setMsgSubOpen(false); onClose?.() }}
+                className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                  tab === 'messages' && msgSubtab === key
+                    ? 'bg-white/20 text-white font-semibold'
+                    : 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* All other nav items */}
-        {NAV_ITEMS.filter((n) => n.key !== 'dashboard' && n.key !== 'tasker-accounts' && n.key !== 'services').map(({ key, label, icon: Icon }) => (
+        {NAV_ITEMS.filter((n) => n.key !== 'dashboard' && n.key !== 'tasker-accounts' && n.key !== 'services' && n.key !== 'messages').map(({ key, label, icon: Icon }) => (
           <button
             key={key}
             onClick={() => { setTab(key); onClose?.() }}
@@ -4407,6 +4610,7 @@ function Admin() {
   const [dashSubtab, setDashSubtab] = useState('overview')
   const [empSubtab, setEmpSubtab] = useState('taskers')
   const [svcSubtab, setSvcSubtab] = useState('overview')
+  const [msgSubtab, setMsgSubtab] = useState('inbox')
   const [bookingFilter, setBookingFilter] = useState('all')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
@@ -4496,6 +4700,8 @@ function Admin() {
           setEmpSubtab={setEmpSubtab}
           svcSubtab={svcSubtab}
           setSvcSubtab={setSvcSubtab}
+          msgSubtab={msgSubtab}
+          setMsgSubtab={setMsgSubtab}
           adminEmail={adminEmail}
           onLogout={handleLogout}
         />
@@ -4518,6 +4724,8 @@ function Admin() {
               setEmpSubtab={setEmpSubtab}
               svcSubtab={svcSubtab}
               setSvcSubtab={setSvcSubtab}
+              msgSubtab={msgSubtab}
+              setMsgSubtab={setMsgSubtab}
               adminEmail={adminEmail}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
@@ -4770,7 +4978,8 @@ function Admin() {
             {tab === 'services' && svcSubtab === 'prices'   && <ManagePricesPanel />}
             {tab === 'reviews'         && <ReviewsPanel />}
             {tab === 'leave-requests'  && <LeaveRequestsPanel />}
-            {tab === 'messages'        && <AdminMessagesPanel adminUserId={adminUserId} />}
+            {tab === 'messages' && msgSubtab === 'inbox'         && <AdminMessagesPanel adminUserId={adminUserId} />}
+            {tab === 'messages' && msgSubtab === 'announcements' && <AnnouncementsPanel />}
           </div>
         )}
 
