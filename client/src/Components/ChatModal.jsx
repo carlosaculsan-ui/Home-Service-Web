@@ -17,6 +17,32 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const [sending, setSending] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const [bookingInfo, setBookingInfo] = useState(null)
+  const [isCustomer, setIsCustomer] = useState(false)
+
+  // ── Fetch booking info + user role for intro message ───────────────────────
+  useEffect(() => {
+    if (!bookingId || !currentUserId) return
+
+    async function fetchIntroData() {
+      const [{ data: booking }, { data: profile }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('service, scheduled_date, scheduled_time, reference_number')
+          .eq('id', bookingId)
+          .single(),
+        supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', currentUserId)
+          .single(),
+      ])
+      if (booking) setBookingInfo(booking)
+      if (profile?.role === 'customer') setIsCustomer(true)
+    }
+
+    fetchIntroData()
+  }, [bookingId, currentUserId])
 
   // ── Fetch messages ──────────────────────────────────────────────────────────
   async function fetchMessages() {
@@ -157,6 +183,31 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
               <X size={18} />
             </button>
           </div>
+
+          {/* Intro message — customer only */}
+          {isCustomer && bookingInfo && (() => {
+            const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+            const d = new Date(bookingInfo.scheduled_date + 'T00:00:00')
+            const dateStr = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
+            const timeStr = bookingInfo.scheduled_time
+              ? (() => {
+                  const [h, min] = bookingInfo.scheduled_time.split(':').map(Number)
+                  const suffix = h < 12 ? 'AM' : 'PM'
+                  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                  return `${hour}:${String(min).padStart(2, '0')} ${suffix}`
+                })()
+              : ''
+            const formattedDate = timeStr ? `${dateStr} at ${timeStr}` : dateStr
+            return (
+              <div className="mx-4 mt-4 mb-2 bg-orange-50 border border-orange-100 rounded-xl p-4 text-sm">
+                <p className="font-semibold text-gray-800 mb-1">📋 You're connected with {otherUserName}</p>
+                <p className="text-gray-600">Service: <span className="font-medium">{bookingInfo.service}</span></p>
+                <p className="text-gray-600">Scheduled: <span className="font-medium">{formattedDate}</span></p>
+                <p className="text-gray-600">Reference: <span className="font-medium text-orange-500">{bookingInfo.reference_number}</span></p>
+                <p className="text-xs text-gray-400 mt-2">The tasker will respond as soon as possible.</p>
+              </div>
+            )
+          })()}
 
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">

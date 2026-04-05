@@ -2693,6 +2693,107 @@ function LeaveRequestsPanel() {
 
 // ─── Payroll Panel ───────────────────────────────────────────────────────────
 
+function HelperPayrollModal({ period, onClose }) {
+  const [helperRows, setHelperRows] = useState([])
+  const [loadingHelpers, setLoadingHelpers] = useState(true)
+
+  useEffect(() => {
+    async function fetchHelperPayroll() {
+      const [year, month] = period.split('-').map(Number)
+      const { data: allBookings } = await supabase
+        .from('bookings')
+        .select('helper_fee, helper_names, duration_hours, scheduled_date')
+        .eq('status', 'completed')
+        .gt('helper_fee', 0)
+
+      const bookings = (allBookings ?? []).filter(b => {
+        if (!b.scheduled_date) return false
+        const d = new Date(b.scheduled_date + 'T00:00:00')
+        return d.getFullYear() === year && d.getMonth() + 1 === month
+      })
+
+      // Group by helper name
+      const helperMap = {}
+      for (const b of bookings) {
+        let names = []
+        try {
+          names = typeof b.helper_names === 'string' ? JSON.parse(b.helper_names) : (b.helper_names ?? [])
+        } catch { names = [] }
+        const isFullDay = (b.duration_hours ?? 8) >= 8
+        const perHelper = isFullDay ? 600 : 300
+        for (const entry of names) {
+          const name = entry?.name ?? entry
+          if (!name) continue
+          if (!helperMap[name]) helperMap[name] = { name, jobs: 0, total: 0 }
+          helperMap[name].jobs += 1
+          helperMap[name].total += perHelper
+        }
+      }
+
+      setHelperRows(Object.values(helperMap).sort((a, b) => a.name.localeCompare(b.name)))
+      setLoadingHelpers(false)
+    }
+    fetchHelperPayroll()
+  }, [period])
+
+  const grandTotal = helperRows.reduce((s, r) => s + r.total, 0)
+  const [y, m] = period.split('-')
+  const monthLabel = new Date(Number(y), Number(m) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
+      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-800 text-base">Helper Payroll — {monthLabel}</h3>
+          <button
+            onClick={onClose}
+            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-bold transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="overflow-y-auto flex-1 px-5 py-4">
+          {loadingHelpers ? (
+            <div className="flex justify-center py-10">
+              <div className="w-7 h-7 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : helperRows.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-8">No helper fees recorded for this period.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  <th className="pb-2 text-left">Helper Name</th>
+                  <th className="pb-2 text-right">Jobs Assisted</th>
+                  <th className="pb-2 text-right">Total Earned</th>
+                </tr>
+              </thead>
+              <tbody>
+                {helperRows.map((r) => (
+                  <tr key={r.name} className="border-b border-gray-50 last:border-0">
+                    <td className="py-2.5 font-medium text-gray-800">{r.name}</td>
+                    <td className="py-2.5 text-right text-gray-600">{r.jobs}</td>
+                    <td className="py-2.5 text-right font-semibold" style={{ color: '#0d9488' }}>₱{r.total.toLocaleString()}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-gray-200 bg-gray-50">
+                  <td className="py-2.5 px-0 font-bold text-gray-800">Total</td>
+                  <td className="py-2.5 text-right font-bold text-gray-700">{helperRows.reduce((s, r) => s + r.jobs, 0)}</td>
+                  <td className="py-2.5 text-right font-bold" style={{ color: '#0d9488' }}>₱{grandTotal.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function PayrollPanel() {
   const now = new Date()
   const [period, setPeriod] = useState(
@@ -2702,6 +2803,7 @@ function PayrollPanel() {
   const [payRecords, setPayRecords] = useState({}) // { tasker_id: payroll_record }
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
+  const [showHelperPayroll, setShowHelperPayroll] = useState(false)
 
   useEffect(() => { fetchPayroll() }, [period])
 
@@ -2799,6 +2901,10 @@ function PayrollPanel() {
   return (
     <div className="p-4 sm:p-6 space-y-6">
 
+      {showHelperPayroll && (
+        <HelperPayrollModal period={period} onClose={() => setShowHelperPayroll(false)} />
+      )}
+
       {/* Header row */}
       <div className="flex items-center gap-4 flex-wrap">
         <h2 className="text-xl font-bold text-gray-800">Payroll</h2>
@@ -2808,6 +2914,12 @@ function PayrollPanel() {
           onChange={e => { if (e.target.value) setPeriod(e.target.value) }}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
         />
+        <button
+          onClick={() => setShowHelperPayroll(true)}
+          className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
+        >
+          View Helper Payroll
+        </button>
       </div>
 
       {/* Toast */}
@@ -2985,6 +3097,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [totalRevenue, setTotalRevenue] = useState(0)
   const [platformEarnings, setPlatformEarnings] = useState(0)
   const [monthlyPlatformEarnings, setMonthlyPlatformEarnings] = useState(0)
+  const [helperFeesCollected, setHelperFeesCollected] = useState(0)
   const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
@@ -3006,7 +3119,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-        supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
+        supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
 
@@ -3014,6 +3127,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       const completed = completedBookings ?? []
       const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
       const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+      const allHelperFees = completed.reduce((sum, b) => sum + (Number(b.helper_fee) || 0), 0)
       const thisMonthPlatformEarnings = completed.filter((b) => {
         const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear
@@ -3021,6 +3135,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0 })
       setTotalRevenue(allRevenue)
       setPlatformEarnings(allPlatformEarnings)
+      setHelperFeesCollected(allHelperFees)
       setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
 
       // Recent Bookings
@@ -3087,13 +3202,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               { data: yearBookings },
             ] = await Promise.all([
               supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-              supabase.from('bookings').select('estimated_total, platform_fee, scheduled_date, created_at').eq('status', 'completed'),
+              supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
               supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
             ])
             const currentMonth = new Date().getMonth()
             const completed = completedBookings ?? []
             const allRevenue = completed.reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
             const allPlatformEarnings = completed.reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+            const allHelperFees = completed.reduce((sum, b) => sum + (Number(b.helper_fee) || 0), 0)
             const thisMonthPlatformEarnings = completed.filter((b) => {
               const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
               return d.getMonth() === currentMonth && d.getFullYear() === currentYear
@@ -3101,6 +3217,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             setStats((prev) => ({ ...prev, bookings: bookings ?? 0 }))
             setTotalRevenue(allRevenue)
             setPlatformEarnings(allPlatformEarnings)
+            setHelperFeesCollected(allHelperFees)
             setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
             setAllBookings(yearBookings ?? [])
             const { data: recentData } = await supabase
@@ -3247,6 +3364,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="text-2xl md:text-4xl font-bold text-blue-600">{'₱' + monthlyPlatformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">This Month's Earnings</div>
           <div className="text-xs text-gray-400 mt-1">Platform earnings this month</div>
+        </div>
+
+        {/* Helper Fees Collected card */}
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4" style={{ borderColor: '#0d9488' }}>
+          <div className="mb-2"><Users className="w-8 h-8" style={{ color: '#0d9488' }} /></div>
+          <div className="text-2xl md:text-4xl font-bold" style={{ color: '#0d9488' }}>{'₱' + helperFeesCollected.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Helper Fees Collected</div>
+          <div className="text-xs text-gray-400 mt-1">Paid out to helpers</div>
         </div>
       </div>
 
