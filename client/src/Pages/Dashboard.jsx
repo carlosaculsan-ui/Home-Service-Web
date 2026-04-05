@@ -1384,6 +1384,13 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         </div>
       </div>
 
+      {/* Intro message */}
+      <div className="mx-4 mt-4 mb-2 bg-orange-50 border border-orange-100 rounded-xl p-4 text-sm">
+        <p className="font-semibold text-gray-800 mb-1">👋 You're connected with Hanap.ph Support</p>
+        <p className="text-gray-600">Please describe your concern and our team will get back to you as soon as possible.</p>
+        <p className="text-xs text-gray-400 mt-2">For urgent matters, expect a response within 24 hours.</p>
+      </div>
+
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', WebkitOverflowScrolling: 'touch' }}>
         {messages.length === 0 ? (
