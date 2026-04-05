@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -28,6 +28,19 @@ const STATUS_LABELS = {
   completed:   'Completed',
   cancelled:   'Cancelled',
   rejected:    'Rejected',
+}
+
+function timeAgo(dateString) {
+  if (!dateString) return ''
+  const diff = Date.now() - new Date(dateString).getTime()
+  const secs = Math.floor(diff / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`
+  const days = Math.floor(hrs / 24)
+  return `${days} day${days !== 1 ? 's' : ''} ago`
 }
 
 async function moderateReview(comment) {
@@ -115,6 +128,22 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
       })
 
     if (error) { setStatus('error'); setSubmitMessage(''); return }
+
+    const { data: taskerData } = await supabase
+      .from('taskers')
+      .select('user_id')
+      .eq('id', booking.tasker_id)
+      .single()
+
+    if (taskerData?.user_id) {
+      await supabase.from('notifications').insert({
+        user_id: taskerData.user_id,
+        title: 'New Review Received',
+        message: 'A customer has left you a review!',
+        is_read: false,
+      })
+    }
+
     setStatus('success')
     setSubmitMessage(
       isFlagged
@@ -937,15 +966,16 @@ function CustomerReviews({ userId }) {
 // ─── Navigation ──────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { key: 'bookings', label: 'My Bookings',     icon: CalendarCheck },
-  { key: 'reviews',  label: 'My Reviews',      icon: Star },
-  { key: 'profile',  label: 'Profile Settings',icon: UserCog },
-  { key: 'support',  label: 'Contact Support', icon: Headset },
+  { key: 'notifications',  label: 'Notifications',     icon: Bell },
+  { key: 'bookings',       label: 'My Bookings',      icon: CalendarCheck },
+  { key: 'reviews',        label: 'My Reviews',        icon: Star },
+  { key: 'profile',        label: 'Profile Settings',  icon: UserCog },
+  { key: 'support',        label: 'Contact Support',   icon: Headset },
 ]
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, onClose }) {
+function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, onClose, unreadNotifCount = 0 }) {
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -996,7 +1026,12 @@ function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, o
             }`}
           >
             <Icon size={17} className="flex-shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {key === 'notifications' && unreadNotifCount > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+                {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -1722,6 +1757,8 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
   const [customerEmail, setCustomerEmail] = useState('')
+  const [notifications, setNotifications] = useState([])
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const navigate = useNavigate()
 
   async function load(uid) {
@@ -1780,6 +1817,64 @@ function Dashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
+  useEffect(() => {
+    if (!userId) return
+
+    async function fetchNotifications() {
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', userId)
+        .lt('created_at', new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())
+
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const rows = data ?? []
+      setNotifications(rows)
+      setUnreadNotifCount(rows.filter((n) => !n.is_read).length)
+    }
+
+    fetchNotifications()
+
+    const channel = supabase
+      .channel(`customer-notifications-${userId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${userId}`,
+      }, () => { fetchNotifications() })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  async function markAllNotifsRead() {
+    if (!userId) return
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    setUnreadNotifCount(0)
+  }
+
+  async function markOneNotifRead(id) {
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+    setNotifications((prev) =>
+      prev.map((n) => n.id === id ? { ...n, is_read: true } : n)
+    )
+    setUnreadNotifCount((c) => Math.max(0, c - 1))
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/')
@@ -1798,6 +1893,7 @@ function Dashboard() {
           customerName={customerName}
           customerEmail={customerEmail}
           onLogout={handleLogout}
+          unreadNotifCount={unreadNotifCount}
         />
       </div>
 
@@ -1816,6 +1912,7 @@ function Dashboard() {
               customerEmail={customerEmail}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
+              unreadNotifCount={unreadNotifCount}
             />
           </div>
         </>
@@ -1913,6 +2010,52 @@ function Dashboard() {
 
           {tab === 'support' && (
             <CustomerSupport userId={userId} />
+          )}
+
+          {tab === 'notifications' && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
+                {notifications.some((n) => !n.is_read) && (
+                  <button
+                    onClick={markAllNotifsRead}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              {notifications.length === 0 ? (
+                <p className="text-center text-gray-400 py-10">No notifications yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => { if (!n.is_read) markOneNotifRead(n.id) }}
+                      className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors ${
+                        n.is_read
+                          ? 'bg-white border-gray-100 hover:bg-gray-50'
+                          : 'bg-orange-50 border-orange-100 hover:bg-orange-100'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-800 text-sm leading-snug">{n.title}</p>
+                          {n.message && (
+                            <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{n.message}</p>
+                          )}
+                        </div>
+                        {!n.is_read && (
+                          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1.5">{timeAgo(n.created_at)}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
         </div>

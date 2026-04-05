@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { ShieldCheck } from 'lucide-react'
+import { ShieldCheck, Bell } from 'lucide-react'
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -9,6 +9,9 @@ function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [isApprovedTasker, setIsApprovedTasker] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [showNotifDropdown, setShowNotifDropdown] = useState(false)
+  const [notifications, setNotifications] = useState([])
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -50,12 +53,58 @@ function Navbar() {
   }
 
   useEffect(() => {
+    let notifChannel = null
+
     if (session?.user?.id) {
       checkTaskerStatus(session.user.id)
       checkAdminRole(session.user.id)
+
+      ;(async () => {
+        await supabase
+          .from('notifications')
+          .delete()
+          .eq('user_id', session.user.id)
+          .lt('created_at', new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())
+
+        const { data } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', session.user.id)
+          .order('created_at', { ascending: false })
+          .limit(10)
+        setNotifications(data ?? [])
+        setUnreadCount(data?.filter(n => !n.is_read).length ?? 0)
+
+        notifChannel = supabase
+          .channel('navbar-notifs')
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'notifications',
+            filter: `user_id=eq.${session.user.id}`,
+          }, () => {
+            supabase
+              .from('notifications')
+              .select('*')
+              .eq('user_id', session.user.id)
+              .order('created_at', { ascending: false })
+              .limit(10)
+              .then(({ data }) => {
+                setNotifications(data ?? [])
+                setUnreadCount(data?.filter(n => !n.is_read).length ?? 0)
+              })
+          })
+          .subscribe()
+      })()
     } else {
       setIsApprovedTasker(false)
       setIsAdmin(false)
+      setNotifications([])
+      setUnreadCount(0)
+    }
+
+    return () => {
+      if (notifChannel) supabase.removeChannel(notifChannel)
     }
   }, [session])
 
@@ -70,6 +119,14 @@ function Navbar() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  useEffect(() => {
+    const handler = () => {
+      if (showNotifDropdown) setShowNotifDropdown(false)
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showNotifDropdown])
 
   async function handleLogout() {
     setDropdownOpen(false)
@@ -152,6 +209,80 @@ function Navbar() {
                 onClick={() => setDropdownOpen(false)}
               />
             )}
+
+            {/* Notification Bell */}
+            <div className="relative mr-2" onClick={e => e.stopPropagation()}>
+              <button
+                onClick={async (e) => {
+                  e.stopPropagation()
+                  setShowNotifDropdown(v => !v)
+                  if (unreadCount > 0) {
+                    await supabase.from('notifications')
+                      .update({ is_read: true })
+                      .eq('user_id', session.user.id)
+                    setUnreadCount(0)
+                    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+                  }
+                }}
+                className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-orange-400 transition-colors"
+              >
+                <Bell size={20} className="text-white" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifDropdown && (
+                <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-2xl border border-gray-100 z-50 overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
+                    <p className="font-bold text-gray-800 text-sm">Notifications</p>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={async () => {
+                          await supabase.from('notifications')
+                            .update({ is_read: true })
+                            .eq('user_id', session.user.id)
+                          setUnreadCount(0)
+                          setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+                        }}
+                        className="text-xs text-gray-400 hover:text-orange-500"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="text-sm text-gray-400 text-center py-6">No notifications yet.</p>
+                    ) : (
+                      notifications.map(n => (
+                        <div
+                          key={n.id}
+                          onClick={async () => {
+                            if (!n.is_read) {
+                              await supabase.from('notifications')
+                                .update({ is_read: true }).eq('id', n.id)
+                              setUnreadCount(c => Math.max(0, c - 1))
+                              setNotifications(prev => prev.map(x =>
+                                x.id === n.id ? { ...x, is_read: true } : x))
+                            }
+                          }}
+                          className={`px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-orange-50' : 'bg-white'}`}
+                        >
+                          <p className="text-sm font-semibold text-gray-800">{n.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{n.message}</p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            {new Date(n.created_at).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             <button
               type="button"

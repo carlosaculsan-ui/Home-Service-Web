@@ -5,7 +5,7 @@ import LocationMap from '../Components/LocationMap'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset, Home,
+  LogOut, Menu, X, MessageSquare, Headset, Home, Bell,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import {
@@ -32,13 +32,27 @@ const STATUS_STYLES = {
 }
 
 const NAV_ITEMS = [
-  { key: 'bookings',       label: 'Bookings',                     icon: CalendarCheck },
-  { key: 'leave',          label: 'Leave Request',                icon: CalendarOff },
-  { key: 'earnings',       label: 'Earnings Summary',             icon: Wallet },
-  { key: 'profile',        label: 'Profile Management',           icon: UserCog },
-  { key: 'history',        label: 'Booking History',              icon: History },
-  { key: 'contact-admin', label: 'Contact Admin',                icon: Headset },
+  { key: 'notifications',  label: 'Notifications',     icon: Bell },
+  { key: 'bookings',       label: 'Bookings',          icon: CalendarCheck },
+  { key: 'leave',          label: 'Leave Request',     icon: CalendarOff },
+  { key: 'earnings',       label: 'Earnings Summary',  icon: Wallet },
+  { key: 'profile',        label: 'Profile Management',icon: UserCog },
+  { key: 'history',        label: 'Booking History',   icon: History },
+  { key: 'contact-admin',  label: 'Contact Admin',     icon: Headset },
 ]
+
+function timeAgo(dateString) {
+  if (!dateString) return ''
+  const diff = Date.now() - new Date(dateString).getTime()
+  const secs = Math.floor(diff / 1000)
+  if (secs < 60) return 'just now'
+  const mins = Math.floor(secs / 60)
+  if (mins < 60) return `${mins} minute${mins !== 1 ? 's' : ''} ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs !== 1 ? 's' : ''} ago`
+  const days = Math.floor(hrs / 24)
+  return `${days} day${days !== 1 ? 's' : ''} ago`
+}
 
 const getTaskLabel = (booking) => {
   const opts = booking.task_options
@@ -292,6 +306,24 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       setStatusError('Failed to update status. Try again.')
       return
     }
+
+    // Notify customer of status change
+    if (booking.client_id) {
+      const statusMessages = {
+        accepted: 'Your booking has been accepted by your tasker.',
+        rejected: 'Your booking has been declined by your tasker.',
+        on_the_way: 'Your tasker is on the way to your location.',
+        in_progress: 'Your tasker has started working on your task.',
+        completed: 'Your task has been completed. Please leave a review!',
+      }
+      await supabase.from('notifications').insert({
+        user_id: booking.client_id,
+        title: 'Booking Update',
+        message: statusMessages[newStatus] ?? `Your booking status is now ${newStatus}.`,
+        is_read: false,
+      })
+    }
+
     if (newStatus === 'on_the_way') startLocationSharing()
     if (newStatus === 'in_progress') stopLocationSharing()
     onStatusChange()
@@ -731,7 +763,7 @@ function LeaveRequestSection({ taskerId }) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose }) {
+function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose, unreadNotifCount = 0 }) {
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -782,7 +814,12 @@ function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose
             }`}
           >
             <Icon size={17} className="flex-shrink-0" />
-            {label}
+            <span className="flex-1">{label}</span>
+            {key === 'notifications' && unreadNotifCount > 0 && (
+              <span className="ml-auto min-w-[20px] h-5 px-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center leading-none">
+                {unreadNotifCount > 99 ? '99+' : unreadNotifCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -2122,6 +2159,8 @@ function TaskerDashboard() {
   const [loading, setLoading] = useState(true)
   const [taskerName, setTaskerName] = useState('')
   const [taskerEmail, setTaskerEmail] = useState('')
+  const [notifications, setNotifications] = useState([])
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const navigate = useNavigate()
 
   async function load(tid) {
@@ -2185,6 +2224,64 @@ function TaskerDashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [taskerId])
 
+  useEffect(() => {
+    if (!taskerUserId) return
+
+    async function fetchNotifications() {
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', taskerUserId)
+        .lt('created_at', new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())
+
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', taskerUserId)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      const rows = data ?? []
+      setNotifications(rows)
+      setUnreadNotifCount(rows.filter((n) => !n.is_read).length)
+    }
+
+    fetchNotifications()
+
+    const channel = supabase
+      .channel(`tasker-notifications-${taskerUserId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'notifications',
+        filter: `user_id=eq.${taskerUserId}`,
+      }, () => { fetchNotifications() })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+  }, [taskerUserId])
+
+  async function markAllNotifsRead() {
+    if (!taskerUserId) return
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', taskerUserId)
+      .eq('is_read', false)
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
+    setUnreadNotifCount(0)
+  }
+
+  async function markOneNotifRead(id) {
+    await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+    setNotifications((prev) =>
+      prev.map((n) => n.id === id ? { ...n, is_read: true } : n)
+    )
+    setUnreadNotifCount((c) => Math.max(0, c - 1))
+  }
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/')
@@ -2203,6 +2300,7 @@ function TaskerDashboard() {
           taskerName={taskerName}
           taskerEmail={taskerEmail}
           onLogout={handleLogout}
+          unreadNotifCount={unreadNotifCount}
         />
       </div>
 
@@ -2221,6 +2319,7 @@ function TaskerDashboard() {
               taskerEmail={taskerEmail}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
+              unreadNotifCount={unreadNotifCount}
             />
           </div>
         </>
@@ -2334,6 +2433,52 @@ function TaskerDashboard() {
                 <ContactAdminChat taskerUserId={taskerUserId} />
               ) : (
                 <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
+              )}
+            </>
+          )}
+
+          {tab === 'notifications' && (
+            <>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
+                {notifications.some((n) => !n.is_read) && (
+                  <button
+                    onClick={markAllNotifsRead}
+                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    Mark all as read
+                  </button>
+                )}
+              </div>
+              {notifications.length === 0 ? (
+                <p className="text-center text-gray-400 py-10">No notifications yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((n) => (
+                    <button
+                      key={n.id}
+                      onClick={() => { if (!n.is_read) markOneNotifRead(n.id) }}
+                      className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors ${
+                        n.is_read
+                          ? 'bg-white border-gray-100 hover:bg-gray-50'
+                          : 'bg-orange-50 border-orange-100 hover:bg-orange-100'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-gray-800 text-sm leading-snug">{n.title}</p>
+                          {n.message && (
+                            <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{n.message}</p>
+                          )}
+                        </div>
+                        {!n.is_read && (
+                          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1.5">{timeAgo(n.created_at)}</p>
+                    </button>
+                  ))}
+                </div>
               )}
             </>
           )}

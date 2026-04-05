@@ -2857,6 +2857,23 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 return
               }
 
+              // Notify tasker of new booking
+              if (tasker?.id) {
+                const { data: taskerProfile } = await supabase
+                  .from('taskers')
+                  .select('user_id')
+                  .eq('id', tasker.id)
+                  .single()
+                if (taskerProfile?.user_id) {
+                  await supabase.from('notifications').insert({
+                    user_id: taskerProfile.user_id,
+                    title: 'New Booking Assigned',
+                    message: `You have a new ${service} booking on ${formattedDate} at ${taskAddress}.`,
+                    is_read: false,
+                  })
+                }
+              }
+
               // Step 7 — Create Payment Intent
               const piRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
                 method: 'POST',
