@@ -2611,6 +2611,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [cardDetails, setCardDetails] = useState({ number: '4343 4343 4343 4345', exp_month: '12', exp_year: '2026', cvc: '123' })
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
@@ -2630,6 +2631,19 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
   const priceBreakdown = buildPriceBreakdown(taskOptions)
 
+
+  if (isProcessingPayment) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white">
+        <svg className="animate-spin h-14 w-14 text-[#EA580C] mb-6" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+        <p className="text-xl font-bold text-gray-800">Processing payment...</p>
+        <p className="text-sm text-gray-400 mt-2">Charging your card via PayMongo</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5">
@@ -2772,7 +2786,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
       {/* Buttons */}
       {saveError && (
-        <p className="text-sm text-red-500 text-center">{saveError}</p>
+        <p className="text-sm text-red-500 text-center">
+          {paymentMethod === 'card'
+            ? 'Payment failed. Please check your card details and try again.'
+            : saveError}
+        </p>
       )}
       <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-3 pt-1">
         <button
@@ -2875,6 +2893,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               }
 
               // Step 7 — Create Payment Intent
+              if (paymentMethod === 'card') setIsProcessingPayment(true)
               const piRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
                 method: 'POST',
                 headers: {
@@ -2894,8 +2913,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const piData = await piRes.json()
               if (!piRes.ok) {
+                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
                 setSaveError(piData?.errors?.[0]?.detail || 'Failed to create payment. Please try again.')
                 setSaving(false)
+                setIsProcessingPayment(false)
                 return
               }
               const piId = piData.data.id
@@ -2925,8 +2946,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const pmData = await pmRes.json()
               if (!pmRes.ok) {
+                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
                 setSaveError(pmData?.errors?.[0]?.detail || 'Failed to create payment method. Please try again.')
                 setSaving(false)
+                setIsProcessingPayment(false)
                 return
               }
               const pmId = pmData.data.id
@@ -2950,8 +2973,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const attachData = await attachRes.json()
               if (!attachRes.ok) {
+                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
                 setSaveError(attachData?.errors?.[0]?.detail || 'Failed to process payment. Please try again.')
                 setSaving(false)
+                setIsProcessingPayment(false)
                 return
               }
 
@@ -2961,16 +2986,23 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               if (attachStatus === 'awaiting_next_action') {
                 window.location.href = attachData.data.attributes.next_action.redirect.url
               // Step 11 — Payment succeeded immediately (card payments)
+              // Do NOT update to 'confirmed' here — BookingConfirmation.jsx finds the
+              // 'pending_payment' booking and confirms it after verifying with PayMongo.
               } else if (attachStatus === 'succeeded') {
-                await supabase.from('bookings').update({ status: 'confirmed' }).eq('reference_number', ref)
                 window.location.href = `${window.location.origin}/booking-confirmation?payment_intent_id=${piId}`
               } else {
+                if (paymentMethod === 'card') {
+                  await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
+                }
                 setSaveError('Payment could not be processed. Please try again.')
                 setSaving(false)
+                setIsProcessingPayment(false)
               }
             } catch (err) {
+              if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
               setSaveError(err?.message || 'Payment setup failed. Please try again.')
               setSaving(false)
+              setIsProcessingPayment(false)
             }
           }}
           disabled={saving || !paymentMethod}
