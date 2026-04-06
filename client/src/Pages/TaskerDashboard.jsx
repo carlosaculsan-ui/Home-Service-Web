@@ -1879,7 +1879,6 @@ const HISTORY_FILTERS = [
 
 const HISTORY_STATUS_STYLES = {
   confirmed:   'bg-amber-100 text-amber-700',
-  pending:     'bg-amber-100 text-amber-700',
   accepted:    'bg-green-100 text-green-700',
   on_the_way:  'bg-purple-100 text-purple-700',
   in_progress: 'bg-orange-100 text-orange-700',
