@@ -455,8 +455,8 @@ function Navbar() {
           top: "14px",
           left: "50%",
           transform: "translateX(-50%)",
-          width: "95%",
-          maxWidth: "1180px",
+          width: "calc(100% - 48px)",
+          maxWidth: "1232px",
           zIndex: 9000,
           opacity: showNav ? 1 : 0,
           translate: showNav ? "0 0" : "0 -18px",
@@ -568,7 +568,7 @@ function Navbar() {
           {/* Desktop Links */}
           <div
             className="nt-desk"
-            style={{ display: "flex", alignItems: "center", gap: "28px" }}
+            style={{ display: "flex", alignItems: "center", gap: "104px" }}
           >
             {NAV_LINKS.map(({ label, href, section }) => (
               <a

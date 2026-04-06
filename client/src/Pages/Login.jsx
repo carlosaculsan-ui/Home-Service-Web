@@ -12,8 +12,30 @@ function Login() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', session.user.id)
+          .single()
+
+        const role = profile?.role
+
+        if (role === 'tasker') {
+          await supabase.auth.signOut()
+          setError('Taskers must log in through the Tasker Login page.')
+          setLoading(false)
+          return
+        }
+
+        if (role === 'admin') {
+          await supabase.auth.signOut()
+          setError('Admins must log in through the Admin Login page.')
+          setLoading(false)
+          return
+        }
+
         const redirect = sessionStorage.getItem('redirectAfterLogin')
         if (redirect) {
           sessionStorage.removeItem('redirectAfterLogin')
@@ -33,9 +55,9 @@ function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
+      setLoading(false)
     }
-    // navigation handled by onAuthStateChange
-    setLoading(false)
+    // role check and navigation handled by onAuthStateChange
   }
 
   const handleGoogleLogin = async () => {
