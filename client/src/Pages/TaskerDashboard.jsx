@@ -763,7 +763,7 @@ function LeaveRequestSection({ taskerId }) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose, unreadNotifCount = 0 }) {
+function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose, unreadNotifCount = 0, setUnreadNotifCount, setNotifTabOpen }) {
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -806,7 +806,21 @@ function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose
         {NAV_ITEMS.map(({ key, label, icon: Icon }) => (
           <button
             key={key}
-            onClick={() => { setTab(key); onClose?.() }}
+            onClick={async () => {
+              setTab(key);
+              onClose?.();
+              if (key === 'notifications') {
+                setUnreadNotifCount(0);
+                await supabase
+                  .from('notifications')
+                  .update({ is_read: true })
+                  .eq('user_id', taskerUserId)
+                setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+                setNotifTabOpen(true);
+              } else {
+                setNotifTabOpen(false);
+              }
+            }}
             className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors text-left ${
               tab === key
                 ? 'bg-white text-orange-600'
@@ -2161,6 +2175,7 @@ function TaskerDashboard() {
   const [taskerEmail, setTaskerEmail] = useState('')
   const [notifications, setNotifications] = useState([])
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+  const [notifTabOpen, setNotifTabOpen] = useState(false)
   const [announcements, setAnnouncements] = useState([])
   const navigate = useNavigate()
 
@@ -2247,7 +2262,9 @@ function TaskerDashboard() {
         .order('created_at', { ascending: false })
       setNotifications(notifData ?? [])
       setAnnouncements(announcementData ?? [])
-      setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
+      if (!notifTabOpen) {
+        setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
+      }
     }
 
     async function fetchAnnouncements() {
@@ -2263,7 +2280,9 @@ function TaskerDashboard() {
         .limit(20)
       setAnnouncements(announcementData ?? [])
       setNotifications(notifData ?? [])
-      setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
+      if (!notifTabOpen) {
+        setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
+      }
     }
 
     fetchNotifications()
@@ -2334,6 +2353,8 @@ function TaskerDashboard() {
           taskerEmail={taskerEmail}
           onLogout={handleLogout}
           unreadNotifCount={unreadNotifCount}
+          setUnreadNotifCount={setUnreadNotifCount}
+          setNotifTabOpen={setNotifTabOpen}
         />
       </div>
 
@@ -2353,6 +2374,8 @@ function TaskerDashboard() {
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
               unreadNotifCount={unreadNotifCount}
+              setUnreadNotifCount={setUnreadNotifCount}
+              setNotifTabOpen={setNotifTabOpen}
             />
           </div>
         </>
@@ -2470,78 +2493,85 @@ function TaskerDashboard() {
             </>
           )}
 
-          {tab === 'notifications' && (
-            <>
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
-                {notifications.some((n) => !n.is_read) && (
-                  <button
-                    onClick={markAllNotifsRead}
-                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Mark all as read
-                  </button>
-                )}
-              </div>
+         {tab === 'notifications' && (
+  <>
+    <div className="flex items-center justify-between mb-6">
+      <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
+      {notifications.some((n) => !n.is_read) && (
+        <button
+          onClick={async () => {
+            await supabase
+              .from('notifications')
+              .update({ is_read: true })
+              .eq('user_id', taskerUserId)
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
+            setUnreadNotifCount(0)
+          }}
+          className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          Mark all as read
+        </button>
+      )}
+    </div>
 
-              {/* Section 1 — Admin Announcements */}
-              {announcements.length > 0 && (
-                <div className="mb-6">
-                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">📢 Admin Announcements</p>
-                  <div className="space-y-2">
-                    {announcements.map((a) => (
-                      <div key={a.id} className="rounded-2xl px-4 py-4 bg-yellow-50 border border-yellow-200">
-                        <div className="flex items-start gap-2">
-                          <span className="text-base leading-none mt-0.5">📢</span>
-                          <div className="min-w-0">
-                            <p className="font-bold text-gray-800 text-sm leading-snug">{a.title}</p>
-                            <p className="text-gray-600 text-sm mt-0.5 leading-relaxed">{a.message}</p>
-                            <p className="text-xs text-gray-400 mt-1.5">
-                              {new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+    {/* Section 1 — Admin Announcements */}
+    {announcements.length > 0 && (
+      <div className="mb-6">
+        <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">📢 Admin Announcements</p>
+        <div className="space-y-2">
+          {announcements.map((a) => (
+            <div key={a.id} className="rounded-2xl px-4 py-4 bg-yellow-50 border border-yellow-200">
+              <div className="flex items-start gap-2">
+                <span className="text-base leading-none mt-0.5">📢</span>
+                <div className="min-w-0">
+                  <p className="font-bold text-gray-800 text-sm leading-snug">{a.title}</p>
+                  <p className="text-gray-600 text-sm mt-0.5 leading-relaxed">{a.message}</p>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                  </p>
                 </div>
-              )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
 
-              {/* Section 2 — Your Notifications */}
-              <div>
-                <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">🔔 Your Notifications</p>
-                {notifications.length === 0 ? (
-                  <p className="text-center text-gray-400 py-10">No notifications yet.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {notifications.map((n) => (
-                      <button
-                        key={n.id}
-                        onClick={() => { if (!n.is_read) markOneNotifRead(n.id) }}
-                        className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors ${
-                          n.is_read
-                            ? 'bg-white border-gray-100 hover:bg-gray-50'
-                            : 'bg-orange-50 border-orange-100 hover:bg-orange-100'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-semibold text-gray-800 text-sm leading-snug">{n.title}</p>
-                            {n.message && (
-                              <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{n.message}</p>
-                            )}
-                          </div>
-                          {!n.is_read && (
-                            <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
-                          )}
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1.5">{timeAgo(n.created_at)}</p>
-                      </button>
-                    ))}
-                  </div>
+    {/* Section 2 — Your Notifications */}
+    <div>
+      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide mb-2">🔔 Your Notifications</p>
+      {notifications.length === 0 ? (
+        <p className="text-center text-gray-400 py-10">No notifications yet.</p>
+      ) : (
+        <div className="space-y-2">
+          {notifications.map((n) => (
+            <button
+              key={n.id}
+              onClick={() => { if (!n.is_read) markOneNotifRead(n.id) }}
+              className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors ${
+                n.is_read
+                  ? 'bg-white border-gray-100 hover:bg-gray-50'
+                  : 'bg-orange-50 border-orange-100 hover:bg-orange-100'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-gray-800 text-sm leading-snug">{n.title}</p>
+                  {n.message && (
+                    <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{n.message}</p>
+                  )}
+                </div>
+                {!n.is_read && (
+                  <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
                 )}
               </div>
-            </>
+              <p className="text-xs text-gray-400 mt-1.5">{timeAgo(n.created_at)}</p>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+          </>
           )}
 
         </div>
