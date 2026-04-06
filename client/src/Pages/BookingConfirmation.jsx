@@ -230,6 +230,17 @@ export default function BookingConfirmation() {
 
           {/* Header */}
           <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-8 pb-10 flex flex-col items-center text-center text-white">
+            {/* Logo */}
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="16" viewBox="0 0 20 18" fill="none">
+                  <path d="M10 1L1 8.5V17H7V12H13V17H19V8.5L10 1Z" fill="white" stroke="white" strokeWidth="0.4" strokeLinejoin="round" />
+                  <rect x="8" y="12" width="4" height="5" rx="0.5" fill="#f97316" />
+                  <rect x="13" y="3.2" width="2.4" height="3.8" rx="0.4" fill="white" opacity="0.85" />
+                </svg>
+              </div>
+              <span className="text-white font-bold text-lg tracking-tight">Hanap.ph</span>
+            </div>
             <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4">
               <CheckCircle2 size={44} className="text-white" />
             </div>
@@ -256,18 +267,29 @@ export default function BookingConfirmation() {
 
             <div className="space-y-3 text-sm">
               {[
-                ['Receipt Date',    receiptDate],
-                ['Service',        booking?.service ?? '—'],
-                ['Tasker',         taskerName],
-                ['Scheduled',      fmtDate(booking?.scheduled_date, booking?.scheduled_time)],
-                ['Address',        booking?.address ?? '—'],
-                ['Payment Method', capitalize(booking?.payment_method)],
+                ['Receipt Date', receiptDate],
+                ['Customer',     booking?.customer_name ?? '—'],
+                ['Service',      booking?.service ?? '—'],
+                ['Tasker',       taskerName],
+                ['Scheduled',    fmtDate(booking?.scheduled_date, booking?.scheduled_time)],
+                ['Address',      booking?.address ?? '—'],
               ].map(([label, val]) => (
-                <div key={label} className="flex justify-between gap-4 border-b border-gray-50 pb-2 last:border-0">
+                <div key={label} className="flex justify-between gap-4 border-b border-gray-50 pb-2">
                   <span className="text-gray-400 flex-shrink-0">{label}</span>
                   <span className="text-gray-800 text-right">{val}</span>
                 </div>
               ))}
+
+              {/* Payment Method — with phone sub-line for mobile wallets */}
+              <div className="flex justify-between gap-4 items-start">
+                <span className="text-gray-400 flex-shrink-0">Payment Method</span>
+                <div className="text-right">
+                  <span className="text-gray-800">{capitalize(booking?.payment_method)}</span>
+                  {['gcash', 'paymaya', 'maya'].includes(booking?.payment_method?.toLowerCase()) && booking?.customer_phone && (
+                    <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Price breakdown */}

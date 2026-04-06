@@ -1627,7 +1627,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {[
-          { value: 'confirmed',   label: 'Pending Tasker' },
+          { value: 'confirmed',   label: 'Pending Booking' },
           { value: 'accepted',    label: 'Accepted' },
           { value: 'on_the_way',  label: 'On The Way' },
           { value: 'in_progress', label: 'In Progress' },
