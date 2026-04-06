@@ -22,13 +22,23 @@ const LEAVE_STATUS_STYLES = {
 
 const STATUS_STYLES = {
   pending:     'bg-yellow-100 text-yellow-700',
-  accept:   'bg-blue-100 text-blue-700',
+  confirmed:   'bg-amber-100 text-amber-700',
+  accept:      'bg-blue-100 text-blue-700',
   accepted:    'bg-green-100 text-green-700',
   on_the_way:  'bg-blue-100 text-blue-700',
-  in_progress: 'bg-orange-100 text-orange-700',
-  completed:   'bg-green-100 text-green-700',
+  in_progress: 'bg-blue-100 text-blue-700',
+  completed:   'bg-gray-100 text-gray-600',
   rejected:    'bg-red-100 text-red-600',
   cancelled:   'bg-gray-100 text-gray-500',
+}
+
+const STATUS_LABELS = {
+  confirmed:   'New Booking',
+  accepted:    'Accepted',
+  on_the_way:  'On The Way',
+  in_progress: 'In Progress',
+  completed:   'Completed',
+  rejected:    'Rejected',
 }
 
 const NAV_ITEMS = [
@@ -260,7 +270,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     setTimeout(() => setToast(''), 3000)
     onStatusChange()
   }
-  const statusLabel = booking.status?.replace('_', ' ') ?? 'pending'
+  const statusLabel = STATUS_LABELS[booking.status] ?? booking.status?.replace('_', ' ') ?? 'pending'
   const statusClass = STATUS_STYLES[booking.status] ?? STATUS_STYLES.pending
 
   useEffect(() => {
@@ -929,11 +939,10 @@ function EarningsSummary({ taskerId }) {
     .reduce((sum, b) => sum + (b.tasker_payout ?? 0), 0)
   const completedCount = completedBookings.length
 
-  // ── Last 6 months chart data ───────────────────────────────────────────────
+  // ── Jan–Jun chart data ────────────────────────────────────────────────────
   const chartData = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1)
-    const yr = d.getFullYear()
-    const mo = d.getMonth()
+    const yr = now.getFullYear()
+    const mo = i // 0 = Jan, 1 = Feb, ... 5 = Jun
     const total = completedBookings
       .filter((b) => {
         if (!b.scheduled_date) return false
@@ -1004,7 +1013,7 @@ function EarningsSummary({ taskerId }) {
 
       {/* Section 2 — Bar Chart */}
       <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h3 className="font-bold text-gray-800 mb-4">Monthly Earnings (Last 6 Months)</h3>
+        <h3 className="font-bold text-gray-800 mb-4">Monthly Earnings (January – June)</h3>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1860,7 +1869,7 @@ function ContactAdminChat({ taskerUserId }) {
 
 const HISTORY_FILTERS = [
   { key: 'all',         label: 'All' },
-  { key: 'confirmed',   label: 'Confirmed' },
+  { key: 'pending',     label: 'Pending' },
   { key: 'accepted',    label: 'Accepted' },
   { key: 'on_the_way',  label: 'On The Way' },
   { key: 'in_progress', label: 'In Progress' },
@@ -1869,8 +1878,9 @@ const HISTORY_FILTERS = [
 ]
 
 const HISTORY_STATUS_STYLES = {
-  confirmed:   'bg-blue-100 text-blue-700',
-  accepted:    'bg-yellow-100 text-yellow-700',
+  confirmed:   'bg-amber-100 text-amber-700',
+  pending:     'bg-amber-100 text-amber-700',
+  accepted:    'bg-green-100 text-green-700',
   on_the_way:  'bg-purple-100 text-purple-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
@@ -2022,7 +2032,11 @@ function BookingHistory({ taskerId, taskerUserId }) {
   }, [taskerId])
 
   const displayed = allBookings
-    .filter((b) => filter === 'all' || b.status === filter)
+    .filter((b) => {
+      if (filter === 'all') return true
+      if (filter === 'pending') return b.status === 'pending' || b.status === 'confirmed'
+      return b.status === filter
+    })
     .filter((b) => {
       if (!search.trim()) return true
       const q = search.toLowerCase()
@@ -2091,7 +2105,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
         <div className="space-y-3">
           {displayed.map((b) => {
             const statusStyle = HISTORY_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'
-            const statusLabel = b.status?.replace(/_/g, ' ') ?? '—'
+            const statusLabel = STATUS_LABELS[b.status] ?? b.status?.replace(/_/g, ' ') ?? '—'
             const refId = 'VE-' + b.id.slice(0, 13).toUpperCase()
             const taskLabel = getHistoryTaskLabel(b)
             return (
