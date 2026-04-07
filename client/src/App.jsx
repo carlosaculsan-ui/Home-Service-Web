@@ -10,6 +10,7 @@ import VideoSection from './Components/VideoSection'
 import Pricing from './Components/Pricing'
 import HowItWorks from './Components/HowItWorks'
 import Reviews from './Components/Reviews'
+import LocationMap from './Components/LocationMap'
 import Footer from './Components/Footer'
 import Chatbot from './Components/Chatbot'
 import Login from './Pages/Login'
@@ -40,6 +41,7 @@ function Home() {
       <Pricing />
       <div id="how-it-works"><HowItWorks /></div>
       <Reviews />
+      <LocationMap />
       <Footer />
       <Chatbot />
     </>

@@ -16,7 +16,7 @@ const STATUS_STYLES = {
   on_the_way:  'bg-blue-100 text-blue-700',
   in_progress: 'bg-orange-100 text-orange-700',
   completed:   'bg-green-100 text-green-700',
-  cancelled:   'bg-gray-100 text-gray-500',
+  cancelled:   'bg-red-100 text-red-600',
   rejected:    'bg-red-100 text-red-600',
 }
 
@@ -419,12 +419,134 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
   )
 }
 
+const CANCEL_REASONS = [
+  'I made a mistake in my booking',
+  'I found another service provider',
+  'The schedule doesn\'t work anymore',
+  'It\'s taking too long to get a tasker',
+  'I no longer need the service',
+  'Other',
+]
+
+function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
+  const [screen, setScreen] = useState(1)
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const [noteError, setNoteError] = useState('')
+
+  const isOther = reason === 'Other'
+  const canConfirm = reason !== '' && (!isOther || note.trim() !== '')
+
+  function handleConfirm() {
+    if (isOther && !note.trim()) {
+      setNoteError('Please describe your reason since you selected "Other".')
+      return
+    }
+    setNoteError('')
+    onConfirm(reason, note)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
+
+        {/* ── Screen 1 — Warning ── */}
+        {screen === 1 && (
+          <>
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="text-5xl mb-4">🚫</div>
+              <h2 className="text-xl font-bold text-gray-800 mb-3">Cancelling your booking?</h2>
+              <p className="text-sm text-gray-600 mb-2">
+                Once cancelled, your payment is gone for good — walang babalik.
+              </p>
+              <p className="text-sm text-amber-600 font-medium">
+                ⚠️ Please make sure before proceeding. This cannot be undone.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => setScreen(2)}
+                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Continue to Cancel
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* ── Screen 2 — Reason ── */}
+        {screen === 2 && (
+          <>
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Why are you cancelling?</h2>
+
+            <div className="space-y-2 mb-4">
+              {CANCEL_REASONS.map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="cancel-reason"
+                    value={r}
+                    checked={reason === r}
+                    onChange={() => { setReason(r); setNoteError('') }}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">{r}</span>
+                </label>
+              ))}
+            </div>
+
+            <p className="text-sm font-semibold text-gray-600 mb-1">
+              Additional message{' '}
+              {isOther
+                ? <span className="text-red-400">*</span>
+                : <span className="text-gray-400 font-normal">(optional)</span>}
+            </p>
+            <textarea
+              value={note}
+              onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError('') }}
+              placeholder="Share any additional details..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-1"
+            />
+
+            {noteError && <p className="text-xs text-red-500 mt-1 mb-2">{noteError}</p>}
+            {cancelError && <p className="text-xs text-red-500 mb-2">{cancelError}</p>}
+
+            <div className="flex gap-3 mt-3">
+              <button
+                onClick={() => setScreen(1)}
+                className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={!canConfirm || cancelling}
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                {cancelling ? 'Cancelling...' : 'Confirm Cancellation'}
+              </button>
+            </div>
+          </>
+        )}
+
+      </div>
+    </div>
+  )
+}
+
 function BookingCard({ booking, userId, onCancel }) {
   const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [hasReview, setHasReview] = useState(true)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
-  const [confirmCancel, setConfirmCancel] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
   const [showChat, setShowChat] = useState(false)
@@ -506,19 +628,32 @@ function BookingCard({ booking, userId, onCancel }) {
     return () => { supabase.removeChannel(channel) }
   }, [booking.id, booking.status, userId])
 
-  async function handleCancel() {
+  async function handleCancel(reason, note) {
     setCancelling(true)
     setCancelError('')
     const { error } = await supabase
       .from('bookings')
-      .update({ status: 'cancelled' })
+      .update({
+        status: 'cancelled',
+        cancellation_reason: reason,
+        cancellation_note: note || null,
+      })
       .eq('id', booking.id)
-    setCancelling(false)
     if (error) {
+      setCancelling(false)
       setCancelError('Failed to cancel booking. Please try again.')
       return
     }
-    setConfirmCancel(false)
+    if (booking.taskerUserId) {
+      await supabase.from('notifications').insert({
+        user_id: booking.taskerUserId,
+        title: 'Booking Cancelled',
+        message: `A customer has cancelled their booking. Reason: ${reason}`,
+        is_read: false,
+      })
+    }
+    setCancelling(false)
+    setShowCancelModal(false)
     onCancel()
   }
 
@@ -562,6 +697,15 @@ function BookingCard({ booking, userId, onCancel }) {
 
   return (
     <>
+      {showCancelModal && (
+        <CancelBookingModal
+          onClose={() => { setShowCancelModal(false); setCancelError('') }}
+          onConfirm={handleCancel}
+          cancelling={cancelling}
+          cancelError={cancelError}
+        />
+      )}
+
       {showReviewModal && (
         <ReviewModal
           booking={booking}
@@ -697,42 +841,14 @@ function BookingCard({ booking, userId, onCancel }) {
           </div>
         )}
 
-        {(booking.status === 'pending' || booking.status === 'confirmed') && (
+        {booking.status === 'confirmed' && (
           <div className="pt-1">
-            {!confirmCancel ? (
-              <button
-                onClick={() => { setConfirmCancel(true); setCancelError('') }}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400 px-3 py-1 rounded-lg transition-colors"
-              >
-                Cancel Booking
-              </button>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-sm text-gray-600">Are you sure you want to cancel this booking? This action cannot be undone.</p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    onClick={() => { setConfirmCancel(false); setCancelError(''); handleRebook() }}
-                    className="text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    🔄 Rebook Instead
-                  </button>
-                  <button
-                    onClick={handleCancel}
-                    disabled={cancelling}
-                    className="text-sm font-semibold text-red-500 hover:text-red-600 border border-red-400 hover:border-red-500 disabled:opacity-50 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    {cancelling ? 'Cancelling...' : 'Yes, Cancel'}
-                  </button>
-                  <button
-                    onClick={() => { setConfirmCancel(false); setCancelError('') }}
-                    className="text-sm text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-lg transition-colors"
-                  >
-                    Keep Booking
-                  </button>
-                </div>
-                {cancelError && <p className="text-xs text-red-500">{cancelError}</p>}
-              </div>
-            )}
+            <button
+              onClick={() => setShowCancelModal(true)}
+              className="text-sm font-semibold text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400 px-3 py-1 rounded-lg transition-colors"
+            >
+              Cancel Booking
+            </button>
           </div>
         )}
 
@@ -759,7 +875,15 @@ function BookingCard({ booking, userId, onCancel }) {
         )}
 
         {booking.status === 'cancelled' && (
-          <div className="pt-1">
+          <div className="space-y-2 pt-1">
+            {booking.cancellation_reason && (
+              <div className="text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2 space-y-1">
+                <p className="text-gray-700">❌ <span className="font-medium">Reason:</span> {booking.cancellation_reason}</p>
+                {booking.cancellation_note && (
+                  <p className="text-gray-700">📝 <span className="font-medium">Note:</span> {booking.cancellation_note}</p>
+                )}
+              </div>
+            )}
             <button
               onClick={handleRebook}
               className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"

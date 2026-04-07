@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import {
@@ -368,8 +368,10 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       )}
       <div className="flex items-center justify-between">
         <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
-        <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
-          {statusLabel}
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${
+          booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : statusClass
+        }`}>
+          {booking.status === 'cancelled' ? 'Cancelled by Customer' : statusLabel}
         </span>
       </div>
 
@@ -417,6 +419,15 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       {booking.ai_image_analysis && (
         <div className="text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
           <span className="font-semibold flex items-center gap-1 inline-flex"><Bot size={14} /> AI Analysis: </span>{booking.ai_image_analysis}
+        </div>
+      )}
+
+      {booking.status === 'cancelled' && booking.cancellation_reason && (
+        <div className="text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2 space-y-1">
+          <p className="text-gray-700">❌ <span className="font-medium">Reason:</span> {booking.cancellation_reason}</p>
+          {booking.cancellation_note && (
+            <p className="text-gray-700">📝 <span className="font-medium">Note:</span> {booking.cancellation_note}</p>
+          )}
         </div>
       )}
 
@@ -2178,7 +2189,12 @@ function BookingHistory({ taskerId, taskerUserId }) {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 function TaskerDashboard() {
-  const [tab, setTab] = useState('bookings')
+  const location = useLocation()
+  const [tab, setTab] = useState(() => {
+    const params = new URLSearchParams(location.search)
+    const tabParam = params.get('tab')
+    return tabParam && NAV_ITEMS.some((item) => item.key === tabParam) ? tabParam : 'bookings'
+  })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [taskerId, setTaskerId] = useState(null)

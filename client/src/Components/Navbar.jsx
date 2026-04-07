@@ -759,6 +759,10 @@ function Navbar() {
                                   ),
                                 );
                               }
+                              if (isApprovedTasker) {
+                                setShowNotifDropdown(false);
+                                navigate("/tasker-dashboard?tab=bookings");
+                              }
                             }}
                             style={{
                               padding: "12px 16px",
