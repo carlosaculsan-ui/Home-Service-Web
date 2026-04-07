@@ -60,6 +60,101 @@ function FAQItem({ q, a }) {
   )
 }
 
+const SERVICES = [
+  { label: 'Cleaning',   rate: 150 },
+  { label: 'Electrical', rate: 200 },
+  { label: 'Plumbing',   rate: 200 },
+  { label: 'Aircon',     rate: 250 },
+  { label: 'Carpentry',  rate: 200 },
+  { label: 'Painting',   rate: 175 },
+]
+
+function motivationalLine(income) {
+  if (income < 5000)  return 'A great start — every booking builds your reputation!'
+  if (income < 10000) return 'Pwede na itong extra income every month!'
+  if (income < 20000) return 'Katumbas ito ng minimum wage — full time potential!'
+  return 'Pwede kang kumita ng ganito — mag-apply na!'
+}
+
+function EarningsCalculator() {
+  const [hours, setHours] = useState(20)
+  const [service, setService] = useState(SERVICES[0])
+
+  const monthly = Math.round(service.rate * 0.70 * hours * 4)
+  const formatted = '₱' + monthly.toLocaleString('en-PH')
+
+  return (
+    <section className="bg-orange-500 py-16 px-4 md:px-8">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl md:text-4xl font-bold text-white mb-2">How much can you earn?</h2>
+        <p className="text-orange-100 text-base">Galaw ang slider, tingnan ang potential mo.</p>
+      </div>
+
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl mx-auto p-8 flex flex-col gap-6">
+
+        {/* Service selector */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-3">Select a service</p>
+          <div className="flex flex-wrap gap-2">
+            {SERVICES.map((s) => (
+              <button
+                key={s.label}
+                onClick={() => setService(s)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                  service.label === s.label
+                    ? 'bg-orange-500 text-white border-orange-500'
+                    : 'border-orange-200 text-orange-600 hover:bg-orange-50'
+                }`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Hours slider */}
+        <div>
+          <p className="text-sm font-semibold text-gray-700 mb-2">
+            Hours per week: <span className="text-orange-500">{hours} hrs</span>
+          </p>
+          <input
+            type="range"
+            min={5}
+            max={40}
+            step={5}
+            value={hours}
+            onChange={(e) => setHours(Number(e.target.value))}
+            className="w-full accent-orange-500"
+          />
+          <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <span>5 hrs</span>
+            <span>40 hrs</span>
+          </div>
+        </div>
+
+        {/* Output */}
+        <div className="transition-all duration-300 text-center flex flex-col gap-1">
+          <p className="text-4xl md:text-5xl font-black text-orange-500">{formatted} / month</p>
+          <p className="text-sm text-gray-500">
+            Based on {hours} hrs/week at ₱{service.rate}/hr (70% tasker payout)
+          </p>
+          <p className="text-sm text-gray-400 italic mt-1">{motivationalLine(monthly)}</p>
+        </div>
+      </div>
+
+      {/* Apply Now */}
+      <div className="text-center mt-8">
+        <Link
+          to="/become-a-tasker/apply"
+          className="inline-block bg-white text-orange-500 font-bold px-8 py-3 rounded-xl hover:bg-orange-50 transition-colors text-base"
+        >
+          Apply Now
+        </Link>
+      </div>
+    </section>
+  )
+}
+
 function BecomeATaskerLanding() {
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -141,6 +236,9 @@ function BecomeATaskerLanding() {
           </div>
         </div>
       </section>
+
+      {/* ── Earnings Calculator ─────────────────────────────────────────── */}
+      <EarningsCalculator />
 
       {/* ── Section 3: What is Hanap.ph? ────────────────────────────────── */}
       <section className="bg-gray-50 py-16">

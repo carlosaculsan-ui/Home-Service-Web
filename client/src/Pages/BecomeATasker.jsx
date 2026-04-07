@@ -5,6 +5,8 @@ import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
 import { User, CreditCard as IdCard, ShieldCheck, GraduationCap, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, Trash2, Eye, Star } from 'lucide-react'
 
+const NAME_REGEX = /^[a-zA-ZñÑ\s\.\-]*$/
+
 function BecomeATasker() {
   const [step, setStep] = useState(1)
   const [submitted, setSubmitted] = useState(false)
@@ -75,8 +77,16 @@ function BecomeATasker() {
   const validateStep1 = () => {
     const newErrors = {}
     const firstName = formData.firstName?.trim() ?? ''
-    if (!firstName || firstName.length < 2 || !/^[a-zA-Z\s]+$/.test(firstName)) {
-      newErrors.name = 'Please enter a valid full name'
+    if (!firstName || firstName.length < 2) {
+      newErrors.firstName = 'Please enter a valid name'
+    } else if (!NAME_REGEX.test(firstName)) {
+      newErrors.firstName = 'Name must contain letters only'
+    }
+    const lastName = formData.lastName?.trim() ?? ''
+    if (!lastName || lastName.length < 2) {
+      newErrors.lastName = 'Please enter a valid name'
+    } else if (!NAME_REGEX.test(lastName)) {
+      newErrors.lastName = 'Name must contain letters only'
     }
     if (!emailRegex.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address'
@@ -85,9 +95,32 @@ function BecomeATasker() {
     return Object.keys(newErrors).length === 0
   }
 
+  const handleNameChange = (e) => {
+    const { name, value } = e.target
+    if (!NAME_REGEX.test(value)) return
+    setFormData((prev) => ({ ...prev, [name]: value }))
+    setErrors((prev) => ({ ...prev, [name]: undefined }))
+  }
+
+  const handleNameBlur = (e) => {
+    const { name, value } = e.target
+    const trimmed = value.trim()
+    if (!trimmed || trimmed.length < 2) {
+      setErrors((prev) => ({ ...prev, [name]: 'Please enter a valid name' }))
+    } else if (!NAME_REGEX.test(trimmed)) {
+      setErrors((prev) => ({ ...prev, [name]: 'Name must contain letters only' }))
+    }
+  }
+
   const handleNext = () => {
     if (step === 1) {
-      if (!validateStep1()) return
+      if (!validateStep1()) {
+        requestAnimationFrame(() => {
+          document.querySelector('[name="firstName"], [name="lastName"]')
+            ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        })
+        return
+      }
       if (formData.phone && !validatePhone(formData.phone)) {
         setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
         return
@@ -389,40 +422,51 @@ function BecomeATasker() {
 
               {/* Row 1: Name fields */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-1">
-                <input
-                  type="text"
-                  name="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, name: undefined })) }}
-                  placeholder="Firstname"
-                  className={`w-full border rounded-md p-2 text-sm ${errors.name ? 'border-red-400' : 'border-gray-300'}`}
-                />
-                <input
-                  type="text"
-                  name="middleName"
-                  value={formData.middleName}
-                  onChange={handleChange}
-                  placeholder="Middle"
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
-                />
-                <input
-                  type="text"
-                  name="lastName"
-                  value={formData.lastName}
-                  onChange={handleChange}
-                  placeholder="Lastname"
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
-                />
-                <input
-                  type="text"
-                  name="suffix"
-                  value={formData.suffix}
-                  onChange={handleChange}
-                  placeholder="Jr."
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
-                />
+                <div>
+                  <input
+                    type="text"
+                    name="firstName"
+                    value={formData.firstName}
+                    onChange={handleNameChange}
+                    onBlur={handleNameBlur}
+                    placeholder="Firstname"
+                    className={`w-full border rounded-md p-2 text-sm ${errors.firstName ? 'border-red-400' : 'border-gray-300'}`}
+                  />
+                  {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    name="middleName"
+                    value={formData.middleName}
+                    onChange={handleNameChange}
+                    placeholder="Middle"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    name="lastName"
+                    value={formData.lastName}
+                    onChange={handleNameChange}
+                    onBlur={handleNameBlur}
+                    placeholder="Lastname"
+                    className={`w-full border rounded-md p-2 text-sm ${errors.lastName ? 'border-red-400' : 'border-gray-300'}`}
+                  />
+                  {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
+                </div>
+                <div>
+                  <input
+                    type="text"
+                    name="suffix"
+                    value={formData.suffix}
+                    onChange={handleChange}
+                    placeholder="Jr."
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                  />
+                </div>
               </div>
-              {errors.name && <p className="text-red-500 text-xs mb-2">{errors.name}</p>}
 
               {/* Row 2: Phone + Service Area */}
               <div className="grid grid-cols-1 md:flex md:flex-row gap-2 mb-3">
