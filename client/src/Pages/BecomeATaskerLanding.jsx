@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom'
 import Navbar from '../Components/Navbar'
 import Footer from '../Components/Footer'
 import Chatbot from '../Components/Chatbot'
-import Background2 from '../Assets/Background2.jpg'
 import Tasker9 from '../Assets/Tasker9.png'
 import Tasker10 from '../Assets/Tasker10.png'
 import Tasker11 from '../Assets/Tasker11.png'
@@ -161,11 +160,11 @@ function BecomeATaskerLanding() {
   }, []);
 
   return (
-    <div className="font-sans text-black" style={{ backgroundImage: `url(${Background2})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed' }}>
+    <div className="font-sans text-black pt-20">
       <Navbar />
 
       {/* ── Section 1: Hero ─────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 md:px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
+      <section className="max-w-6xl mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-16 grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
         {/* Left: tasker photo */}
         <div className="rounded-2xl overflow-hidden h-64 md:h-[480px]">
           <img
