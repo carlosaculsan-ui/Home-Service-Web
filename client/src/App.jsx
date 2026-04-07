@@ -28,6 +28,7 @@ import TaskerRoute from './Components/TaskerRoute'
 import TaskerDashboard from './Pages/TaskerDashboard'
 import TaskerLogin from './Pages/TaskerLogin'
 import BookingConfirmation from './Pages/BookingConfirmation'
+import PaymentComplete from './Pages/PaymentComplete'
 
 function Home() {
   return (
@@ -161,6 +162,7 @@ function App() {
       <Route path="/tasker" element={<TaskerLogin />} />
       <Route path="/tasker-dashboard" element={<TaskerRoute><TaskerDashboard /></TaskerRoute>} />
       <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+      <Route path="/payment-complete" element={<PaymentComplete />} />
     </Routes>
   )
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
@@ -2621,6 +2621,10 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [showQrModal, setShowQrModal] = useState(false)
+  const [pollingError, setPollingError] = useState('')
+  const pollingIntervalRef = useRef(null)
+  const submitButtonRef = useRef(null)
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
@@ -2641,6 +2645,12 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const priceBreakdown = buildPriceBreakdown(taskOptions)
 
 
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current)
+    }
+  }, [])
+
   if (isProcessingPayment) {
     return (
       <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white">
@@ -2656,6 +2666,53 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
   return (
     <div className="space-y-5">
+      {/* QR Payment Modal — GCash / PayMaya */}
+      {showQrModal && (paymentMethod === 'gcash' || paymentMethod === 'paymaya') && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 flex flex-col items-center gap-4 relative">
+            <button
+              onClick={() => { setShowQrModal(false); setPaymentMethod('') }}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-xl font-bold leading-none"
+            >
+              ✕
+            </button>
+            <h2 className="text-lg font-bold text-gray-800">
+              {paymentMethod === 'gcash' ? 'Pay via GCash' : 'Pay via PayMaya'}
+            </h2>
+            <img
+              src={paymentMethod === 'gcash'
+                ? 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HANAP-GCASH-PAYMENT'
+                : 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=HANAP-PAYMAYA-PAYMENT'}
+              alt="QR Code"
+              className="w-48 h-48 rounded-xl border border-gray-100"
+            />
+            <p className="text-sm text-gray-600 text-center">
+              {paymentMethod === 'gcash'
+                ? 'Scan with your GCash app to pay'
+                : 'Scan with your PayMaya app to pay'}
+            </p>
+            <p className="text-xs text-gray-400 text-center">
+              This is a simulation — proceed to confirm your payment below
+            </p>
+            <button
+              onClick={() => submitButtonRef.current?.click()}
+              disabled={saving}
+              className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold py-3 rounded-lg transition-colors text-base flex items-center justify-center gap-2"
+            >
+              {saving ? (
+                <>
+                  <svg className="animate-spin h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Processing...
+                </>
+              ) : 'Confirm & Pay'}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Section 1 – Order Summary */}
       <div className="bg-orange-50 border border-orange-100 rounded-xl p-5 space-y-3">
         <div className="flex items-center gap-2 mb-1">
@@ -2702,7 +2759,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             name="payment"
             value="gcash"
             checked={paymentMethod === 'gcash'}
-            onChange={() => setPaymentMethod('gcash')}
+            onChange={() => { setPaymentMethod('gcash'); setShowQrModal(true) }}
             className="accent-orange-500 mt-0.5 w-4 h-4"
           />
           <div className="flex-1">
@@ -2721,7 +2778,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             name="payment"
             value="paymaya"
             checked={paymentMethod === 'paymaya'}
-            onChange={() => setPaymentMethod('paymaya')}
+            onChange={() => { setPaymentMethod('paymaya'); setShowQrModal(true) }}
             className="accent-orange-500 mt-0.5 w-4 h-4"
           />
           <div className="flex-1">
@@ -2841,6 +2898,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             : saveError}
         </p>
       )}
+      {pollingError && (
+        <p className="text-sm text-red-500 text-center">{pollingError}</p>
+      )}
       <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-3 pt-1">
         <button
           onClick={onBack}
@@ -2850,9 +2910,11 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           ← Back
         </button>
         <button
+          ref={submitButtonRef}
           onClick={async () => {
             setSaving(true)
             setSaveError('')
+            setPollingError('')
             try {
               const { data: { session } } = await supabase.auth.getSession()
               const client_id = session?.user?.id ?? null
@@ -3004,7 +3066,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const pmId = pmData.data.id
 
               // Step 9 — Attach Payment Method to Payment Intent
-              const returnUrl = `${window.location.origin}/booking-confirmation`
+              const returnUrl = paymentMethod === 'card'
+                ? `${window.location.origin}/booking-confirmation`
+                : `${window.location.origin}/payment-complete`
               const attachRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}/attach`, {
                 method: 'POST',
                 headers: {
@@ -3031,9 +3095,41 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
               const attachStatus = attachData.data?.attributes?.status
 
-              // Step 10 — Redirect to PayMongo authorization page
+              // Step 10 — Open PayMongo in new tab (GCash / PayMaya) and poll main tab
               if (attachStatus === 'awaiting_next_action') {
-                window.location.href = attachData.data.attributes.next_action.redirect.url
+                window.open(attachData.data.attributes.next_action.redirect.url, '_blank')
+                setShowQrModal(false)
+                setSaving(false)
+                const capturedPiId = piId
+                const startTime = Date.now()
+                if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current)
+                pollingIntervalRef.current = setInterval(async () => {
+                  if (Date.now() - startTime > 10 * 60 * 1000) {
+                    clearInterval(pollingIntervalRef.current)
+                    pollingIntervalRef.current = null
+                    setPollingError('Payment not detected. Please refresh and try again.')
+                    return
+                  }
+                  try {
+                    const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${capturedPiId}`, {
+                      headers: {
+                        'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
+                      },
+                    })
+                    const piData = await piRes.json()
+                    const piStatus = piData?.data?.attributes?.status
+                    if (piStatus === 'succeeded') {
+                      clearInterval(pollingIntervalRef.current)
+                      pollingIntervalRef.current = null
+                      window.location.href = `${window.location.origin}/booking-confirmation?payment_intent_id=${capturedPiId}`
+                    } else if (piStatus === 'failed' || piStatus === 'cancelled') {
+                      clearInterval(pollingIntervalRef.current)
+                      pollingIntervalRef.current = null
+                      setPollingError('Payment failed. Please try again.')
+                    }
+                  } catch (_) {}
+                }, 3000)
+                console.log('polling started', capturedPiId)
               // Step 11 — Payment succeeded immediately (card payments)
               // Do NOT update to 'confirmed' here — BookingConfirmation.jsx finds the
               // 'pending_payment' booking and confirms it after verifying with PayMongo.
@@ -3055,7 +3151,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
             }
           }}
           disabled={saving || !paymentMethod}
-          className="w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2"
+          className={`w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2 ${paymentMethod === 'gcash' || paymentMethod === 'paymaya' ? 'hidden' : ''}`}
         >
           {saving ? (
             <>

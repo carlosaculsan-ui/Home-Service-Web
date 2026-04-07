@@ -114,9 +114,6 @@ function HQSection() {
             visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
           }`}
         >
-          <span className="inline-block bg-orange-500/10 text-orange-400 text-sm font-semibold px-4 py-1.5 rounded-full mb-4 tracking-wide uppercase">
-            Our Location
-          </span>
           <h2 className="text-4xl md:text-5xl font-black text-white">
             Find Us <span className="text-orange-500">Here</span>
           </h2>
