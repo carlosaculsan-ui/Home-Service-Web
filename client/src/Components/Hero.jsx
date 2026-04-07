@@ -8,7 +8,6 @@ function Hero() {
   const [role, setRole] = useState(null);
   const [text, setText] = useState("");
   const [showContacts, setShowContacts] = useState(false);
-  
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -29,7 +28,7 @@ function Hero() {
   }, []);
 
   return (
-    <section className="relative h-screen flex items-center justify-center overflow-hidden bg-gray-900">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-900">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
@@ -40,16 +39,35 @@ function Hero() {
       <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-black/70" />
 
       {/* Main Content */}
-      <div className="relative z-10 container mx-auto px-6 max-w-7xl">
-        <div className="grid lg:grid-cols-2 gap-12 items-center h-full">
+      <div className="relative z-10 container mx-auto px-6 max-w-7xl py-20">
+        <div className="grid lg:grid-cols-2 gap-12 items-center">
+
+          {/* MOBILE IMAGE — shown only on small screens, above text */}
+          <div
+            className={`block lg:hidden w-full transition-all duration-700 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
+          >
+            <div className="relative w-full h-[200px] rounded-2xl overflow-hidden shadow-xl border border-white/20">
+              <img
+                src={GROUPImg}
+                alt="Service preview"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              <div className="absolute bottom-4 left-4">
+                <h4 className="text-white font-bold text-base drop-shadow-lg">Tasker Preview</h4>
+                <p className="text-gray-300 text-xs drop-shadow-lg">See our team in action</p>
+              </div>
+            </div>
+          </div>
+
           {/* LEFT SIDE */}
-          <div className="text-white space-y-8 lg:max-w-lg">
+          <div className="text-white space-y-6 lg:space-y-8 lg:max-w-lg">
             {/* Logo */}
             <div
               className={`flex items-center gap-3 transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[300ms]" : "opacity-0 translate-y-6"}`}
             >
-              <div className="relative w-16 h-16 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                <span className="text-orange-500 font-black text-3xl">H</span>
+              <div className="relative w-14 h-14 lg:w-16 lg:h-16 bg-white/10 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <span className="text-orange-500 font-black text-2xl lg:text-3xl">H</span>
               </div>
               <span className="text-gray-400 font-bold text-lg">anap.ph</span>
             </div>
@@ -58,17 +76,17 @@ function Hero() {
             <div
               className={`space-y-2 transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[500ms]" : "opacity-0 translate-y-6"}`}
             >
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black">
                 YOUR HOME
               </h1>
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-orange-500">
+              <h1 className="text-3xl md:text-5xl lg:text-6xl font-black text-orange-500">
                 OUR EXPERTISE
               </h1>
             </div>
 
             {/* DESCRIPTION */}
             <p
-              className={`text-base md:text-lg text-gray-300 max-w-md transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[700ms]" : "opacity-0 translate-y-6"}`}
+              className={`text-sm md:text-lg text-gray-300 max-w-md transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[700ms]" : "opacity-0 translate-y-6"}`}
             >
               Hindi lang basta serbisyo—professional service talaga. We make
               sure every job is done right the first time.
@@ -92,7 +110,7 @@ function Hero() {
                     Get Started
                   </button>
 
-                  {/* CALL US */}
+                  {/* SOCIAL MEDIA */}
                   <div
                     className="relative"
                     onMouseEnter={() => setShowContacts(true)}
@@ -105,12 +123,11 @@ function Hero() {
                       Social Media
                     </button>
 
-                    {/* 👉 SIDE POPUP (LEFT SIDE NA) */}
+                    {/* POPUP — right side on mobile, left side on desktop */}
                     <div
-                      className={`absolute left-full top-1/2  -translate-y-1/2 mr-3 flex gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl px-4 py-3 shadow-xl transition-all duration-300 z-50
-      ${showContacts ? "opacity-100 translate-x-0" : "opacity-0 translate-x-2 pointer-events-none"}`}
+                      className={`absolute top-full mt-2 left-0 lg:top-1/2 lg:-translate-y-1/2 lg:left-full lg:mt-0 lg:ml-3 flex gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl px-4 py-3 shadow-xl transition-all duration-300 z-50
+                        ${showContacts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}
                     >
-                      {/* FACEBOOK */}
                       <a
                         href="https://www.facebook.com/lee.anjhello.baniqued.2025"
                         target="_blank"
@@ -119,8 +136,6 @@ function Hero() {
                       >
                         <Facebook size={20} />
                       </a>
-
-                      {/* INSTAGRAM */}
                       <a
                         href="https://www.instagram.com/katarinabluu?utm_source=ig_web_button_share_sheet&igsh=ZDNlZDc0MzIxNw=="
                         target="_blank"
@@ -129,20 +144,10 @@ function Hero() {
                       >
                         <Instagram size={20} />
                       </a>
-
-                      {/* TWITTER (placeholder) */}
-                      <a
-                        href="#"
-                        className="text-white hover:text-sky-400 transition"
-                      >
+                      <a href="#" className="text-white hover:text-sky-400 transition">
                         <Twitter size={20} />
                       </a>
-
-                      {/* WHATSAPP */}
-                      <a
-                        href="#"
-                        className="text-white hover:text-green-400 transition"
-                      >
+                      <a href="#" className="text-white hover:text-green-400 transition">
                         <MessageCircle size={20} />
                       </a>
                     </div>
@@ -151,23 +156,15 @@ function Hero() {
 
                 {/* STATS */}
                 <div className="flex gap-6 pt-2 border-t border-white/20">
-                  <div
-                    className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1100ms]" : "opacity-0 translate-y-6"}`}
-                  >
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1100ms]" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">500+</h3>
                     <p className="text-xs text-gray-400">Clients</p>
                   </div>
-
-                  <div
-                    className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1300ms]" : "opacity-0 translate-y-6"}`}
-                  >
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1300ms]" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">8+</h3>
                     <p className="text-xs text-gray-400">Taskers</p>
                   </div>
-
-                  <div
-                    className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1500ms]" : "opacity-0 translate-y-6"}`}
-                  >
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1500ms]" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">24/7</h3>
                     <p className="text-xs text-gray-400">Support</p>
                   </div>
@@ -176,34 +173,25 @@ function Hero() {
             )}
           </div>
 
-          {/* RIGHT SIDE */}
+          {/* RIGHT SIDE — desktop only */}
           <div className="hidden lg:flex justify-center relative">
-            {/* Main Image Card */}
             <div
               className={`relative group w-[520px] h-[320px] rounded-3xl overflow-hidden shadow-2xl border border-white/20 backdrop-blur-xl hover:shadow-3xl transition-all duration-700 hover:scale-[1.02]
-    ${show ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-10 scale-90"}`}
-              style={{ transitionDelay: "0ms" }}
+                ${show ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-10 scale-90"}`}
             >
               <img
                 src={GROUPImg}
                 alt="Service preview"
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
               />
-
-              {/* Overlay */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
-              {/* Preview text */}
               <div className="absolute bottom-6 left-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <h4 className="text-white font-bold text-xl mb-2 drop-shadow-lg">
-                  Tasker Preview
-                </h4>
-                <p className="text-gray-300 text-sm drop-shadow-lg">
-                  See our team in action
-                </p>
+                <h4 className="text-white font-bold text-xl mb-2 drop-shadow-lg">Tasker Preview</h4>
+                <p className="text-gray-300 text-sm drop-shadow-lg">See our team in action</p>
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </section>
@@ -211,4 +199,3 @@ function Hero() {
 }
 
 export default Hero;
-
