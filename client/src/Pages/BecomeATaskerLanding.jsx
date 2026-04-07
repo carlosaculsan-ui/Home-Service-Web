@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import Navbar from '../Components/Navbar'
 import Footer from '../Components/Footer'
 import Chatbot from '../Components/Chatbot'
+import Background2 from '../Assets/Background2.jpg'
 import Tasker9 from '../Assets/Tasker9.png'
 import Tasker10 from '../Assets/Tasker10.png'
 import Tasker11 from '../Assets/Tasker11.png'
@@ -64,7 +66,8 @@ function BecomeATaskerLanding() {
   }, []);
 
   return (
-    <div className="font-sans text-black">
+    <div className="font-sans text-black" style={{ backgroundImage: `url(${Background2})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', backgroundAttachment: 'fixed' }}>
+      <Navbar />
 
       {/* ── Section 1: Hero ─────────────────────────────────────────────── */}
       <section className="max-w-6xl mx-auto px-4 md:px-6 py-16 grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
@@ -89,7 +92,7 @@ function BecomeATaskerLanding() {
             to="/become-a-tasker/apply"
             className="w-full md:w-auto inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold text-lg px-8 py-4 rounded-xl transition-colors text-center"
           >
-            Get Started
+            Apply Now
           </Link>
           <p className="text-sm text-black">
             Already a tasker?{' '}
@@ -121,7 +124,7 @@ function BecomeATaskerLanding() {
               {
                 icon: <Wallet size={48} className="text-orange-500" />,
                 title: 'Set your own rates',
-                desc: 'You keep 100% of what you charge, plus tips! Invoice and get paid directly through our secure payment system.',
+                desc: 'You keep 70% of every job you complete, plus tips! Get paid securely and consistently through our platform.',
               },
               {
                 icon: <TrendingUp size={48} className="text-orange-500" />,
@@ -207,7 +210,7 @@ function BecomeATaskerLanding() {
 
           {/* Right - Image */}
           <div className="rounded-lg h-80 overflow-hidden">
-            <img src={Tasker11} alt="Almar" className="w-full h-full object-contain" />
+            <img src={Tasker11} alt="Almar" className="w-full h-full object-cover" />
           </div>
 
         </div>
