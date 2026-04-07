@@ -4,7 +4,7 @@ import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import Groq from 'groq-sdk'
-import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home } from 'lucide-react'
+import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star } from 'lucide-react'
 
 const groq = new Groq({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
@@ -658,8 +658,9 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
               <p className="font-bold text-gray-800 text-base leading-tight">{tasker.name}</p>
               <button
                 onClick={() => setShowTeamModal(true)}
-                className="text-xs text-gray-400 underline hover:text-gray-600 whitespace-nowrap mt-0.5 flex-shrink-0"
+                className="flex items-center gap-1 border border-orange-500 text-orange-500 rounded-full px-3 py-0.5 text-xs font-semibold hover:bg-orange-500 hover:text-white transition cursor-pointer whitespace-nowrap mt-0.5 flex-shrink-0"
               >
+                <FileText size={12} />
                 details
               </button>
             </div>
@@ -667,8 +668,12 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
             <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
-              <button onClick={() => setShowReviewsModal(true)} className="text-gray-400 hover:text-orange-500 underline">
-                ({formatReviews(tasker.reviews ?? 0)} reviews)
+              <button
+                onClick={() => setShowReviewsModal(true)}
+                className="flex items-center gap-1 border border-orange-500 text-orange-500 rounded-full px-3 py-0.5 text-xs font-semibold hover:bg-orange-500 hover:text-white transition cursor-pointer"
+              >
+                <Star size={12} />
+                {formatReviews(tasker.reviews ?? 0)} reviews
               </button>
               <span className="text-gray-300">•</span>
               <span>✅ {(tasker.tasks ?? 0).toLocaleString()} completed jobs</span>
@@ -1017,8 +1022,12 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
             <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker?.rating ?? 0).toFixed(1)}</span>
-              <button onClick={() => setShowReviewsModal(true)} className="text-gray-400 hover:text-orange-500 underline">
-                ({formatReviews(tasker?.reviews ?? 0)} reviews)
+              <button
+                onClick={() => setShowReviewsModal(true)}
+                className="flex items-center gap-1 border border-orange-500 text-orange-500 rounded-full px-3 py-0.5 text-xs font-semibold hover:bg-orange-500 hover:text-white transition cursor-pointer"
+              >
+                <Star size={12} />
+                {formatReviews(tasker?.reviews ?? 0)} reviews
               </button>
             </div>
           </div>
@@ -2745,40 +2754,80 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
         {/* Inline card fields */}
         {paymentMethod === 'card' && (
-          <div className="space-y-2 pt-1">
-            <input
-              type="text"
-              placeholder="4343 4343 4343 4345"
-              maxLength={19}
-              value={cardDetails.number}
-              onChange={e => setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 tracking-widest"
-            />
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="12"
-                maxLength={2}
-                value={cardDetails.exp_month}
-                onChange={e => setCardDetails(p => ({ ...p, exp_month: e.target.value.replace(/\D/g, '') }))}
-                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
-              />
-              <input
-                type="text"
-                placeholder="2026"
-                maxLength={4}
-                value={cardDetails.exp_year}
-                onChange={e => setCardDetails(p => ({ ...p, exp_year: e.target.value.replace(/\D/g, '') }))}
-                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
-              />
-              <input
-                type="text"
-                placeholder="123"
-                maxLength={3}
-                value={cardDetails.cvc}
-                onChange={e => setCardDetails(p => ({ ...p, cvc: e.target.value.replace(/\D/g, '') }))}
-                className="w-1/4 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-700 outline-none focus:border-orange-400 text-center"
-              />
+          <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-4 mt-1">
+
+            {/* Card Number */}
+            <div>
+              <label className="block text-sm text-gray-700 font-medium mb-1">Card number</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="1234 1234 1234 1234"
+                  maxLength={19}
+                  value={cardDetails.number}
+                  onChange={e => setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() }))}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 tracking-widest pr-36 placeholder:text-gray-400"
+                />
+                {/* Card network badges */}
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                  {/* Mastercard */}
+                  <div className="flex items-center">
+                    <div className="w-4 h-4 rounded-full bg-red-500" />
+                    <div className="w-4 h-4 rounded-full bg-orange-400 -ml-2" />
+                  </div>
+                  {/* Visa */}
+                  <span className="text-[10px] font-black italic text-blue-600 tracking-tight">VISA</span>
+                  {/* Amex */}
+                  <span className="text-[10px] font-black text-blue-600 bg-blue-100 px-1 py-0.5 rounded">AMEX</span>
+                  {/* JCB */}
+                  <span className="text-[10px] font-black text-green-700 bg-green-100 px-1 py-0.5 rounded">JCB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Expiration + Security Code side by side */}
+            <div className="grid grid-cols-2 gap-4">
+
+              {/* Expiration Date */}
+              <div>
+                <label className="block text-sm text-gray-700 font-medium mb-1">Expiration date</label>
+                <div className="flex items-center gap-1 bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus-within:border-orange-400">
+                  <input
+                    type="text"
+                    placeholder="MM"
+                    maxLength={2}
+                    value={cardDetails.exp_month}
+                    onChange={e => setCardDetails(p => ({ ...p, exp_month: e.target.value.replace(/\D/g, '') }))}
+                    className="w-8 bg-transparent text-gray-900 text-sm outline-none text-center placeholder:text-gray-400"
+                  />
+                  <span className="text-gray-400 text-sm select-none">/</span>
+                  <input
+                    type="text"
+                    placeholder="YY"
+                    maxLength={4}
+                    value={cardDetails.exp_year}
+                    onChange={e => setCardDetails(p => ({ ...p, exp_year: e.target.value.replace(/\D/g, '') }))}
+                    className="flex-1 bg-transparent text-gray-900 text-sm outline-none text-center placeholder:text-gray-400"
+                  />
+                </div>
+              </div>
+
+              {/* Security Code */}
+              <div>
+                <label className="block text-sm text-gray-700 font-medium mb-1">Security code</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="CVC"
+                    maxLength={3}
+                    value={cardDetails.cvc}
+                    onChange={e => setCardDetails(p => ({ ...p, cvc: e.target.value.replace(/\D/g, '') }))}
+                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 pr-10 placeholder:text-gray-400"
+                  />
+                  <CreditCard size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+
             </div>
           </div>
         )}
