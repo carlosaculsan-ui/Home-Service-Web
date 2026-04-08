@@ -1218,6 +1218,8 @@ function Step1({ service, onContinue }) {
   const [error, setError] = useState('')
   const [imagePreview, setImagePreview] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
+  const [validating, setValidating] = useState(false)
+  const [imageError, setImageError] = useState('')
   const [aiResult, setAiResult] = useState('')
   const [fileInputKey, setFileInputKey] = useState(0)
   const [detectingLocation, setDetectingLocation] = useState(false)
@@ -1505,6 +1507,7 @@ function Step1({ service, onContinue }) {
   const handleRemoveImage = () => {
     setImagePreview(null)
     setAiResult('')
+    setImageError('')
     setFileInputKey((k) => k + 1)
   }
 
@@ -1516,6 +1519,51 @@ function Step1({ service, onContinue }) {
       const base64 = ev.target.result
       setImagePreview(base64)
       setAiResult('')
+      setImageError('')
+
+      // Step 1: Validate image relevance
+      setValidating(true)
+      let passedValidation = true
+      try {
+        const validationResponse = await groq.chat.completions.create({
+          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: base64 }
+                },
+                {
+                  type: 'text',
+                  text: `Look at this image. The user is booking a ${service} service. Is this image relevant to that service? It should show a home, room, appliance, fixture, wall, pipe, furniture, or any area/object that reasonably relates to ${service}. Answer ONLY with a JSON object: { "relevant": true or false, "reason": "short reason" }. Do not add any other text.`
+                }
+              ]
+            }
+          ]
+        })
+        const raw = validationResponse.choices[0].message.content.trim()
+        try {
+          const json = JSON.parse(raw.replace(/```json|```/g, '').trim())
+          if (json.relevant === false) {
+            passedValidation = false
+            setImagePreview(null)
+            setFileInputKey((k) => k + 1)
+            setImageError(`⚠️ That image doesn't seem related to ${service}. Please upload a photo of the area or item you need serviced (e.g., your room, appliance, wall, etc.).`)
+          }
+        } catch {
+          // Unparseable response — fail open, allow image through
+        }
+      } catch {
+        // Validation API error — fail open, allow image through
+      } finally {
+        setValidating(false)
+      }
+
+      if (!passedValidation) return
+
+      // Step 2: Full AI analysis
       setAnalyzing(true)
       try {
         const response = await groq.chat.completions.create({
@@ -2575,6 +2623,22 @@ function Step1({ service, onContinue }) {
               >
                 ✕
               </button>
+            </div>
+          )}
+
+          {validating && (
+            <div className="mt-3 flex items-center gap-2 text-sm text-gray-500">
+              <svg className="animate-spin w-4 h-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+              </svg>
+              Checking image...
+            </div>
+          )}
+
+          {imageError && (
+            <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+              {imageError}
             </div>
           )}
 
