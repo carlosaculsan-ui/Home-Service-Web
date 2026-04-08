@@ -349,7 +349,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                       className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
                         ${isSelected(d)
                           ? 'bg-orange-500 text-white font-bold'
-                          : isBlocked(d)
+                          : isBlocked(d) && !isPast(d)
                           ? 'bg-red-100 text-red-300 cursor-not-allowed'
                           : isPast(d)
                           ? 'text-gray-300 cursor-not-allowed'
