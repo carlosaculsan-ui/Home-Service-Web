@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -454,13 +454,16 @@ function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
         {screen === 1 && (
           <>
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="text-5xl mb-4">🚫</div>
+              <div className="text-5xl mb-4">💰</div>
               <h2 className="text-xl font-bold text-gray-800 mb-3">Cancelling your booking?</h2>
               <p className="text-sm text-gray-600 mb-2">
-                Once cancelled, your payment is gone for good — walang babalik.
+                Your payment will be refunded to your Hanap.ph E-Wallet instantly.
+              </p>
+              <p className="text-sm text-green-600 font-medium mb-1">
+                💰 You can use your wallet balance on your next booking.
               </p>
               <p className="text-sm text-amber-600 font-medium">
-                ⚠️ Please make sure before proceeding. This cannot be undone.
+                ⚠️ This action cannot be undone.
               </p>
             </div>
             <div className="flex gap-3">
@@ -472,7 +475,7 @@ function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
               </button>
               <button
                 onClick={() => setScreen(2)}
-                className="flex-1 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+                className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
               >
                 Continue to Cancel
               </button>
@@ -652,6 +655,32 @@ function BookingCard({ booking, userId, onCancel }) {
         is_read: false,
       })
     }
+
+    const refundAmount = Number(booking.estimated_total) || 0
+    if (refundAmount > 0) {
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', userId)
+        .single()
+      const currentBalance = Number(profileData?.wallet_balance) || 0
+      await supabase
+        .from('profiles')
+        .update({ wallet_balance: currentBalance + refundAmount })
+        .eq('id', userId)
+
+      await supabase.from('wallet_transactions').insert({
+        user_id: userId,
+        booking_id: booking.id,
+        amount: refundAmount,
+        type: 'credit',
+        description: `Refund for cancelled booking #${booking.reference_number ?? booking.id}`,
+      })
+
+      setToast(`Booking cancelled. ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been added to your Hanap.ph wallet.`)
+      setTimeout(() => setToast(''), 4000)
+    }
+
     setCancelling(false)
     setShowCancelModal(false)
     onCancel()
@@ -1091,7 +1120,8 @@ function CustomerReviews({ userId }) {
 
 const NAV_ITEMS = [
   { key: 'notifications',  label: 'Notifications',     icon: Bell },
-  { key: 'bookings',       label: 'My Bookings',      icon: CalendarCheck },
+  { key: 'bookings',       label: 'My Bookings',       icon: CalendarCheck },
+  { key: 'wallet',         label: 'E-Wallet',          icon: Wallet },
   { key: 'reviews',        label: 'My Reviews',        icon: Star },
   { key: 'profile',        label: 'Profile Settings',  icon: UserCog },
   { key: 'support',        label: 'Contact Support',   icon: Headset },
@@ -1908,6 +1938,95 @@ function CustomerSupport({ userId }) {
   )
 }
 
+// ─── E-Wallet Tab ─────────────────────────────────────────────────────────────
+
+function EWalletTab({ userId }) {
+  const [balance, setBalance] = useState(null)
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!userId) return
+    async function fetchWallet() {
+      setLoading(true)
+      const [{ data: profile }, { data: txns }] = await Promise.all([
+        supabase.from('profiles').select('wallet_balance').eq('id', userId).single(),
+        supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      ])
+      setBalance(Number(profile?.wallet_balance) || 0)
+      setTransactions(txns ?? [])
+      setLoading(false)
+    }
+    fetchWallet()
+  }, [userId])
+
+  const formatAmount = (amount) =>
+    Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  const formatDate = (dateStr) =>
+    new Date(dateStr).toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-gray-800 mb-6">E-Wallet</h2>
+
+      {/* Balance Card */}
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-6 mb-6 shadow-md">
+        <div className="flex items-center gap-3 mb-4">
+          <Wallet className="w-8 h-8 text-white" />
+          <p className="text-white font-semibold text-base">Hanap.ph Wallet Balance</p>
+        </div>
+        {loading ? (
+          <div className="w-7 h-7 border-4 border-white border-t-transparent rounded-full animate-spin my-1" />
+        ) : (
+          <p className="text-white text-4xl font-bold tracking-tight">₱{formatAmount(balance)}</p>
+        )}
+        <p className="text-orange-100 text-sm mt-2">Use your balance on your next booking</p>
+      </div>
+
+      {/* Transaction History */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-base font-bold text-gray-800">Transaction History</h3>
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-12 px-6">
+            <Wallet className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">No wallet transactions yet. Cancel a booking to receive your refund.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {transactions.map((txn) => (
+              <div key={txn.id} className="flex items-center justify-between px-5 py-4 gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-700 leading-snug">{txn.description}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(txn.created_at)}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className={`text-sm font-bold ${txn.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                    {txn.type === 'credit' ? '+' : '-'}₱{formatAmount(txn.amount)}
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${txn.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    {txn.type === 'credit' ? 'Credit' : 'Debit'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CustomerComingSoon() {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-gray-400">
@@ -2177,6 +2296,10 @@ function Dashboard() {
               <h2 className="text-xl font-bold text-gray-800 mb-6">Profile Settings</h2>
               <CustomerProfile userId={userId} userEmail={customerEmail} />
             </>
+          )}
+
+          {tab === 'wallet' && (
+            <EWalletTab userId={userId} />
           )}
 
           {tab === 'support' && (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Wallet } from 'lucide-react'
 import { toPng } from 'html-to-image'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -34,6 +34,14 @@ function fmtNow() {
 function capitalize(str) {
   if (!str) return '—'
   return str.charAt(0).toUpperCase() + str.slice(1)
+}
+
+function fmtPaymentMethod(method) {
+  if (!method) return '—'
+  if (method === 'gcash') return 'GCash'
+  if (method === 'paymaya') return 'PayMaya'
+  if (method === 'card') return 'Credit/Debit Card'
+  return capitalize(method)
 }
 
 const EXTRAS_LOOKUP = {
@@ -115,6 +123,38 @@ export default function BookingConfirmation() {
 
     async function confirm() {
       const params = new URLSearchParams(window.location.search)
+
+      // ── Wallet payment path ───────────────────────────────────────────────────
+      const isWalletPayment = params.get('wallet_payment') === 'true'
+      const bookingRef = params.get('booking_ref')
+      if (isWalletPayment) {
+        try {
+          if (!bookingRef) { setStatus('failed'); return }
+          const { data: bookingRow, error } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('reference_number', bookingRef)
+            .eq('status', 'confirmed')
+            .single()
+          if (error || !bookingRow) { setStatus('failed'); return }
+          if (bookingRow.tasker_id) {
+            const { data: taskerData } = await supabase
+              .from('taskers')
+              .select('name')
+              .eq('id', bookingRow.tasker_id)
+              .single()
+            if (taskerData?.name) setTaskerName(taskerData.name)
+          }
+          window.history.replaceState({}, '', window.location.pathname)
+          setBooking(bookingRow)
+          setStatus('success')
+        } catch {
+          setStatus('failed')
+        }
+        return
+      }
+      // ── End wallet payment path ───────────────────────────────────────────────
+
       const piId = params.get('payment_intent_id')
       if (!piId) {
         setStatus('failed')
@@ -280,14 +320,49 @@ export default function BookingConfirmation() {
                 </div>
               ))}
 
-              {/* Payment Method — with phone sub-line for mobile wallets */}
+              {/* Payment Method */}
               <div className="flex justify-between gap-4 items-start">
                 <span className="text-gray-400 flex-shrink-0">Payment Method</span>
-                <div className="text-right">
-                  <span className="text-gray-800">{capitalize(booking?.payment_method)}</span>
-                  {['gcash', 'paymaya', 'maya'].includes(booking?.payment_method?.toLowerCase()) && booking?.customer_phone && (
-                    <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
-                  )}
+                <div className="text-right space-y-1">
+                  {(() => {
+                    const method = booking?.payment_method
+                    const walletUsed = Number(booking?.wallet_amount_used) || 0
+
+                    // Full wallet — no payment method recorded
+                    if (!method) {
+                      return (
+                        <span className="text-gray-800 flex items-center justify-end gap-1">
+                          <Wallet size={14} className="text-orange-500 flex-shrink-0" />
+                          Hanap.ph E-Wallet
+                        </span>
+                      )
+                    }
+
+                    // Partial wallet + payment method
+                    if (walletUsed > 0) {
+                      return (
+                        <>
+                          <span className="text-gray-800 flex items-center justify-end gap-1">
+                            <Wallet size={14} className="text-orange-500 flex-shrink-0" />
+                            Hanap.ph E-Wallet + {fmtPaymentMethod(method)}
+                          </span>
+                          {['gcash', 'paymaya', 'maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
+                            <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
+                          )}
+                        </>
+                      )
+                    }
+
+                    // Normal payment — no wallet used
+                    return (
+                      <>
+                        <span className="text-gray-800">{fmtPaymentMethod(method)}</span>
+                        {['gcash', 'paymaya', 'maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
+                          <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
+                        )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </div>

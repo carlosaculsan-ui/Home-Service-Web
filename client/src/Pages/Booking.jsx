@@ -4,7 +4,7 @@ import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import Groq from 'groq-sdk'
-import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star } from 'lucide-react'
+import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star, Wallet } from 'lucide-react'
 
 const groq = new Groq({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
@@ -2623,8 +2623,24 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [showQrModal, setShowQrModal] = useState(false)
   const [pollingError, setPollingError] = useState('')
+  const [walletBalance, setWalletBalance] = useState(0)
+  const [useWallet, setUseWallet] = useState(false)
   const pollingIntervalRef = useRef(null)
   const submitButtonRef = useRef(null)
+
+  useEffect(() => {
+    async function fetchWalletBalance() {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session?.user) return
+      const { data } = await supabase
+        .from('profiles')
+        .select('wallet_balance')
+        .eq('id', session.user.id)
+        .single()
+      setWalletBalance(Number(data?.wallet_balance) || 0)
+    }
+    fetchWalletBalance()
+  }, [])
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
   const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
@@ -2643,6 +2659,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
     : ''
 
   const priceBreakdown = buildPriceBreakdown(taskOptions)
+
+  const rawFinalAmount = taskOptions?.total_price ?? estimatedTotal
+  const walletDeduction = useWallet ? Math.min(walletBalance, rawFinalAmount) : 0
+  const remainingAmount = rawFinalAmount - walletDeduction
 
 
   useEffect(() => {
@@ -2748,7 +2768,51 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         <p className="text-xs text-gray-400">Price is fixed based on your selected options.</p>
       </div>
 
+      {/* Wallet Balance Card */}
+      {walletBalance > 0 && (
+        <div className="border border-orange-300 bg-orange-50 rounded-xl p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Wallet size={18} className="text-orange-500 flex-shrink-0" />
+            <p className="font-bold text-gray-800 text-sm">
+              Hanap.ph Wallet Balance:{' '}
+              <span className="text-orange-500">
+                ₱{walletBalance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </p>
+          </div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={useWallet}
+              onChange={(e) => setUseWallet(e.target.checked)}
+              className="accent-orange-500 w-4 h-4"
+            />
+            <span className="text-sm text-gray-700 font-medium">Use my wallet balance for this booking</span>
+          </label>
+          {useWallet && (
+            <div className="text-sm space-y-1 pt-1 border-t border-orange-200">
+              <p className="text-orange-600 font-medium">
+                ₱{walletDeduction.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} will be deducted from your wallet
+              </p>
+              {remainingAmount === 0 ? (
+                <p className="text-green-600 font-semibold">
+                  ✓ Your wallet covers the full amount! No additional payment needed.
+                </p>
+              ) : (
+                <p className="text-gray-600">
+                  Remaining balance to pay:{' '}
+                  <span className="font-semibold text-gray-800">
+                    ₱{remainingAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Section 2 – Payment Method */}
+      {(!useWallet || remainingAmount > 0) && (
       <div className="border border-gray-200 rounded-xl p-5 space-y-3">
         <p className="font-bold text-gray-800 text-base">Select Payment Method</p>
 
@@ -2889,6 +2953,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           </div>
         )}
       </div>
+      )}
 
       {/* Buttons */}
       {saveError && (
@@ -2932,7 +2997,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               }
 
               const ref = 'VE-' + Date.now()
-              const finalAmount = taskOptions?.total_price ?? estimatedTotal
+              const finalAmount = rawFinalAmount
               const baseServicePrice = taskOptions?.final_price ?? estimatedTotal
               const helperFeeAmount = taskOptions?.helper_fee ?? 0
               const platformFee = Math.round(baseServicePrice * 0.3)
@@ -2977,12 +3042,41 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 helper_fee: helperFeeAmount,
                 helper_names: helperNames.length > 0 ? JSON.stringify(helperNames) : null,
                 duration_hours: taskDuration ?? 8,
+                wallet_amount_used: useWallet ? walletDeduction : 0,
                 status: 'pending_payment',
                 ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
               })
               if (insertError) {
                 setSaveError(`Error saving booking: ${insertError.message}`)
                 setSaving(false)
+                return
+              }
+
+              // Wallet deduction
+              if (useWallet && walletDeduction > 0) {
+                const { data: profileData } = await supabase
+                  .from('profiles')
+                  .select('wallet_balance')
+                  .eq('id', client_id)
+                  .single()
+                const currentBalance = Number(profileData?.wallet_balance) || 0
+                await supabase
+                  .from('profiles')
+                  .update({ wallet_balance: currentBalance - walletDeduction })
+                  .eq('id', client_id)
+                await supabase.from('wallet_transactions').insert({
+                  user_id: client_id,
+                  booking_id: null,
+                  amount: walletDeduction,
+                  type: 'debit',
+                  description: `Wallet payment for booking #${ref}`,
+                })
+              }
+
+              // Full wallet payment — skip PayMongo entirely
+              if (useWallet && remainingAmount === 0) {
+                await supabase.from('bookings').update({ status: 'confirmed' }).eq('reference_number', ref)
+                window.location.href = `${window.location.origin}/booking-confirmation?wallet_payment=true&booking_ref=${ref}`
                 return
               }
 
@@ -3014,7 +3108,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 body: JSON.stringify({
                   data: {
                     attributes: {
-                      amount: Math.round(finalAmount * 100),
+                      amount: Math.round(remainingAmount * 100),
                       currency: 'PHP',
                       payment_method_allowed: [paymentMethod],
                       capture_type: 'automatic',
@@ -3150,8 +3244,8 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               setIsProcessingPayment(false)
             }
           }}
-          disabled={saving || !paymentMethod}
-          className={`w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2 ${paymentMethod === 'gcash' || paymentMethod === 'paymaya' ? 'hidden' : ''}`}
+          disabled={saving || (remainingAmount > 0 && !paymentMethod)}
+          className={`w-full md:w-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-70 text-white font-semibold px-8 py-3 rounded-xl transition-colors text-base flex items-center justify-center gap-2 ${remainingAmount === 0 ? '' : (paymentMethod === 'gcash' || paymentMethod === 'paymaya' ? 'hidden' : '')}`}
         >
           {saving ? (
             <>
@@ -3161,7 +3255,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               </svg>
               Processing...
             </>
-          ) : 'Confirm & Pay'}
+          ) : remainingAmount === 0 ? 'Confirm Booking' : 'Confirm & Pay'}
         </button>
       </div>
     </div>
