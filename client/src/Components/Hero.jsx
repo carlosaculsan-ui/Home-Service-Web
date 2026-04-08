@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
 import heroImg from "../Assets/hero.jpg";
-import GROUPImg from "../Assets/GROUP.png";
+import HeroVideo from "../Assets/HeroVideo.mp4";
 import { Facebook, Instagram, Twitter, MessageCircle } from "lucide-react";
 
 function Hero() {
@@ -47,9 +47,12 @@ function Hero() {
             className={`block lg:hidden w-full transition-all duration-700 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
           >
             <div className="relative w-full h-[200px] rounded-2xl overflow-hidden shadow-xl border border-white/20">
-              <img
-                src={GROUPImg}
-                alt="Service preview"
+              <video
+                src={HeroVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
@@ -182,9 +185,12 @@ function Hero() {
               className={`relative group w-[520px] h-[320px] rounded-3xl overflow-hidden shadow-2xl border border-white/20 backdrop-blur-xl hover:shadow-3xl transition-all duration-700 hover:scale-[1.02]
                 ${show ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-10 scale-90"}`}
             >
-              <img
-                src={GROUPImg}
-                alt="Service preview"
+              <video
+                src={HeroVideo}
+                autoPlay
+                loop
+                muted
+                playsInline
                 className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
