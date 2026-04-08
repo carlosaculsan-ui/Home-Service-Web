@@ -566,6 +566,35 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
       </div>
 
+      {/* Price breakdown */}
+      {(booking.platform_fee != null || booking.tasker_payout != null) && (() => {
+        const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        const basePricePaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0)
+        const helperFee = booking.helper_fee ?? 0
+        return (
+          <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
+            <div className="flex justify-between text-gray-600">
+              <span>Base Price</span>
+              <span>{fmt(basePricePaid)}</span>
+            </div>
+            <div className="flex justify-between text-green-700 font-medium">
+              <span>Your Payout (70%)</span>
+              <span>{fmt(booking.tasker_payout)}</span>
+            </div>
+            <div className="flex justify-between text-gray-400">
+              <span>Platform Fee (30%)</span>
+              <span>{fmt(booking.platform_fee)}</span>
+            </div>
+            {helperFee > 0 && (
+              <div className="flex justify-between text-gray-600">
+                <span>Helper Fee</span>
+                <span>{fmt(helperFee)}</span>
+              </div>
+            )}
+          </div>
+        )
+      })()}
+
       {booking.task_description && (
         <div className="text-sm text-gray-600 bg-gray-50 rounded-lg px-3 py-2">
           <span className="text-gray-400 font-medium">Task Description: </span>{booking.task_description}
@@ -2188,7 +2217,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
     if (!taskerId) return
     supabase
       .from('bookings')
-      .select('id, status, service, task_options, task_size, duration_hours, customer_name, scheduled_date, scheduled_time, estimated_total, tasker_payout, is_rebook, created_at, client_id, reference_number')
+      .select('id, status, service, task_options, task_size, duration_hours, customer_name, scheduled_date, scheduled_time, estimated_total, tasker_payout, platform_fee, helper_fee, taskers_needed, is_rebook, created_at, client_id, reference_number')
       .eq('tasker_id', taskerId)
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -2308,11 +2337,33 @@ function BookingHistory({ taskerId, taskerUserId }) {
                   ))}
                 </div>
 
-                {b.status === 'completed' && b.tasker_payout != null && (
-                  <div className="flex items-center gap-2 text-sm font-semibold text-green-700 bg-green-50 rounded-lg px-3 py-2">
-                    Your Earnings: ₱{Number(b.tasker_payout).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </div>
-                )}
+                {(b.platform_fee != null || b.tasker_payout != null) && (() => {
+                  const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  const basePricePaid = (b.tasker_payout ?? 0) + (b.platform_fee ?? 0)
+                  const helperFee = b.helper_fee ?? 0
+                  return (
+                    <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
+                      <div className="flex justify-between text-gray-600">
+                        <span>Base Price</span>
+                        <span>{fmt(basePricePaid)}</span>
+                      </div>
+                      <div className="flex justify-between text-green-700 font-medium">
+                        <span>Your Payout (70%)</span>
+                        <span>{fmt(b.tasker_payout)}</span>
+                      </div>
+                      <div className="flex justify-between text-gray-400">
+                        <span>Platform Fee (30%)</span>
+                        <span>{fmt(b.platform_fee)}</span>
+                      </div>
+                      {helperFee > 0 && (
+                        <div className="flex justify-between text-gray-600">
+                          <span>Helper Fee</span>
+                          <span>{fmt(helperFee)}</span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 <div className="flex flex-wrap gap-2">
                   {b.status !== 'cancelled' && b.client_id && (

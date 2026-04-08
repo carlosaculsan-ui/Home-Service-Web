@@ -847,6 +847,39 @@ function BookingCard({ booking, userId, onCancel }) {
           ))}
         </div>
 
+        {/* Price breakdown */}
+        {(booking.platform_fee != null || booking.tasker_payout != null) && (() => {
+          const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          const basePricePaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0)
+          const helperFee = booking.helper_fee ?? 0
+          const totalPaid = basePricePaid + helperFee
+          const helperCount = booking.taskers_needed > 1 ? booking.taskers_needed - 1 : 0
+          return (
+            <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
+              <div className="flex justify-between text-gray-600">
+                <span>Base Price</span>
+                <span>{fmt(basePricePaid)}</span>
+              </div>
+              {helperFee > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Helper Fee{helperCount > 0 ? ` (${helperCount} helper${helperCount > 1 ? 's' : ''})` : ''}</span>
+                  <span>{fmt(helperFee)}</span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold text-gray-800 border-t border-gray-100 pt-1.5">
+                <span>Total Paid</span>
+                <span>{fmt(totalPaid)}</span>
+              </div>
+              {booking.payment_method && (
+                <div className="flex justify-between text-gray-400 text-xs pt-0.5">
+                  <span>Payment Method</span>
+                  <span className="capitalize">{booking.payment_method === 'gcash' ? 'GCash' : booking.payment_method === 'paymaya' ? 'PayMaya' : booking.payment_method === 'card' ? 'Credit/Debit Card' : booking.payment_method}</span>
+                </div>
+              )}
+            </div>
+          )
+        })()}
+
         {booking.status === 'on_the_way' && (
           <div className="flex items-center justify-between gap-3 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2 flex-wrap">
             <div className="flex items-center gap-2">

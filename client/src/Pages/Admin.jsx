@@ -1700,6 +1700,38 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
               )}
             </div>
           </div>
+          {(b.platform_fee != null || b.tasker_payout != null) && (() => {
+            const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            const basePricePaid = (b.tasker_payout ?? 0) + (b.platform_fee ?? 0)
+            const helperFee = b.helper_fee ?? 0
+            const totalPaid = basePricePaid + helperFee
+            return (
+              <div className="mt-3 border-t border-gray-100 pt-3 grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-1 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Base Price</span>
+                  <span className="text-gray-700 font-medium">{fmt(basePricePaid)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Tasker Payout</span>
+                  <span className="text-green-700 font-medium">{fmt(b.tasker_payout)}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Platform Fee</span>
+                  <span className="text-gray-700 font-medium">{fmt(b.platform_fee)}</span>
+                </div>
+                {helperFee > 0 && (
+                  <div className="flex gap-2">
+                    <span className="text-gray-400 w-28 flex-shrink-0">Helper Fee</span>
+                    <span className="text-gray-700 font-medium">{fmt(helperFee)}</span>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Total Paid</span>
+                  <span className="text-gray-800 font-semibold">{fmt(totalPaid)}</span>
+                </div>
+              </div>
+            )
+          })()}
           {b.ai_image_analysis && (
             <div className="mt-3 text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
               <span className="font-semibold flex items-center gap-1"><Bot size={14} /> AI Analysis: </span>{b.ai_image_analysis}
