@@ -2617,7 +2617,7 @@ function Step1({ service, onContinue }) {
 function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('')
-  const [cardDetails, setCardDetails] = useState({ number: '4343 4343 4343 4345', exp_month: '12', exp_year: '2026', cvc: '123' })
+  const [cardDetails, setCardDetails] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
