@@ -1232,6 +1232,18 @@ function Step1({ service, onContinue }) {
   const [fileInputKey, setFileInputKey] = useState(0)
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
+  const [addressError, setAddressError] = useState('')
+
+  function validateAddress(val) {
+    const v = val.trim()
+    if (v.length < 10) return 'Please enter a valid address (e.g., 123 Rizal St, Brgy Poblacion, Quezon City)'
+    if (!/\d/.test(v)) return 'Your address should include a house/unit/lot number (e.g., 123 Rizal St)'
+    if (v.split(/\s+/).filter(Boolean).length < 2) return 'Please enter a complete address with a street or barangay'
+    if (/^[\d\s\W]+$/.test(v)) return 'Please enter a valid address (e.g., 123 Rizal St, Brgy Poblacion, Quezon City)'
+    const keywords = /\b(st|street|ave|avenue|blvd|boulevard|road|rd|lane|ln|dr|drive|ext|unit|apt|block|blk|lot|floor|flr|room|rm|barangay|brgy|bgy|subdivision|subd|village|vill|compound|building|bldg|quezon|manila|makati|pasig|taguig|marikina|caloocan|malabon|navotas|valenzuela|paranaque|las\s*pinas|muntinlupa|mandaluyong|san\s*juan|pasay|pateros|cebu|davao|iloilo|zamboanga|antipolo|bacoor|imus|dasmariñas|dasmarinas|general\s*trias|cavite|laguna|bulacan|rizal|batangas|pampanga|bataan|nueva\s*ecija|tarlac|pangasinan|palawan|bohol|leyte|samar|bukidnon|misamis|cagayan|isabela|nueva\s*vizcaya|north|south|east|west|upper|lower|highway|hiway|hway)\b/i
+    if (!keywords.test(v)) return 'Please include a street, barangay, or city name (e.g., 123 Rizal St, Brgy Poblacion, Quezon City)'
+    return ''
+  }
   const [cleaningType, setCleaningType] = useState('')
   const [cleaningArea, setCleaningArea] = useState('')
   const [cleaningExtras, setCleaningExtras] = useState([])
@@ -1476,6 +1488,7 @@ function Step1({ service, onContinue }) {
         const data = await res.json()
         if (data?.display_name) {
           setAddress(data.display_name)
+          setAddressError('')
         } else {
           setLocationError('Could not determine address from location.')
         }
@@ -1495,6 +1508,7 @@ function Step1({ service, onContinue }) {
         const parts = [data.city, data.region_name, data.country_name].filter(Boolean)
         if (parts.length > 0) {
           setAddress(parts.join(', '))
+          setAddressError('')
         } else {
           setLocationError('Could not detect location. Please enter your address manually.')
         }
@@ -1612,8 +1626,14 @@ function Step1({ service, onContinue }) {
       setError('Could not load prices. Please refresh the page.')
       return
     }
-    if (!address.trim() || !details.trim()) {
+    if (!details.trim()) {
       setError('Please fill in all required fields')
+      return
+    }
+    const addrErr = validateAddress(address)
+    if (addrErr) {
+      setAddressError(addrErr)
+      setError('Please fix the address before continuing.')
       return
     }
     if (service?.toLowerCase() === 'cleaning' && (!cleaningType || !cleaningArea)) {
@@ -1765,16 +1785,22 @@ function Step1({ service, onContinue }) {
           <span className="font-bold text-gray-800 text-base">Your task location</span>
           <Pencil size={15} className="text-gray-400 cursor-pointer" />
         </div>
-        <div className="flex flex-col md:flex-row md:items-center gap-2">
+        <div className={`flex flex-col md:flex-row md:items-center gap-2 rounded-lg transition-colors ${
+          addressError ? 'ring-1 ring-red-400' : address.trim() && !validateAddress(address) ? 'ring-1 ring-green-400' : ''
+        }`}>
           <div className="flex items-center gap-2 flex-1">
             <MapPin size={20} className="text-orange-400 flex-shrink-0" />
             <input
               type="text"
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
+              onChange={(e) => { setAddress(e.target.value); if (addressError) setAddressError(validateAddress(e.target.value)) }}
+              onBlur={() => setAddressError(validateAddress(address))}
               placeholder="Enter your address"
               className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
             />
+            {address.trim() && !validateAddress(address) && (
+              <span className="text-green-500 text-base flex-shrink-0">✓</span>
+            )}
           </div>
           <button
             type="button"
@@ -1788,6 +1814,9 @@ function Step1({ service, onContinue }) {
             {detectingLocation ? 'Detecting…' : 'Detect my location'}
           </button>
         </div>
+        {addressError && (
+          <p className="text-xs text-red-500 mt-1">{addressError}</p>
+        )}
         {locationError && (
           <p className="text-xs text-red-500 mt-1">{locationError}</p>
         )}
