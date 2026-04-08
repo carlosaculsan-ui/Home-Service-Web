@@ -105,7 +105,7 @@ function HQSection() {
   }, [])
 
   return (
-    <section className="bg-gray-900 py-20 px-6" ref={sectionRef}>
+    <section className="bg-gray-900 py-20 px-6 border-b border-gray-700" ref={sectionRef}>
       <div className="max-w-6xl mx-auto">
 
         {/* Section header */}

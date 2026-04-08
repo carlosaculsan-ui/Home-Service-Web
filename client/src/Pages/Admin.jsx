@@ -8,6 +8,7 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, DollarSign, Calendar, ChevronRight, Megaphone,
+  CreditCard, RefreshCw,
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
@@ -4493,6 +4494,164 @@ function AnnouncementsPanel() {
   )
 }
 
+// ─── Transactions Panel ──────────────────────────────────────────────────────
+
+function TransactionsPanel() {
+  const [payments, setPayments] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchPayments = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch('https://api.paymongo.com/v1/payments?limit=20', {
+        headers: {
+          Authorization: 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':'),
+        },
+      })
+      if (!res.ok) throw new Error('Failed to fetch')
+      const json = await res.json()
+      setPayments(json.data ?? [])
+    } catch {
+      setError('Failed to load transactions. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchPayments()
+    const interval = setInterval(fetchPayments, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const formatAmount = (centavos) =>
+    '₱' + (centavos / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  const formatMethod = (method) => {
+    if (method === 'gcash') return 'GCash'
+    if (method === 'paymaya' || method === 'maya') return 'PayMaya'
+    if (method === 'card') return 'Credit/Debit Card'
+    return method ?? '—'
+  }
+
+  const formatPaidAt = (unix) => {
+    if (!unix) return '—'
+    return new Date(unix * 1000).toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+  }
+
+  const totalCollected = payments.reduce((sum, p) => sum + (p.attributes?.amount ?? 0), 0)
+  const gcashCount = payments.filter((p) => p.attributes?.source?.type === 'gcash').length
+  const mayaCount  = payments.filter((p) => p.attributes?.source?.type === 'paymaya' || p.attributes?.source?.type === 'maya').length
+  const cardCount  = payments.filter((p) => p.attributes?.source?.type === 'card').length
+
+  return (
+    <div className="w-full">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="text-xl font-bold text-gray-800">Transactions</h2>
+        <button
+          onClick={fetchPayments}
+          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+        >
+          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          Refresh
+        </button>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-emerald-500">
+          <div className="mb-2"><DollarSign className="w-8 h-8 text-emerald-500" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-emerald-600">{formatAmount(totalCollected)}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Collected</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-blue-500">
+          <div className="mb-2"><CreditCard className="w-8 h-8 text-blue-500" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-blue-600">{gcashCount}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">GCash Payments</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-purple-500">
+          <div className="mb-2"><CreditCard className="w-8 h-8 text-purple-500" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-purple-600">{mayaCount}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">PayMaya Payments</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-orange-500">
+          <div className="mb-2"><CreditCard className="w-8 h-8 text-orange-500" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-orange-600">{cardCount}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Card Payments</div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-16 text-red-500 text-sm">{error}</div>
+        ) : (
+          <>
+            <div className="px-5 py-3 border-b border-gray-100">
+              <p className="text-sm text-gray-500">Showing {payments.length} transaction{payments.length !== 1 ? 's' : ''}</p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
+                    <th className="px-5 py-3 text-left">Payment Method</th>
+                    <th className="px-5 py-3 text-left">Payment ID</th>
+                    <th className="px-5 py-3 text-left">Amount</th>
+                    <th className="px-5 py-3 text-left">Status</th>
+                    <th className="px-5 py-3 text-left">Paid At</th>
+                    <th className="px-5 py-3 text-left">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {payments.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="text-center text-gray-400 py-12">No transactions found.</td>
+                    </tr>
+                  ) : payments.map((p) => {
+                    const attr = p.attributes ?? {}
+                    const method = attr.source?.type
+                    return (
+                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-700">{formatMethod(method)}</td>
+                        <td className="px-5 py-3 text-gray-500 font-mono text-xs">{p.id}</td>
+                        <td className="px-5 py-3 font-semibold text-gray-800">{formatAmount(attr.amount)}</td>
+                        <td className="px-5 py-3">
+                          {attr.status === 'paid' ? (
+                            <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Paid</span>
+                          ) : (
+                            <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize">{attr.status ?? '—'}</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatPaidAt(attr.paid_at)}</td>
+                        <td className="px-5 py-3">
+                          <button
+                            onClick={() => {}}
+                            className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-lg px-3 py-1 text-xs font-semibold"
+                          >Refund</button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -4504,6 +4663,7 @@ const NAV_ITEMS = [
   { key: 'reviews',         label: 'Reviews',             icon: Star },
   { key: 'leave-requests',  label: 'Leave Requests',      icon: Umbrella },
   { key: 'messages',        label: 'Messages',            icon: MessageSquare },
+  { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
 
 function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, onLogout, onClose }) {
@@ -4794,6 +4954,8 @@ function Admin() {
       ? (empSubtab === 'applicants' ? 'Applicants' : empSubtab === 'helpers' ? 'Helpers' : 'Taskers')
       : tab === 'services'
         ? (svcSubtab === 'prices' ? 'Prices' : 'Services')
+      : tab === 'transactions'
+        ? 'Transactions'
       : NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Admin Panel'
 
   return (
@@ -5115,6 +5277,7 @@ function Admin() {
               <AdminMessagesPanel adminUserId={adminUserId} />
             </>}
             {tab === 'messages' && msgSubtab === 'announcements' && <AnnouncementsPanel />}
+            {tab === 'transactions' && <TransactionsPanel />}
           </div>
         )}
 
