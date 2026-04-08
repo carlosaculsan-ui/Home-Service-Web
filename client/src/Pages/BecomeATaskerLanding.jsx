@@ -83,13 +83,13 @@ function EarningsCalculator() {
   const formatted = '₱' + monthly.toLocaleString('en-PH')
 
   return (
-    <section className="bg-orange-500 py-16 px-4 md:px-8">
-      <div className="text-center mb-8">
+    <section className="bg-orange-500 py-12 sm:py-16 px-4 md:px-8">
+      <div className="text-center mb-6 sm:mb-8">
         <h2 className="text-2xl md:text-4xl font-bold text-white mb-2">How much can you earn?</h2>
-        <p className="text-orange-100 text-base">Galaw ang slider, tingnan ang potential mo.</p>
+        <p className="text-orange-100 text-sm sm:text-base">Igalaw ang Slider, tignan ang potential mo.</p>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xl max-w-2xl mx-auto p-8 flex flex-col gap-6">
+      <div className="bg-white rounded-2xl shadow-xl max-w-2xl mx-auto p-5 sm:p-8 flex flex-col gap-5 sm:gap-6">
 
         {/* Service selector */}
         <div>
@@ -99,7 +99,7 @@ function EarningsCalculator() {
               <button
                 key={s.label}
                 onClick={() => setService(s)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+                className={`px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
                   service.label === s.label
                     ? 'bg-orange-500 text-white border-orange-500'
                     : 'border-orange-200 text-orange-600 hover:bg-orange-50'
@@ -133,11 +133,11 @@ function EarningsCalculator() {
 
         {/* Output */}
         <div className="transition-all duration-300 text-center flex flex-col gap-1">
-          <p className="text-4xl md:text-5xl font-black text-orange-500">{formatted} / month</p>
-          <p className="text-sm text-gray-500">
+          <p className="text-3xl sm:text-4xl md:text-5xl font-black text-orange-500">{formatted} / month</p>
+          <p className="text-xs sm:text-sm text-gray-500">
             Based on {hours} hrs/week at ₱{service.rate}/hr (70% tasker payout)
           </p>
-          <p className="text-sm text-gray-400 italic mt-1">{motivationalLine(monthly)}</p>
+          <p className="text-xs sm:text-sm text-gray-400 italic mt-1">{motivationalLine(monthly)}</p>
         </div>
       </div>
 

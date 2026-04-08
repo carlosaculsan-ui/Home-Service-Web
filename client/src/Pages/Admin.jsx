@@ -4632,7 +4632,40 @@ function TransactionsPanel() {
             <div className="px-5 py-3 border-b border-gray-100">
               <p className="text-sm text-gray-500">Showing {payments.length} transaction{payments.length !== 1 ? 's' : ''}</p>
             </div>
-            <div className="overflow-x-auto">
+
+            {/* Mobile cards */}
+            <div className="block md:hidden divide-y divide-gray-100">
+              {payments.length === 0 ? (
+                <p className="text-center text-gray-400 py-12 text-sm">No transactions found.</p>
+              ) : payments.map((p) => {
+                const attr = p.attributes ?? {}
+                const method = attr.source?.type
+                return (
+                  <div key={p.id} className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-800 text-base">{formatAmount(attr.amount)}</span>
+                      {attr.status === 'paid' ? (
+                        <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Paid</span>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize">{attr.status ?? '—'}</span>
+                      )}
+                    </div>
+                    <div className="text-sm text-gray-600 font-medium">{formatMethod(method)}</div>
+                    <div className="text-xs text-gray-400 font-mono break-all">{p.id}</div>
+                    <div className="text-xs text-gray-500">{formatPaidAt(attr.paid_at)}</div>
+                    <div>
+                      <button
+                        onClick={() => {}}
+                        className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-lg px-3 py-1 text-xs font-semibold"
+                      >Refund</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Desktop table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
