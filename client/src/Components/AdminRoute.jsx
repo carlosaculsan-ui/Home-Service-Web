@@ -171,7 +171,7 @@ function AdminRoute({ children }) {
   }
 
   if (status === 'notAdmin') {
-    return <Navigate to="/" replace />
+    return <AdminLoginForm onLoginSuccess={() => setStatus('allowed')} />
   }
 
   return children
