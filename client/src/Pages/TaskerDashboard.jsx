@@ -203,6 +203,128 @@ function ProposeModal({ booking, taskerUserId, onClose, onSuccess }) {
   )
 }
 
+// ─── Reject Modal ────────────────────────────────────────────────────────────
+
+const REJECT_REASONS = [
+  'I am unavailable on this date',
+  'The location is too far',
+  'The task is outside my expertise',
+  'I already have too many bookings',
+  'The task details are incomplete',
+  'Other',
+]
+
+function RejectModal({ onClose, onConfirm, loading }) {
+  const [screen, setScreen] = useState(1)
+  const [reason, setReason] = useState('')
+  const [note, setNote] = useState('')
+  const [noteError, setNoteError] = useState('')
+
+  const isOther = reason === 'Other'
+  const canConfirm = reason !== '' && (!isOther || note.trim() !== '')
+
+  function handleConfirm() {
+    if (isOther && !note.trim()) {
+      setNoteError('Please describe your reason since you selected "Other".')
+      return
+    }
+    setNoteError('')
+    onConfirm(reason, note)
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 relative">
+
+        {/* Screen 1 — Warning */}
+        {screen === 1 && (
+          <>
+            <div className="flex flex-col items-center text-center mb-6">
+              <div className="text-5xl mb-4">⚠️</div>
+              <h2 className="text-xl font-bold text-gray-800 mb-3">Reject this booking?</h2>
+              <p className="text-sm text-gray-600 mb-1">
+                The customer will be notified of your rejection.
+              </p>
+              <p className="text-sm text-gray-500">
+                Please provide a reason so the customer understands.
+              </p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={() => setScreen(2)}
+                className="flex-1 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Continue
+              </button>
+            </div>
+          </>
+        )}
+
+        {/* Screen 2 — Reason */}
+        {screen === 2 && (
+          <>
+            <h2 className="text-lg font-bold text-gray-800 mb-4">Why are you rejecting?</h2>
+
+            <div className="space-y-2 mb-4">
+              {REJECT_REASONS.map((r) => (
+                <label key={r} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="reject-reason"
+                    value={r}
+                    checked={reason === r}
+                    onChange={() => { setReason(r); setNoteError('') }}
+                    className="accent-orange-500"
+                  />
+                  <span className="text-sm text-gray-700">{r}</span>
+                </label>
+              ))}
+            </div>
+
+            <p className="text-sm font-semibold text-gray-600 mb-1">
+              Additional note{' '}
+              {isOther
+                ? <span className="text-red-400">*</span>
+                : <span className="text-gray-400 font-normal">(optional)</span>}
+            </p>
+            <textarea
+              value={note}
+              onChange={(e) => { setNote(e.target.value); if (noteError) setNoteError('') }}
+              placeholder="Share any additional details..."
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-1"
+            />
+
+            {noteError && <p className="text-xs text-red-500 mt-1 mb-2">{noteError}</p>}
+
+            <div className="flex gap-3 mt-3">
+              <button
+                onClick={() => setScreen(1)}
+                className="flex-1 border border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-800 text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={!canConfirm || loading}
+                className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2.5 rounded-lg transition-colors"
+              >
+                {loading ? 'Rejecting…' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Task Card ──────────────────────────────────────────────────────────────
 
 function TaskCard({ booking, onStatusChange, currentUserId }) {
@@ -211,6 +333,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [showChat, setShowChat] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
   const [showProposeModal, setShowProposeModal] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
   const [toast, setToast] = useState('')
   const [sharingLocation, setSharingLocation] = useState(false)
   const watchIdRef = useRef(null)
@@ -339,6 +462,31 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     onStatusChange()
   }
 
+  async function handleReject(reason, note) {
+    setActionLoading('rejected')
+    setStatusError('')
+    const { error } = await supabase.from('bookings').update({
+      status: 'rejected',
+      rejection_reason: reason,
+      rejection_note: note || null,
+    }).eq('id', booking.id)
+    setActionLoading(null)
+    if (error) {
+      setStatusError('Failed to reject booking. Try again.')
+      return
+    }
+    if (booking.client_id) {
+      await supabase.from('notifications').insert({
+        user_id: booking.client_id,
+        title: 'Booking Rejected',
+        message: `Your booking was rejected by the tasker. Reason: ${reason}`,
+        is_read: false,
+      })
+    }
+    setShowRejectModal(false)
+    onStatusChange()
+  }
+
   return (
     <>
       {showChat && booking.client_id && (
@@ -357,6 +505,14 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
           taskerUserId={currentUserId}
           onClose={() => setShowProposeModal(false)}
           onSuccess={handleProposeSent}
+        />
+      )}
+
+      {showRejectModal && (
+        <RejectModal
+          onClose={() => setShowRejectModal(false)}
+          onConfirm={handleReject}
+          loading={actionLoading === 'rejected'}
         />
       )}
 
@@ -446,11 +602,11 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             {actionLoading === 'accepted' ? 'Accepting…' : 'Accept'}
           </button>
           <button
-            onClick={() => handleAction('rejected')}
+            onClick={() => setShowRejectModal(true)}
             disabled={actionLoading !== null}
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 disabled:opacity-50"
           >
-            {actionLoading === 'rejected' ? 'Rejecting…' : 'Reject'}
+            Reject
           </button>
           {booking.is_rebook && (
             <button

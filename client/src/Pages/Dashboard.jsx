@@ -27,7 +27,7 @@ const STATUS_LABELS = {
   in_progress: 'In Progress',
   completed:   'Completed',
   cancelled:   'Cancelled',
-  rejected:    'Rejected',
+  rejected:    'Rejected by Tasker',
 }
 
 function timeAgo(dateString) {
@@ -922,7 +922,26 @@ function BookingCard({ booking, userId, onCancel }) {
           </div>
         )}
 
-        {booking.status !== 'cancelled' && booking.taskerUserId && (
+        {booking.status === 'rejected' && (
+          <div className="space-y-2 pt-1">
+            {booking.rejection_reason && (
+              <div className="text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2 space-y-1">
+                <p className="text-gray-700">❌ <span className="font-medium">Reason:</span> {booking.rejection_reason}</p>
+                {booking.rejection_note && (
+                  <p className="text-gray-700">📝 <span className="font-medium">Note:</span> {booking.rejection_note}</p>
+                )}
+              </div>
+            )}
+            <button
+              onClick={handleRebook}
+              className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Rebook
+            </button>
+          </div>
+        )}
+
+        {booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.taskerUserId && (
           <div className="pt-1">
             <button
               onClick={() => setShowChat(true)}

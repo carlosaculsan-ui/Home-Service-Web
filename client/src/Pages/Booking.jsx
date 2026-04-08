@@ -237,7 +237,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
-  const isPast = (d) => getDateObj(d) < todayStart
+  const isPast = (d) => getDateObj(d) <= todayStart
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
 
   const isBlocked = (d) => {
@@ -351,10 +351,10 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                           ? 'bg-orange-500 text-white font-bold'
                           : isBlocked(d)
                           ? 'bg-red-100 text-red-300 cursor-not-allowed'
-                          : isToday(d)
-                          ? 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
                           : isPast(d)
                           ? 'text-gray-300 cursor-not-allowed'
+                          : isToday(d)
+                          ? 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
                           : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
                         }`}
                     >
