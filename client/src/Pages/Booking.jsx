@@ -305,9 +305,17 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
         </button>
 
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
-            <User size={22} />
-          </div>
+          {tasker.profile_photo ? (
+            <img
+              src={tasker.profile_photo.startsWith('http') ? tasker.profile_photo : supabase.storage.from('tasker-files').getPublicUrl(tasker.profile_photo).data.publicUrl}
+              alt={tasker.name}
+              className="w-12 h-12 rounded-full object-cover flex-shrink-0"
+            />
+          ) : (
+            <div className="w-12 h-12 rounded-full bg-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+              <User size={22} />
+            </div>
+          )}
           <h2 className="text-base font-bold text-gray-800">{tasker.name}'s Availability</h2>
         </div>
 
