@@ -91,6 +91,32 @@ function BecomeATasker() {
     if (!emailRegex.test(formData.email)) {
       newErrors.email = 'Please enter a valid email address'
     }
+    if (!formData.phone?.trim()) {
+      newErrors.phone = 'Phone number is required'
+    } else if (!validatePhone(formData.phone)) {
+      newErrors.phone = 'Please enter a valid Philippine phone number (e.g. 09171234567)'
+    }
+    if (!formData.serviceArea?.trim()) {
+      newErrors.serviceArea = 'Please enter your service area or detect your location'
+    }
+    if (!formData.age || Number(formData.age) < 18 || Number(formData.age) > 70) {
+      newErrors.age = 'Age must be between 18 and 70'
+    }
+    if (!formData.gender) {
+      newErrors.gender = 'Please select your gender'
+    }
+    if (!formData.area) {
+      newErrors.area = 'Please select your area/city'
+    }
+    if (!formData.availType) {
+      newErrors.availType = 'Please select your availability'
+    }
+    if (formData.availType === 'Part Time' && !formData.partTimeShift) {
+      newErrors.partTimeShift = 'Please select your shift (AM or PM)'
+    }
+    if (!formData.serviceRole) {
+      newErrors.serviceRole = 'Please select your service role'
+    }
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -116,16 +142,11 @@ function BecomeATasker() {
     if (step === 1) {
       if (!validateStep1()) {
         requestAnimationFrame(() => {
-          document.querySelector('[name="firstName"], [name="lastName"]')
+          document.querySelector('.border-red-400')
             ?.scrollIntoView({ behavior: 'smooth', block: 'center' })
         })
         return
       }
-      if (formData.phone && !validatePhone(formData.phone)) {
-        setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
-        return
-      }
-      setPhoneError('')
     }
     setStep((prev) => Math.min(prev + 1, 5))
   }
@@ -335,6 +356,19 @@ function BecomeATasker() {
               Go to Tasker Dashboard
             </Link>
           )}
+          {existingApplication.status === 'rejected' && (
+            <button
+              onClick={async () => {
+                const { data: { user } } = await supabase.auth.getUser()
+                if (!user) return
+                await supabase.from('taskers').delete().eq('user_id', user.id)
+                setExistingApplication(null)
+              }}
+              className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+            >
+              Reapply
+            </button>
+          )}
         </div>
       </div>
     )
@@ -477,19 +511,18 @@ function BecomeATasker() {
                     value={formData.phone}
                     onChange={(e) => {
                       handleChange(e)
-                      setPhoneError('')
+                      setErrors(prev => ({ ...prev, phone: undefined }))
                     }}
                     onKeyPress={(e) => { if (!/[0-9+]/.test(e.key)) e.preventDefault() }}
                     onBlur={() => {
-                      if (formData.phone && !validatePhone(formData.phone))
-                        setPhoneError('Please enter a valid Philippine phone number (e.g. 09171234567 or +639171234567)')
-                      else
-                        setPhoneError('')
+                      if (!formData.phone?.trim()) setErrors(prev => ({ ...prev, phone: 'Phone number is required' }))
+                      else if (!validatePhone(formData.phone)) setErrors(prev => ({ ...prev, phone: 'Please enter a valid Philippine phone number (e.g. 09171234567)' }))
+                      else setErrors(prev => ({ ...prev, phone: undefined }))
                     }}
                     placeholder="09XXXXXXXXX or +639XXXXXXXXX"
-                    className={`w-full border rounded-md p-2 text-sm ${phoneError ? 'border-red-400' : formData.phone && validatePhone(formData.phone) ? 'border-green-400' : 'border-gray-300'}`}
+                    className={`w-full border rounded-md p-2 text-sm ${errors.phone ? 'border-red-400' : formData.phone && validatePhone(formData.phone) ? 'border-green-400' : 'border-gray-300'}`}
                   />
-                  {phoneError && <p className="text-xs text-red-500 mt-1">{phoneError}</p>}
+                  {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
                 </div>
                 <div className="flex-1 flex flex-col gap-1">
                   <div className="relative">
@@ -497,9 +530,9 @@ function BecomeATasker() {
                       type="text"
                       name="serviceArea"
                       value={formData.serviceArea}
-                      onChange={handleChange}
+                      onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, serviceArea: undefined })) }}
                       placeholder="Select Your Home Or Main Service Area..."
-                      className="w-full border border-gray-300 rounded-md p-2 pr-8 text-sm"
+                      className={`w-full border rounded-md p-2 pr-8 text-sm ${errors.serviceArea ? 'border-red-400' : 'border-gray-300'}`}
                     />
                     <Search size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400" />
                   </div>
@@ -514,6 +547,7 @@ function BecomeATasker() {
                     ) : <MapPin size={13} />}
                     {detectingLocation ? 'Detecting...' : 'Detect my location'}
                   </button>
+                  {errors.serviceArea && <p className="text-red-500 text-xs mt-1">{errors.serviceArea}</p>}
                   {locationError && (
                     <p className="text-red-500 text-xs mt-1">{locationError}</p>
                   )}
@@ -540,33 +574,39 @@ function BecomeATasker() {
                     className={`w-full border rounded-md p-2 text-sm ${errors.email ? 'border-red-400' : 'border-gray-300'}`}
                   />
                   {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                  <input
-                    type="number"
-                    name="age"
-                    value={formData.age}
-                    onChange={handleChange}
-                    placeholder="Age"
-                    className="w-full md:w-24 border border-gray-300 rounded-md p-2 text-sm"
-                  />
-                  <div className="flex gap-4">
-                    <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.gender === 'Male'}
-                        onChange={() => setFormData(prev => ({ ...prev, gender: prev.gender === 'Male' ? '' : 'Male' }))}
-                        className="accent-orange-500"
-                      />
-                      Male
-                    </label>
-                    <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.gender === 'Female'}
-                        onChange={() => setFormData(prev => ({ ...prev, gender: prev.gender === 'Female' ? '' : 'Female' }))}
-                        className="accent-orange-500"
-                      />
-                      Female
-                    </label>
+                  <div>
+                    <input
+                      type="number"
+                      name="age"
+                      value={formData.age}
+                      onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, age: undefined })) }}
+                      placeholder="Age"
+                      className={`w-full md:w-24 border rounded-md p-2 text-sm ${errors.age ? 'border-red-400' : 'border-gray-300'}`}
+                    />
+                    {errors.age && <p className="text-red-500 text-xs mt-1">{errors.age}</p>}
+                  </div>
+                  <div>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.gender === 'Male'}
+                          onChange={() => { setFormData(prev => ({ ...prev, gender: prev.gender === 'Male' ? '' : 'Male' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
+                          className="accent-orange-500"
+                        />
+                        Male
+                      </label>
+                      <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formData.gender === 'Female'}
+                          onChange={() => { setFormData(prev => ({ ...prev, gender: prev.gender === 'Female' ? '' : 'Female' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
+                          className="accent-orange-500"
+                        />
+                        Female
+                      </label>
+                    </div>
+                    {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
                   </div>
                   <input
                     type="text"
@@ -576,10 +616,11 @@ function BecomeATasker() {
                     placeholder="Postal Code"
                     className="w-full border border-gray-300 rounded-md p-2 text-sm"
                   />
+                  <div>
                   <select
                     value={formData.area}
-                    onChange={(e) => setFormData(prev => ({ ...prev, area: e.target.value }))}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                    onChange={(e) => { setFormData(prev => ({ ...prev, area: e.target.value })); setErrors(prev => ({ ...prev, area: undefined })) }}
+                    className={`w-full border rounded-md p-2 text-sm ${errors.area ? 'border-red-400' : 'border-gray-300'}`}
                   >
                     <option value="">-- Select Area --</option>
                     <option value="Manila">Manila</option>
@@ -600,6 +641,8 @@ function BecomeATasker() {
                     <option value="Taguig">Taguig</option>
                     <option value="Valenzuela">Valenzuela</option>
                   </select>
+                  {errors.area && <p className="text-red-500 text-xs mt-1">{errors.area}</p>}
+                  </div>
                 </div>
                 {/* Right column: Map — desktop only */}
                 <div className="hidden md:block md:flex-1 md:min-h-[130px]">
@@ -615,37 +658,41 @@ function BecomeATasker() {
                 <p className="font-bold text-gray-800 text-sm mb-2">Availability</p>
                 <select
                   value={formData.availType}
-                  onChange={e => setFormData(prev => ({ ...prev, availType: e.target.value, partTimeShift: '' }))}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm mb-2"
+                  onChange={e => { setFormData(prev => ({ ...prev, availType: e.target.value, partTimeShift: '' })); setErrors(prev => ({ ...prev, availType: undefined, partTimeShift: undefined })) }}
+                  className={`w-full border rounded-md p-2 text-sm mb-1 ${errors.availType ? 'border-red-400' : 'border-gray-300'}`}
                 >
                   <option value="">Select availability</option>
                   <option value="Full Time">Full Time</option>
                   <option value="Part Time">Part Time</option>
                 </select>
+                {errors.availType && <p className="text-red-500 text-xs mb-2">{errors.availType}</p>}
                 {formData.availType === 'Part Time' && (
-                  <div className="flex gap-4 mt-1">
-                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="partTimeShift"
-                        value="AM"
-                        checked={formData.partTimeShift === 'AM'}
-                        onChange={() => setFormData(prev => ({ ...prev, partTimeShift: 'AM' }))}
-                        className="accent-orange-500"
-                      />
-                      AM (7:00 AM - 12:00 PM)
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="partTimeShift"
-                        value="PM"
-                        checked={formData.partTimeShift === 'PM'}
-                        onChange={() => setFormData(prev => ({ ...prev, partTimeShift: 'PM' }))}
-                        className="accent-orange-500"
-                      />
-                      PM (1:00 PM - 5:00 PM)
-                    </label>
+                  <div className="mt-1">
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="partTimeShift"
+                          value="AM"
+                          checked={formData.partTimeShift === 'AM'}
+                          onChange={() => { setFormData(prev => ({ ...prev, partTimeShift: 'AM' })); setErrors(prev => ({ ...prev, partTimeShift: undefined })) }}
+                          className="accent-orange-500"
+                        />
+                        AM (7:00 AM - 12:00 PM)
+                      </label>
+                      <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="partTimeShift"
+                          value="PM"
+                          checked={formData.partTimeShift === 'PM'}
+                          onChange={() => { setFormData(prev => ({ ...prev, partTimeShift: 'PM' })); setErrors(prev => ({ ...prev, partTimeShift: undefined })) }}
+                          className="accent-orange-500"
+                        />
+                        PM (1:00 PM - 5:00 PM)
+                      </label>
+                    </div>
+                    {errors.partTimeShift && <p className="text-red-500 text-xs mt-1">{errors.partTimeShift}</p>}
                   </div>
                 )}
               </div>
@@ -656,8 +703,8 @@ function BecomeATasker() {
                 <select
                   name="serviceRole"
                   value={formData.serviceRole}
-                  onChange={handleChange}
-                  className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                  onChange={(e) => { handleChange(e); setErrors(prev => ({ ...prev, serviceRole: undefined })) }}
+                  className={`w-full border rounded-md p-2 text-sm ${errors.serviceRole ? 'border-red-400' : 'border-gray-300'}`}
                 >
                   <option value="">Select...</option>
                   <option>Cleaning</option>
@@ -667,6 +714,7 @@ function BecomeATasker() {
                   <option>Painting</option>
                   <option>Aircon Cleaning</option>
                 </select>
+                {errors.serviceRole && <p className="text-red-500 text-xs mt-1">{errors.serviceRole}</p>}
               </div>
 
 
