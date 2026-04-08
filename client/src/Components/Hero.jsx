@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../supabase";
-import heroImg from "../Assets/hero.jpg";
 import HeroVideo from "../Assets/HeroVideo.mp4";
 import { Facebook, Instagram, Twitter, MessageCircle } from "lucide-react";
 
@@ -29,10 +28,14 @@ function Hero() {
 
   return (
     <section className="relative min-h-screen flex items-center justify-center overflow-hidden bg-gray-900">
-      {/* Background Image */}
-      <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: `url(${heroImg})` }}
+      {/* Background Video */}
+      <video
+        src={HeroVideo}
+        autoPlay
+        loop
+        muted
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover"
       />
 
       {/* Gradient Overlay */}
@@ -40,28 +43,8 @@ function Hero() {
 
       {/* Main Content */}
       <div className="relative z-10 container mx-auto px-6 max-w-7xl py-20">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+        <div className="grid grid-cols-1 gap-12 items-center">
 
-          {/* MOBILE IMAGE — shown only on small screens, above text */}
-          <div
-            className={`block lg:hidden w-full transition-all duration-700 ${show ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"}`}
-          >
-            <div className="relative w-full h-[200px] rounded-2xl overflow-hidden shadow-xl border border-white/20">
-              <video
-                src={HeroVideo}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-              <div className="absolute bottom-4 left-4">
-                <h4 className="text-white font-bold text-base drop-shadow-lg">Tasker Preview</h4>
-                <p className="text-gray-300 text-xs drop-shadow-lg">See our team in action</p>
-              </div>
-            </div>
-          </div>
 
           {/* LEFT SIDE */}
           <div className="text-white space-y-6 lg:space-y-8 lg:max-w-lg">
@@ -179,27 +162,6 @@ function Hero() {
             )}
           </div>
 
-          {/* RIGHT SIDE — desktop only */}
-          <div className="hidden lg:flex justify-center relative">
-            <div
-              className={`relative group w-[520px] h-[320px] rounded-3xl overflow-hidden shadow-2xl border border-white/20 backdrop-blur-xl hover:shadow-3xl transition-all duration-700 hover:scale-[1.02]
-                ${show ? "opacity-100 translate-y-0 scale-100" : "opacity-0 translate-y-10 scale-90"}`}
-            >
-              <video
-                src={HeroVideo}
-                autoPlay
-                loop
-                muted
-                playsInline
-                className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-              <div className="absolute bottom-6 left-6 right-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                <h4 className="text-white font-bold text-xl mb-2 drop-shadow-lg">Tasker Preview</h4>
-                <p className="text-gray-300 text-sm drop-shadow-lg">See our team in action</p>
-              </div>
-            </div>
-          </div>
 
         </div>
       </div>
