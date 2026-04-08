@@ -4666,7 +4666,7 @@ const NAV_ITEMS = [
   { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, onLogout, onClose }) {
   // ── Subtab open state ───────────────────────────────────────────────────────
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
   const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
@@ -4813,6 +4813,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           >
             <MessageSquare size={17} className="flex-shrink-0" />
             Messages
+            {inboxUnread > 0 && (
+              <span className="ml-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {inboxUnread > 99 ? '99+' : inboxUnread}
+              </span>
+            )}
             <ChevronRight
               size={14}
               className="ml-auto flex-shrink-0 transition-transform duration-200"
@@ -4835,6 +4840,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
                 }`}
               >
                 {label}
+                {key === 'inbox' && inboxUnread > 0 && (
+                  <span className="ml-2 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                    {inboxUnread > 99 ? '99+' : inboxUnread}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -4885,6 +4895,7 @@ function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
   const [adminUserId, setAdminUserId] = useState('')
+  const [inboxUnread, setInboxUnread] = useState(0)
   const [calendarBookings, setCalendarBookings] = useState([])
   const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -4939,9 +4950,43 @@ function Admin() {
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       setAdminEmail(user?.email ?? '')
-      setAdminUserId(user?.id ?? '')
+      const uid = user?.id ?? ''
+      setAdminUserId(uid)
+      if (uid) fetchInboxUnread(uid)
     })
   }, [])
+
+  async function fetchInboxUnread(uid) {
+    const id = uid || adminUserId
+    if (!id) return
+    const { data } = await supabase
+      .from('messages')
+      .select('id, sender_id')
+      .is('booking_id', null)
+      .eq('receiver_id', id)
+      .eq('is_read', false)
+    if (!data) return
+    // Filter to only tasker senders
+    const senderIds = [...new Set(data.map((m) => m.sender_id).filter(Boolean))]
+    if (senderIds.length === 0) { setInboxUnread(0); return }
+    const { data: taskers } = await supabase
+      .from('taskers')
+      .select('user_id')
+      .in('user_id', senderIds)
+    const taskerUserIds = new Set((taskers ?? []).map((t) => t.user_id))
+    setInboxUnread(data.filter((m) => taskerUserIds.has(m.sender_id)).length)
+  }
+
+  useEffect(() => {
+    if (!adminUserId) return
+    const channel = supabase
+      .channel(`admin-inbox-unread-${adminUserId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+        fetchInboxUnread(adminUserId)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId])
 
   async function handleLogout() {
     await supabase.auth.signOut()
@@ -4975,6 +5020,7 @@ function Admin() {
           msgSubtab={msgSubtab}
           setMsgSubtab={setMsgSubtab}
           adminEmail={adminEmail}
+          inboxUnread={inboxUnread}
           onLogout={handleLogout}
         />
       </div>
