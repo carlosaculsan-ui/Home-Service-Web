@@ -123,9 +123,12 @@ function Hero() {
                       Social Media
                     </button>
 
-                    {/* POPUP — right side on mobile, left side on desktop */}
+                    {/* Invisible bridge to prevent hover gap on desktop */}
+                    <div className="hidden lg:block absolute top-0 left-full w-4 h-full" />
+
+                    {/* POPUP — drops down on mobile, goes right on desktop */}
                     <div
-                      className={`absolute top-full mt-2 left-0 lg:top-1/2 lg:-translate-y-1/2 lg:left-full lg:mt-0 lg:ml-3 flex gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl px-4 py-3 shadow-xl transition-all duration-300 z-50
+                      className={`absolute top-full mt-2 left-0 lg:top-1/2 lg:-translate-y-1/2 lg:left-full lg:mt-0 lg:ml-4 flex gap-3 bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl px-4 py-3 shadow-xl transition-all duration-300 z-50
                         ${showContacts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}
                     >
                       <a
