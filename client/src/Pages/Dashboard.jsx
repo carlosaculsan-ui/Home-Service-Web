@@ -679,6 +679,9 @@ function BookingCard({ booking, userId, onCancel }) {
 
       setToast(`Booking cancelled. ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been added to your Hanap.ph wallet.`)
       setTimeout(() => setToast(''), 4000)
+
+      supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
+        .then(({ error: refundFlagErr }) => { if (refundFlagErr) console.error('is_refunded flag failed:', refundFlagErr) })
     }
 
     setCancelling(false)
