@@ -2719,6 +2719,7 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
+  const [cardErrors, setCardErrors] = useState({})
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
@@ -2728,6 +2729,10 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   const [useWallet, setUseWallet] = useState(false)
   const pollingIntervalRef = useRef(null)
   const submitButtonRef = useRef(null)
+  const cardNumberRef = useRef(null)
+  const expMonthRef = useRef(null)
+  const expYearRef = useRef(null)
+  const cvcRef = useRef(null)
 
   useEffect(() => {
     async function fetchWalletBalance() {
@@ -2983,12 +2988,13 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               <label className="block text-sm text-gray-700 font-medium mb-1">Card number</label>
               <div className="relative">
                 <input
+                  ref={cardNumberRef}
                   type="text"
                   placeholder="1234 1234 1234 1234"
                   maxLength={19}
                   value={cardDetails.number}
-                  onChange={e => setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() }))}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 tracking-widest pr-36 placeholder:text-gray-400"
+                  onChange={e => { setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() })); setCardErrors(p => ({ ...p, number: '' })) }}
+                  className={`w-full bg-gray-50 border rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 tracking-widest pr-36 placeholder:text-gray-400 ${cardErrors.number ? 'border-red-400' : 'border-gray-300'}`}
                 />
                 {/* Card network badges */}
                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -3005,6 +3011,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                   <span className="text-[10px] font-black text-green-700 bg-green-100 px-1 py-0.5 rounded">JCB</span>
                 </div>
               </div>
+              {cardErrors.number && <p className="text-xs text-red-500 mt-1">{cardErrors.number}</p>}
             </div>
 
             {/* Expiration + Security Code side by side */}
@@ -3013,25 +3020,29 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               {/* Expiration Date */}
               <div>
                 <label className="block text-sm text-gray-700 font-medium mb-1">Expiration date</label>
-                <div className="flex items-center gap-1 bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 focus-within:border-orange-400">
+                <div className={`flex items-center gap-1 bg-gray-50 border rounded-lg px-4 py-3 focus-within:border-orange-400 ${cardErrors.exp_month || cardErrors.exp_year ? 'border-red-400' : 'border-gray-300'}`}>
                   <input
+                    ref={expMonthRef}
                     type="text"
-                    placeholder="MM"
+                    placeholder="12"
                     maxLength={2}
                     value={cardDetails.exp_month}
-                    onChange={e => setCardDetails(p => ({ ...p, exp_month: e.target.value.replace(/\D/g, '') }))}
+                    onChange={e => { setCardDetails(p => ({ ...p, exp_month: e.target.value.replace(/\D/g, '') })); setCardErrors(p => ({ ...p, exp_month: '' })) }}
                     className="w-8 bg-transparent text-gray-900 text-sm outline-none text-center placeholder:text-gray-400"
                   />
                   <span className="text-gray-400 text-sm select-none">/</span>
                   <input
+                    ref={expYearRef}
                     type="text"
-                    placeholder="YY"
+                    placeholder="28"
                     maxLength={4}
                     value={cardDetails.exp_year}
-                    onChange={e => setCardDetails(p => ({ ...p, exp_year: e.target.value.replace(/\D/g, '') }))}
+                    onChange={e => { setCardDetails(p => ({ ...p, exp_year: e.target.value.replace(/\D/g, '') })); setCardErrors(p => ({ ...p, exp_year: '' })) }}
                     className="flex-1 bg-transparent text-gray-900 text-sm outline-none text-center placeholder:text-gray-400"
                   />
                 </div>
+                {cardErrors.exp_month && <p className="text-xs text-red-500 mt-1">{cardErrors.exp_month}</p>}
+                {!cardErrors.exp_month && cardErrors.exp_year && <p className="text-xs text-red-500 mt-1">{cardErrors.exp_year}</p>}
               </div>
 
               {/* Security Code */}
@@ -3039,15 +3050,17 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 <label className="block text-sm text-gray-700 font-medium mb-1">Security code</label>
                 <div className="relative">
                   <input
+                    ref={cvcRef}
                     type="text"
-                    placeholder="CVC"
+                    placeholder="123"
                     maxLength={3}
                     value={cardDetails.cvc}
-                    onChange={e => setCardDetails(p => ({ ...p, cvc: e.target.value.replace(/\D/g, '') }))}
-                    className="w-full bg-gray-50 border border-gray-300 rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 pr-10 placeholder:text-gray-400"
+                    onChange={e => { setCardDetails(p => ({ ...p, cvc: e.target.value.replace(/\D/g, '') })); setCardErrors(p => ({ ...p, cvc: '' })) }}
+                    className={`w-full bg-gray-50 border rounded-lg px-4 py-3 text-gray-900 text-sm outline-none focus:border-orange-400 pr-10 placeholder:text-gray-400 ${cardErrors.cvc ? 'border-red-400' : 'border-gray-300'}`}
                   />
                   <CreditCard size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
+                {cardErrors.cvc && <p className="text-xs text-red-500 mt-1">{cardErrors.cvc}</p>}
               </div>
 
             </div>
@@ -3078,6 +3091,54 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         <button
           ref={submitButtonRef}
           onClick={async () => {
+            // Card validation — runs before any API call
+            if (paymentMethod === 'card') {
+              const errors = {}
+              const rawNumber = (cardDetails.number ?? '').replace(/\s/g, '')
+              const luhnValid = (num) => {
+                let sum = 0
+                let shouldDouble = false
+                for (let i = num.length - 1; i >= 0; i--) {
+                  let d = parseInt(num[i])
+                  if (shouldDouble) { d *= 2; if (d > 9) d -= 9 }
+                  sum += d
+                  shouldDouble = !shouldDouble
+                }
+                return sum % 10 === 0
+              }
+              if (!/^\d{16}$/.test(rawNumber) || !luhnValid(rawNumber)) {
+                errors.number = 'Please enter a valid 16-digit card number.'
+              }
+              const month = (cardDetails.exp_month ?? '').trim()
+              if (!/^\d{2}$/.test(month) || parseInt(month) < 1 || parseInt(month) > 12) {
+                errors.exp_month = 'Please enter a valid expiry month (01-12).'
+              }
+              const yearRaw = (cardDetails.exp_year ?? '').trim()
+              if (!/^\d{2}$/.test(yearRaw) && !/^\d{4}$/.test(yearRaw)) {
+                errors.exp_year = 'Please enter a valid expiry year.'
+              } else {
+                const fullYear = yearRaw.length === 2 ? 2000 + parseInt(yearRaw) : parseInt(yearRaw)
+                if (fullYear < new Date().getFullYear()) {
+                  errors.exp_year = 'Please enter a valid expiry year.'
+                }
+              }
+              const cvc = (cardDetails.cvc ?? '').trim()
+              if (!/^\d{3}$/.test(cvc)) {
+                errors.cvc = 'Please enter a valid 3-digit security code.'
+              }
+              if (Object.keys(errors).length > 0) {
+                setCardErrors(errors)
+                const firstRef = errors.number ? cardNumberRef
+                  : errors.exp_month ? expMonthRef
+                  : errors.exp_year ? expYearRef
+                  : cvcRef
+                firstRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                firstRef.current?.focus()
+                return
+              }
+              setCardErrors({})
+            }
+
             setSaving(true)
             setSaveError('')
             setPollingError('')
@@ -3228,6 +3289,8 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const piId = piData.data.id
 
               // Step 8 — Create Payment Method
+              const expYear = parseInt(cardDetails.exp_year)
+              const fullExpYear = expYear < 100 ? 2000 + expYear : expYear
               const pmRes = await fetch('https://api.paymongo.com/v1/payment_methods', {
                 method: 'POST',
                 headers: {
@@ -3242,7 +3305,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                           details: {
                             card_number: cardDetails.number.replace(/\s/g, ''),
                             exp_month: parseInt(cardDetails.exp_month),
-                            exp_year: parseInt(cardDetails.exp_year),
+                            exp_year: fullExpYear,
                             cvc: cardDetails.cvc
                           }
                         }

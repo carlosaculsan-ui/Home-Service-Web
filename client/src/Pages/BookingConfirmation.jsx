@@ -183,6 +183,30 @@ export default function BookingConfirmation() {
           return
         }
 
+        // Check if this payment was already confirmed (e.g. 3DS new-tab already processed it)
+        const { data: alreadyConfirmed } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('client_id', session.user.id)
+          .eq('paymongo_payment_id', paymentId)
+          .eq('status', 'confirmed')
+          .maybeSingle()
+
+        if (alreadyConfirmed) {
+          if (alreadyConfirmed.tasker_id) {
+            const { data: taskerData } = await supabase
+              .from('taskers')
+              .select('name')
+              .eq('id', alreadyConfirmed.tasker_id)
+              .single()
+            if (taskerData?.name) setTaskerName(taskerData.name)
+          }
+          window.history.replaceState({}, '', window.location.pathname)
+          setBooking(alreadyConfirmed)
+          setStatus('success')
+          return
+        }
+
         const { data: bookingRow, error } = await supabase
           .from('bookings')
           .select('*')

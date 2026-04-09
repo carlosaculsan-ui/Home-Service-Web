@@ -4786,7 +4786,7 @@ function TransactionsPanel() {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-emerald-500">
-          <div className="mb-2"><DollarSign className="w-8 h-8 text-emerald-500" /></div>
+          <div className="mb-2"><span className="text-3xl font-bold text-emerald-500">₱</span></div>
           <div className="text-2xl md:text-3xl font-bold text-emerald-600">{formatAmount(totalCollected)}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Total Collected</div>
         </div>
