@@ -4683,24 +4683,6 @@ function TransactionsPanel() {
 
     // Step 4 — Supabase writes (non-blocking on failure)
     try {
-      await supabase.rpc('increment_wallet_balance', {
-        target_user_id: booking.client_id,
-        increment_amount: Number(booking.estimated_total) || 0,
-      })
-    } catch (err) { console.error('Refund: wallet increment failed:', err) }
-
-    try {
-      await supabase.from('wallet_transactions').insert({
-        user_id: booking.client_id,
-        booking_id: booking.id,
-        amount: Number(booking.estimated_total) || 0,
-        type: 'credit',
-        description: 'Refund issued — admin processed refund for your booking',
-        created_at: new Date().toISOString(),
-      })
-    } catch (err) { console.error('Refund: wallet_transactions insert failed:', err) }
-
-    try {
       await supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
     } catch (err) { console.error('Refund: bookings update failed:', err) }
 

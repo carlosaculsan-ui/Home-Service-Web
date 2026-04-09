@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -428,7 +428,7 @@ const CANCEL_REASONS = [
   'Other',
 ]
 
-function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
+function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError, estimatedTotal }) {
   const [screen, setScreen] = useState(1)
   const [reason, setReason] = useState('')
   const [note, setNote] = useState('')
@@ -454,16 +454,15 @@ function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
         {screen === 1 && (
           <>
             <div className="flex flex-col items-center text-center mb-6">
-              <div className="text-5xl mb-4">💰</div>
               <h2 className="text-xl font-bold text-gray-800 mb-3">Cancelling your booking?</h2>
               <p className="text-sm text-gray-600 mb-2">
                 Your payment will be refunded to your Hanap.ph E-Wallet instantly.
               </p>
               <p className="text-sm text-green-600 font-medium mb-1">
-                💰 You can use your wallet balance on your next booking.
+                You can use your wallet balance on your next booking.
               </p>
               <p className="text-sm text-amber-600 font-medium">
-                ⚠️ This action cannot be undone.
+                This action cannot be undone.
               </p>
             </div>
             <div className="flex gap-3">
@@ -520,6 +519,17 @@ function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError }) {
 
             {noteError && <p className="text-xs text-red-500 mt-1 mb-2">{noteError}</p>}
             {cancelError && <p className="text-xs text-red-500 mb-2">{cancelError}</p>}
+
+            <div className="flex items-start gap-2 bg-blue-50 text-blue-600 rounded-lg px-3 py-2.5 mt-3 mb-1">
+              <Info size={15} className="mt-0.5 shrink-0" />
+              <p className="text-xs leading-snug">
+                Your payment of{' '}
+                <span className="font-semibold">
+                  ₱{Number(estimatedTotal ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>{' '}
+                will be automatically credited to your Hanap.ph E-Wallet once the cancellation is processed.
+              </p>
+            </div>
 
             <div className="flex gap-3 mt-3">
               <button
@@ -735,6 +745,7 @@ function BookingCard({ booking, userId, onCancel }) {
           onConfirm={handleCancel}
           cancelling={cancelling}
           cancelError={cancelError}
+          estimatedTotal={booking.estimated_total}
         />
       )}
 
