@@ -4532,6 +4532,18 @@ function TransactionsPanel() {
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [refundedBookings, setRefundedBookings] = useState([])
+  const [refundsLoading, setRefundsLoading] = useState(true)
+  const [refundedSet, setRefundedSet] = useState(new Set()) // pay_xxx ids from Supabase (persists refresh)
+  const [refundModal, setRefundModal] = useState(null) // { payment }
+  const [refundProcessing, setRefundProcessing] = useState(false)
+  const [refundedIds, setRefundedIds] = useState(new Set()) // pay_xxx ids refunded this session
+  const [toast, setToast] = useState(null) // { message, type: 'success'|'error' }
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast(null), 4000)
+  }
 
   const fetchPayments = async () => {
     setLoading(true)
@@ -4552,8 +4564,30 @@ function TransactionsPanel() {
     }
   }
 
+  const fetchRefundedBookings = async () => {
+    setRefundsLoading(true)
+    const { data } = await supabase
+      .from('bookings')
+      .select('id, reference_number, customer_name, service, estimated_total, rejection_reason, created_at, paymongo_payment_id')
+      .eq('is_refunded', true)
+      .not('rejection_reason', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setRefundedBookings(data ?? [])
+    setRefundsLoading(false)
+
+    // Also fetch all refunded bookings with a paymongo_payment_id for the status Set
+    const { data: allRefunded } = await supabase
+      .from('bookings')
+      .select('paymongo_payment_id')
+      .eq('is_refunded', true)
+      .not('paymongo_payment_id', 'is', null)
+    setRefundedSet(new Set((allRefunded ?? []).map((b) => b.paymongo_payment_id)))
+  }
+
   useEffect(() => {
     fetchPayments()
+    fetchRefundedBookings()
     const interval = setInterval(fetchPayments, 30000)
     return () => clearInterval(interval)
   }, [])
@@ -4576,13 +4610,185 @@ function TransactionsPanel() {
     })
   }
 
-  const totalCollected = payments.reduce((sum, p) => sum + (p.attributes?.amount ?? 0), 0)
+  const totalCollected = payments
+    .filter((p) => p.attributes?.status === 'paid' && !refundedSet.has(p.id) && !refundedIds.has(p.id))
+    .reduce((sum, p) => sum + (p.attributes?.amount ?? 0), 0)
   const gcashCount = payments.filter((p) => p.attributes?.source?.type === 'gcash').length
   const mayaCount  = payments.filter((p) => p.attributes?.source?.type === 'paymaya' || p.attributes?.source?.type === 'maya').length
   const cardCount  = payments.filter((p) => p.attributes?.source?.type === 'card').length
 
+  async function handleConfirmRefund() {
+    const p = refundModal.payment
+    const attr = p.attributes ?? {}
+    const paymentId = p.id
+    const amountCentavos = attr.amount ?? 0
+
+    setRefundProcessing(true)
+
+    // Step 2 — Find booking in Supabase
+    const { data: booking } = await supabase
+      .from('bookings')
+      .select('id, client_id, estimated_total, is_refunded')
+      .eq('paymongo_payment_id', paymentId)
+      .limit(1)
+      .maybeSingle()
+
+    if (!booking) {
+      setRefundProcessing(false)
+      setRefundModal(null)
+      showToast('Booking not found for this payment. Cannot process refund.', 'error')
+      return
+    }
+    if (booking.is_refunded) {
+      setRefundProcessing(false)
+      setRefundModal(null)
+      showToast('This payment has already been refunded.', 'error')
+      return
+    }
+
+    // Step 3 — Call PayMongo Refund API
+    let refundRes
+    try {
+      refundRes = await fetch('https://api.paymongo.com/v1/refunds', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':'),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          data: {
+            attributes: {
+              amount: amountCentavos,
+              payment_id: paymentId,
+              reason: 'requested_by_customer',
+            },
+          },
+        }),
+      })
+    } catch (err) {
+      setRefundProcessing(false)
+      setRefundModal(null)
+      showToast('Network error contacting PayMongo. Please try again.', 'error')
+      return
+    }
+
+    if (!refundRes.ok) {
+      const errJson = await refundRes.json().catch(() => ({}))
+      const errMsg = errJson?.errors?.[0]?.detail ?? 'PayMongo refund failed. Please try again.'
+      setRefundProcessing(false)
+      setRefundModal(null)
+      showToast(errMsg, 'error')
+      return
+    }
+
+    // Step 4 — Supabase writes (non-blocking on failure)
+    try {
+      await supabase.rpc('increment_wallet_balance', {
+        target_user_id: booking.client_id,
+        increment_amount: Number(booking.estimated_total) || 0,
+      })
+    } catch (err) { console.error('Refund: wallet increment failed:', err) }
+
+    try {
+      await supabase.from('wallet_transactions').insert({
+        user_id: booking.client_id,
+        booking_id: booking.id,
+        amount: Number(booking.estimated_total) || 0,
+        type: 'credit',
+        description: 'Refund issued — admin processed refund for your booking',
+        created_at: new Date().toISOString(),
+      })
+    } catch (err) { console.error('Refund: wallet_transactions insert failed:', err) }
+
+    try {
+      await supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
+    } catch (err) { console.error('Refund: bookings update failed:', err) }
+
+    // Step 5 — UI updates
+    setRefundedIds((prev) => new Set([...prev, paymentId]))
+    setRefundedSet((prev) => new Set([...prev, paymentId]))
+    setRefundProcessing(false)
+    setRefundModal(null)
+    showToast(`Refund of ${formatAmount(amountCentavos)} successfully processed.`, 'success')
+  }
+
+  const StatusBadge = ({ status, paymentId }) => {
+    if (refundedSet.has(paymentId) || refundedIds.has(paymentId)) {
+      return <span className="bg-orange-100 text-orange-600 text-xs font-semibold px-2.5 py-0.5 rounded-full">Refunded</span>
+    }
+    if (status === 'paid') {
+      return <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Paid</span>
+    }
+    return <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize">{status ?? '—'}</span>
+  }
+
+  const RefundButton = ({ payment }) => {
+    const alreadyRefunded = refundedSet.has(payment.id) || refundedIds.has(payment.id)
+    if (alreadyRefunded) {
+      return <span className="text-gray-400 text-xs font-semibold px-3 py-1">Refunded</span>
+    }
+    return (
+      <button
+        onClick={() => setRefundModal({ payment })}
+        className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-lg px-3 py-1 text-xs font-semibold"
+      >Refund</button>
+    )
+  }
+
   return (
     <div className="w-full">
+      {/* Toast */}
+      {toast && (
+        <div className={`fixed top-5 right-5 z-50 px-5 py-3 rounded-xl shadow-lg text-white text-sm font-medium ${toast.type === 'error' ? 'bg-red-500' : 'bg-green-500'}`}>
+          {toast.message}
+        </div>
+      )}
+
+      {/* Refund Confirmation Modal */}
+      {refundModal && (() => {
+        const attr = refundModal.payment.attributes ?? {}
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+              <h3 className="text-lg font-bold text-gray-800 mb-1">Confirm Refund</h3>
+              <p className="text-sm text-gray-500 mb-4">This cannot be undone.</p>
+              <div className="bg-gray-50 rounded-xl p-4 mb-5 flex flex-col gap-1 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Amount</span>
+                  <span className="font-semibold text-gray-800">{formatAmount(attr.amount)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Payment ID</span>
+                  <span className="font-mono text-xs text-gray-600">{refundModal.payment.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Method</span>
+                  <span className="text-gray-700">{formatMethod(attr.source?.type)}</span>
+                </div>
+              </div>
+              <p className="text-sm text-gray-700 mb-5">
+                Are you sure you want to refund <span className="font-semibold">{formatAmount(attr.amount)}</span> for Payment ID <span className="font-mono text-xs">{refundModal.payment.id}</span>?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setRefundModal(null)}
+                  disabled={refundProcessing}
+                  className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >Cancel</button>
+                <button
+                  onClick={handleConfirmRefund}
+                  disabled={refundProcessing}
+                  className="px-4 py-2 rounded-lg bg-red-500 hover:bg-red-600 text-white text-sm font-semibold transition-colors disabled:opacity-70 flex items-center gap-2"
+                >
+                  {refundProcessing && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                  {refundProcessing ? 'Processing...' : 'Confirm Refund'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Transactions</h2>
@@ -4644,21 +4850,12 @@ function TransactionsPanel() {
                   <div key={p.id} className="p-4 flex flex-col gap-2">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-gray-800 text-base">{formatAmount(attr.amount)}</span>
-                      {attr.status === 'paid' ? (
-                        <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Paid</span>
-                      ) : (
-                        <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize">{attr.status ?? '—'}</span>
-                      )}
+                      <StatusBadge status={attr.status} paymentId={p.id} />
                     </div>
                     <div className="text-sm text-gray-600 font-medium">{formatMethod(method)}</div>
                     <div className="text-xs text-gray-400 font-mono break-all">{p.id}</div>
                     <div className="text-xs text-gray-500">{formatPaidAt(attr.paid_at)}</div>
-                    <div>
-                      <button
-                        onClick={() => {}}
-                        className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-lg px-3 py-1 text-xs font-semibold"
-                      >Refund</button>
-                    </div>
+                    <div><RefundButton payment={p} /></div>
                   </div>
                 )
               })}
@@ -4690,20 +4887,9 @@ function TransactionsPanel() {
                         <td className="px-5 py-3 font-medium text-gray-700">{formatMethod(method)}</td>
                         <td className="px-5 py-3 text-gray-500 font-mono text-xs">{p.id}</td>
                         <td className="px-5 py-3 font-semibold text-gray-800">{formatAmount(attr.amount)}</td>
-                        <td className="px-5 py-3">
-                          {attr.status === 'paid' ? (
-                            <span className="bg-green-100 text-green-700 text-xs font-semibold px-2.5 py-0.5 rounded-full">Paid</span>
-                          ) : (
-                            <span className="bg-gray-100 text-gray-500 text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize">{attr.status ?? '—'}</span>
-                          )}
-                        </td>
+                        <td className="px-5 py-3"><StatusBadge status={attr.status} paymentId={p.id} /></td>
                         <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatPaidAt(attr.paid_at)}</td>
-                        <td className="px-5 py-3">
-                          <button
-                            onClick={() => {}}
-                            className="border border-red-500 text-red-500 hover:bg-red-500 hover:text-white transition rounded-lg px-3 py-1 text-xs font-semibold"
-                          >Refund</button>
-                        </td>
+                        <td className="px-5 py-3"><RefundButton payment={p} /></td>
                       </tr>
                     )
                   })}
@@ -4712,6 +4898,80 @@ function TransactionsPanel() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Auto-Refunded Bookings */}
+      <div className="mt-8">
+        <h3 className="text-lg font-bold text-gray-800 mb-4">Auto-Refunded Bookings</h3>
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {refundsLoading ? (
+            <div className="flex justify-center py-10">
+              <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : refundedBookings.length === 0 ? (
+            <p className="text-center text-gray-400 py-10 text-sm">No auto-refunded bookings yet.</p>
+          ) : (
+            <>
+              {/* Mobile cards */}
+              <div className="block md:hidden divide-y divide-gray-100">
+                {refundedBookings.map((b) => (
+                  <div key={b.id} className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-gray-800 text-base">
+                        ₱{Number(b.estimated_total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="bg-orange-100 text-orange-600 text-xs font-semibold px-2.5 py-0.5 rounded-full">Auto-Refunded</span>
+                    </div>
+                    <div className="text-sm font-medium text-gray-700">{b.customer_name ?? '—'} · {b.service ?? '—'}</div>
+                    <div className="text-xs text-gray-400 font-mono">{b.reference_number ?? b.id}</div>
+                    <div className="text-xs text-gray-500">Reason: {b.rejection_reason}</div>
+                    <div className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</div>
+                    <div className="text-xs text-orange-500 font-medium">Tasker rejected</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Desktop table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase">
+                      <th className="px-5 py-3 text-left">Customer</th>
+                      <th className="px-5 py-3 text-left">Reference</th>
+                      <th className="px-5 py-3 text-left">Service</th>
+                      <th className="px-5 py-3 text-left">Refund Amount</th>
+                      <th className="px-5 py-3 text-left">Rejection Reason</th>
+                      <th className="px-5 py-3 text-left">Date</th>
+                      <th className="px-5 py-3 text-left">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {refundedBookings.map((b) => (
+                      <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-5 py-3 font-medium text-gray-700">{b.customer_name ?? '—'}</td>
+                        <td className="px-5 py-3 text-gray-500 font-mono text-xs">{b.reference_number ?? b.id}</td>
+                        <td className="px-5 py-3 text-gray-600">{b.service ?? '—'}</td>
+                        <td className="px-5 py-3 font-semibold text-gray-800">
+                          ₱{Number(b.estimated_total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-5 py-3 text-gray-500">{b.rejection_reason}</td>
+                        <td className="px-5 py-3 text-gray-500 whitespace-nowrap">
+                          {new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="bg-orange-100 text-orange-600 text-xs font-semibold px-2.5 py-0.5 rounded-full w-fit">Auto-Refunded</span>
+                            <span className="text-xs text-orange-400">Tasker rejected</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

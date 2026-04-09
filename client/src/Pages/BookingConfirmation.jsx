@@ -169,6 +169,7 @@ export default function BookingConfirmation() {
         })
         const piData = await piRes.json()
         const piStatus = piData?.data?.attributes?.status
+        const paymentId = piData?.data?.attributes?.payments?.[0]?.id ?? piId
 
         if (piStatus !== 'succeeded') {
           setStatus('failed')
@@ -196,7 +197,7 @@ export default function BookingConfirmation() {
           return
         }
 
-        await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', bookingRow.id)
+        await supabase.from('bookings').update({ status: 'confirmed', paymongo_payment_id: paymentId }).eq('id', bookingRow.id)
 
         if (bookingRow.tasker_id) {
           const { data: taskerData } = await supabase

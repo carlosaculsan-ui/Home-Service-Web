@@ -475,14 +475,44 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       setStatusError('Failed to reject booking. Try again.')
       return
     }
-    if (booking.client_id) {
+
+    // Auto-refund to customer's Hanap.ph wallet
+    const refundAmount = Number(booking.estimated_total) || 0
+    const customerId = booking.client_id
+    if (refundAmount > 0 && customerId) {
+      try {
+        await supabase.rpc('increment_wallet_balance', {
+          target_user_id: customerId,
+          increment_amount: refundAmount,
+        })
+
+        await supabase.from('wallet_transactions').insert({
+          user_id: customerId,
+          booking_id: booking.id,
+          amount: refundAmount,
+          type: 'credit',
+          description: 'Refund issued — tasker rejected your booking',
+          created_at: new Date().toISOString(),
+        })
+
+        await supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
+      } catch (refundErr) {
+        console.error('Auto-refund failed (rejection still processed):', refundErr)
+      }
+    }
+
+    const refundNote = refundAmount > 0
+      ? ` A full refund of ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your Hanap.ph E-wallet.`
+      : ''
+    if (customerId) {
       await supabase.from('notifications').insert({
-        user_id: booking.client_id,
+        user_id: customerId,
         title: 'Booking Rejected',
-        message: `Your booking was rejected by the tasker. Reason: ${reason}`,
+        message: `Your booking has been rejected by the tasker. Reason: ${reason}.${refundNote}`,
         is_read: false,
       })
     }
+
     setShowRejectModal(false)
     onStatusChange()
   }
