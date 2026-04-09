@@ -4537,12 +4537,32 @@ function TransactionsPanel() {
   const [refundedSet, setRefundedSet] = useState(new Set()) // pay_xxx ids from Supabase (persists refresh)
   const [refundModal, setRefundModal] = useState(null) // { payment }
   const [refundProcessing, setRefundProcessing] = useState(false)
+  const [refundReason, setRefundReason] = useState('')
+  const [refundNotes, setRefundNotes] = useState('')
+  const [refundReasonError, setRefundReasonError] = useState('')
   const [refundedIds, setRefundedIds] = useState(new Set()) // pay_xxx ids refunded this session
   const [toast, setToast] = useState(null) // { message, type: 'success'|'error' }
+  const [detailModal, setDetailModal] = useState(null) // payment object
+  const [detailBooking, setDetailBooking] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
     setTimeout(() => setToast(null), 4000)
+  }
+
+  async function openDetail(payment) {
+    setDetailModal(payment)
+    setDetailBooking(null)
+    setDetailLoading(true)
+    const { data } = await supabase
+      .from('bookings')
+      .select('customer_name, reference_number, id')
+      .eq('paymongo_payment_id', payment.id)
+      .limit(1)
+      .maybeSingle()
+    setDetailBooking(data ?? null)
+    setDetailLoading(false)
   }
 
   const fetchPayments = async () => {
@@ -4618,6 +4638,11 @@ function TransactionsPanel() {
   const cardCount  = payments.filter((p) => p.attributes?.source?.type === 'card').length
 
   async function handleConfirmRefund() {
+    if (!refundReason) {
+      setRefundReasonError('Please select a reason.')
+      return
+    }
+    setRefundReasonError('')
     const p = refundModal.payment
     const attr = p.attributes ?? {}
     const paymentId = p.id
@@ -4660,7 +4685,8 @@ function TransactionsPanel() {
             attributes: {
               amount: amountCentavos,
               payment_id: paymentId,
-              reason: 'requested_by_customer',
+              reason: refundReason,
+              ...(refundNotes.trim() ? { notes: refundNotes.trim() } : {}),
             },
           },
         }),
@@ -4691,6 +4717,9 @@ function TransactionsPanel() {
     setRefundedSet((prev) => new Set([...prev, paymentId]))
     setRefundProcessing(false)
     setRefundModal(null)
+    setRefundReason('')
+    setRefundNotes('')
+    setRefundReasonError('')
     showToast(`Refund of ${formatAmount(amountCentavos)} successfully processed.`, 'success')
   }
 
@@ -4726,6 +4755,106 @@ function TransactionsPanel() {
         </div>
       )}
 
+      {/* Payment Detail Modal */}
+      {detailModal && (() => {
+        const attr = detailModal.attributes ?? {}
+        const src = attr.source ?? {}
+        const gross  = typeof attr.amount     === 'number' ? attr.amount     / 100 : null
+        const fee    = typeof attr.fee        === 'number' ? attr.fee        / 100 : null
+        const net    = typeof attr.net_amount === 'number' ? attr.net_amount / 100 : null
+        const fmt = (n) => n !== null ? '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'
+        let methodDetail = formatMethod(src.type)
+        if (src.type === 'card' && src.card_brand && src.last4) {
+          methodDetail = `${src.card_brand.charAt(0).toUpperCase() + src.card_brand.slice(1)} ···· ${src.last4}`
+        }
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-800">Payment Details</h3>
+                <button onClick={() => setDetailModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none">✕</button>
+              </div>
+
+              {/* Amount Breakdown */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Amount Breakdown</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Gross Amount</span>
+                    <span className="font-semibold text-gray-800">{fmt(gross)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">PayMongo Fee</span>
+                    <span className="text-red-500 font-medium">{fee !== null ? `− ${fmt(fee)}` : '—'}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 mt-1">
+                    <span className="font-semibold text-gray-700">Net Amount</span>
+                    <span className="font-bold text-emerald-600">{fmt(net)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Payment Method</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Method</span>
+                    <span className="font-medium text-gray-700">{methodDetail}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Status</span>
+                    <StatusBadge status={attr.status} paymentId={detailModal.id} />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Paid At</span>
+                    <span className="text-gray-600">{formatPaidAt(attr.paid_at)}</span>
+                  </div>
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-gray-500 shrink-0">Payment ID</span>
+                    <span className="font-mono text-xs text-gray-500 break-all text-right">{detailModal.id}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Billing / Customer */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Billing Details</p>
+                {detailLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-400">
+                    <span className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin" />
+                    Looking up customer...
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Customer</span>
+                      <span className="font-semibold text-gray-800">{detailBooking?.customer_name ?? 'No name provided'}</span>
+                    </div>
+                    {detailBooking && (
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Booking Ref</span>
+                        <span className="font-mono text-xs text-gray-600">{detailBooking.reference_number ?? detailBooking.id}</span>
+                      </div>
+                    )}
+                    {!detailBooking && (
+                      <p className="text-xs text-gray-400">No matching booking found for this payment.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setDetailModal(null)}
+                  className="px-5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 transition-colors"
+                >Close</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Refund Confirmation Modal */}
       {refundModal && (() => {
         const attr = refundModal.payment.attributes ?? {}
@@ -4748,12 +4877,43 @@ function TransactionsPanel() {
                   <span className="text-gray-700">{formatMethod(attr.source?.type)}</span>
                 </div>
               </div>
-              <p className="text-sm text-gray-700 mb-5">
+              <p className="text-sm text-gray-700 mb-4">
                 Are you sure you want to refund <span className="font-semibold">{formatAmount(attr.amount)}</span> for Payment ID <span className="font-mono text-xs">{refundModal.payment.id}</span>?
               </p>
+
+              {/* Reason */}
+              <div className="mb-3">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Reason <span className="text-red-400">*</span></label>
+                <select
+                  value={refundReason}
+                  onChange={e => { setRefundReason(e.target.value); setRefundReasonError('') }}
+                  disabled={refundProcessing}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 disabled:opacity-50"
+                >
+                  <option value="" disabled>Select a reason</option>
+                  <option value="requested_by_customer">requested_by_customer</option>
+                  <option value="fraudulent">fraudulent</option>
+                  <option value="duplicate">duplicate</option>
+                </select>
+                {refundReasonError && <p className="text-xs text-red-500 mt-1">{refundReasonError}</p>}
+              </div>
+
+              {/* Notes */}
+              <div className="mb-5">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+                <textarea
+                  value={refundNotes}
+                  onChange={e => setRefundNotes(e.target.value)}
+                  disabled={refundProcessing}
+                  placeholder="Add additional notes (optional)"
+                  rows={2}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 disabled:opacity-50"
+                />
+              </div>
+
               <div className="flex gap-3 justify-end">
                 <button
-                  onClick={() => setRefundModal(null)}
+                  onClick={() => { setRefundModal(null); setRefundReason(''); setRefundNotes(''); setRefundReasonError('') }}
                   disabled={refundProcessing}
                   className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >Cancel</button>
@@ -4829,7 +4989,7 @@ function TransactionsPanel() {
                 const attr = p.attributes ?? {}
                 const method = attr.source?.type
                 return (
-                  <div key={p.id} className="p-4 flex flex-col gap-2">
+                  <div key={p.id} onClick={() => openDetail(p)} className="p-4 flex flex-col gap-2 cursor-pointer hover:bg-gray-50 transition-colors">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-gray-800 text-base">{formatAmount(attr.amount)}</span>
                       <StatusBadge status={attr.status} paymentId={p.id} />
@@ -4837,7 +4997,7 @@ function TransactionsPanel() {
                     <div className="text-sm text-gray-600 font-medium">{formatMethod(method)}</div>
                     <div className="text-xs text-gray-400 font-mono break-all">{p.id}</div>
                     <div className="text-xs text-gray-500">{formatPaidAt(attr.paid_at)}</div>
-                    <div><RefundButton payment={p} /></div>
+                    <div onClick={e => e.stopPropagation()}><RefundButton payment={p} /></div>
                   </div>
                 )
               })}
@@ -4865,13 +5025,13 @@ function TransactionsPanel() {
                     const attr = p.attributes ?? {}
                     const method = attr.source?.type
                     return (
-                      <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={p.id} onClick={() => openDetail(p)} className="hover:bg-gray-50 transition-colors cursor-pointer">
                         <td className="px-5 py-3 font-medium text-gray-700">{formatMethod(method)}</td>
                         <td className="px-5 py-3 text-gray-500 font-mono text-xs">{p.id}</td>
                         <td className="px-5 py-3 font-semibold text-gray-800">{formatAmount(attr.amount)}</td>
                         <td className="px-5 py-3"><StatusBadge status={attr.status} paymentId={p.id} /></td>
                         <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{formatPaidAt(attr.paid_at)}</td>
-                        <td className="px-5 py-3"><RefundButton payment={p} /></td>
+                        <td className="px-5 py-3" onClick={e => e.stopPropagation()}><RefundButton payment={p} /></td>
                       </tr>
                     )
                   })}
