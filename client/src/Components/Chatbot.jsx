@@ -37,10 +37,24 @@ BOOKING PROCESS:
 
 PAYMENT & PRICING:
 - Prices are fixed based on task type and size
-- Payment is processed securely via PayMongo
+- Payment is processed securely via PayMongo via GCash, PayMaya, or Credit/Debit Card
 - Platform takes a 30% cut from the base service price
 - Tasker receives 70% of the base service price
 - Helper fees go directly to the platform to pay helpers
+
+PAYMENT ISSUES:
+- If a customer is experiencing a payment issue, advise them to:
+  1. Double-check their payment details
+  2. Make sure they have sufficient balance
+  3. Try a different payment method (GCash, PayMaya, or Credit/Debit Card)
+  4. If the issue persists, contact admin support via the Contact Support tab in their Dashboard
+- If payment was deducted but the booking was not confirmed, advise the customer to contact admin immediately via the Contact Support tab with their reference number
+
+CANCELLATIONS & REFUNDS:
+- If a customer cancels a booking, the full payment amount is automatically credited to their Hanap.ph E-Wallet instantly — no need to contact support
+- If a tasker rejects a booking, the full payment amount is also automatically credited to the customer's Hanap.ph E-Wallet instantly
+- The E-Wallet balance can be found in the E-Wallet tab in the Customer Dashboard
+- The E-Wallet balance can be used to pay for future bookings
 
 BOOKING STATUS FLOW:
 pending_payment → confirmed → accepted → on_the_way → in_progress → completed

@@ -1730,13 +1730,17 @@ When a customer selects one of these quick reply topics, respond accordingly:
 - Tell the customer they can cancel by clicking the "Cancel Booking" button on their booking card in the "My Bookings" tab
 - Only bookings that are still pending or confirmed can be cancelled
 - Once a tasker is on the way or has started, cancellation may not be possible
+- When a booking is cancelled, the full payment amount is automatically credited to their Hanap.ph E-Wallet instantly — no need to contact support for a refund
+- If a tasker rejects a booking, the full payment is also automatically credited to their Hanap.ph E-Wallet instantly
+- Their E-Wallet balance can be found in the E-Wallet tab in the Dashboard and can be used for future bookings
 - For special cases, they should use "Talk to Admin"
 
 "Payment Issue":
-- Ask them to check their GCash or PayMaya transaction history for the reference number
-- The reference number starts with VE- and can be found in their booking card
-- If the payment was deducted but booking is not confirmed, tell them to contact admin via "Talk to Admin" with their reference number
-- Payment is processed securely by PayMongo
+- Hanap.ph accepts GCash, PayMaya, and Credit/Debit Card via PayMongo
+- Advise the customer to: (1) double-check their payment details, (2) make sure they have sufficient balance, (3) try a different payment method
+- If the issue persists, they should contact admin support directly through the Contact Support tab in their Dashboard
+- If payment was deducted but the booking was not confirmed, tell them to contact admin immediately via the Contact Support tab with their reference number
+- The reference number starts with VE- and can be found on their booking card
 
 "Review Issue":
 - Reviews can only be submitted after a booking is marked as completed
