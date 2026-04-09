@@ -4545,6 +4545,7 @@ function TransactionsPanel() {
   const [detailModal, setDetailModal] = useState(null) // payment object
   const [detailBooking, setDetailBooking] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [refundDetailModal, setRefundDetailModal] = useState(null) // auto-refunded booking object
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -4586,13 +4587,14 @@ function TransactionsPanel() {
 
   const fetchRefundedBookings = async () => {
     setRefundsLoading(true)
-    const { data } = await supabase
+    const { data, error: refundsError } = await supabase
       .from('bookings')
-      .select('id, reference_number, customer_name, service, estimated_total, rejection_reason, created_at, paymongo_payment_id')
+      .select('id, reference_number, customer_name, service, estimated_total, rejection_reason, rejection_note, helper_fee, platform_fee, tasker_payout, tasker_id, created_at, paymongo_payment_id')
       .eq('is_refunded', true)
       .not('rejection_reason', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50)
+    if (refundsError) console.error('fetchRefundedBookings error:', refundsError)
     setRefundedBookings(data ?? [])
     setRefundsLoading(false)
 
@@ -4608,7 +4610,7 @@ function TransactionsPanel() {
   useEffect(() => {
     fetchPayments()
     fetchRefundedBookings()
-    const interval = setInterval(fetchPayments, 30000)
+    const interval = setInterval(fetchPayments, 60000)
     return () => clearInterval(interval)
   }, [])
 
@@ -4855,6 +4857,107 @@ function TransactionsPanel() {
         )
       })()}
 
+      {/* Auto-Refunded Booking Detail Modal */}
+      {refundDetailModal && (() => {
+        const b = refundDetailModal
+        const total = Number(b.estimated_total ?? 0)
+        const helperFee = b.helper_fee !== null && b.helper_fee !== undefined ? Number(b.helper_fee) : total * 0.30
+        const platformFee = b.platform_fee !== null && b.platform_fee !== undefined ? Number(b.platform_fee) : total * 0.30
+        const taskerPayout = b.tasker_payout !== null && b.tasker_payout !== undefined ? Number(b.tasker_payout) : total * 0.70
+        const fmt = (n) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        const refundedAt = b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-gray-800">Refund Details</h3>
+                <button onClick={() => setRefundDetailModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none">✕</button>
+              </div>
+
+              {/* Amount Breakdown */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Amount Breakdown</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Total Amount</span>
+                    <span className="font-semibold text-gray-800">{fmt(total)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Helper Fee (30%)</span>
+                    <span className="text-gray-700">{fmt(helperFee)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Platform Fee</span>
+                    <span className="text-gray-700">{fmt(platformFee)}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2 mt-1">
+                    <span className="font-semibold text-gray-700">Tasker Payout (70%)</span>
+                    <span className="font-bold text-emerald-600">{fmt(taskerPayout)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Method */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Refund Method</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Method</span>
+                    <span className="font-medium text-gray-700">Hanap.ph E-Wallet Refund</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Refunded At</span>
+                    <span className="text-gray-600">{refundedAt}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Service</span>
+                    <span className="text-gray-700">{b.service ?? '—'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Billing / Customer */}
+              <div className="bg-gray-50 rounded-xl p-4 mb-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Booking Details</p>
+                <div className="flex flex-col gap-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Customer</span>
+                    <span className="font-semibold text-gray-800">{b.customer_name ?? '—'}</span>
+                  </div>
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="text-gray-500 shrink-0">Booking Ref</span>
+                    <span className="font-mono text-xs text-gray-600 break-all text-right">{b.reference_number ?? b.id}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Rejection Reason</span>
+                    <span className="text-gray-700 text-right">{b.rejection_reason ?? '—'}</span>
+                  </div>
+                  {b.rejection_note && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-gray-500">Rejection Note</span>
+                      <span className="text-gray-600 text-xs bg-white rounded-lg px-3 py-2 border border-gray-200">{b.rejection_note}</span>
+                    </div>
+                  )}
+                  {b.tasker_id && (
+                    <div className="flex justify-between items-start gap-2">
+                      <span className="text-gray-500 shrink-0">Tasker ID</span>
+                      <span className="font-mono text-xs text-gray-500 break-all text-right">{b.tasker_id}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setRefundDetailModal(null)}
+                  className="px-5 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-medium text-gray-700 transition-colors"
+                >Close</button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Refund Confirmation Modal */}
       {refundModal && (() => {
         const attr = refundModal.payment.attributes ?? {}
@@ -5057,7 +5160,7 @@ function TransactionsPanel() {
               {/* Mobile cards */}
               <div className="block md:hidden divide-y divide-gray-100">
                 {refundedBookings.map((b) => (
-                  <div key={b.id} className="p-4 flex flex-col gap-2">
+                  <div key={b.id} className="p-4 flex flex-col gap-2 cursor-pointer hover:bg-gray-50 transition-colors" onClick={() => setRefundDetailModal(b)}>
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-gray-800 text-base">
                         ₱{Number(b.estimated_total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -5089,7 +5192,7 @@ function TransactionsPanel() {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {refundedBookings.map((b) => (
-                      <tr key={b.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={b.id} className="hover:bg-gray-50 transition-colors cursor-pointer" onClick={() => setRefundDetailModal(b)}>
                         <td className="px-5 py-3 font-medium text-gray-700">{b.customer_name ?? '—'}</td>
                         <td className="px-5 py-3 text-gray-500 font-mono text-xs">{b.reference_number ?? b.id}</td>
                         <td className="px-5 py-3 text-gray-600">{b.service ?? '—'}</td>
