@@ -23,9 +23,7 @@ function Login() {
         const role = profile?.role
 
         if (role === 'tasker') {
-          await supabase.auth.signOut()
-          setError('Taskers must log in through the Tasker Login page.')
-          setLoading(false)
+          navigate('/tasker-dashboard')
           return
         }
 

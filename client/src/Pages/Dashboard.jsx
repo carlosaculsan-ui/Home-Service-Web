@@ -2146,7 +2146,7 @@ function Dashboard() {
   useEffect(() => {
     async function init() {
       const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { navigate('/login'); return }
+      if (!session) { navigate('/'); return }
       const uid = session.user.id
       setUserId(uid)
       setCustomerEmail(session.user.email ?? '')
