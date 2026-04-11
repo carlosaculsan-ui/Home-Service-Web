@@ -50,9 +50,6 @@ function getTaskDuration(taskOptions) {
     return 8
   }
   if (service === 'Carpentry') {
-    if (taskOptions.type === 'Custom Build') {
-      return taskOptions.customBuildDuration ?? 8
-    }
     if (taskOptions.type === 'Install') return 4
     if (taskOptions.type === 'Repair') return 3
     return 8
@@ -1248,7 +1245,6 @@ function Step1({ service, onContinue }) {
   const [cleaningExtras, setCleaningExtras] = useState([])
   const [carpentryType, setCarpentryType] = useState('')
   const [carpentryItem, setCarpentryItem] = useState('')
-  const [carpentrySize, setCarpentrySize] = useState('')
   const [carpentryExtras, setCarpentryExtras] = useState([])
   const [electricalType, setElectricalType] = useState('')
   const [electricalUrgency, setElectricalUrgency] = useState('')
@@ -1313,46 +1309,11 @@ function Step1({ service, onContinue }) {
       { value: 'Bed Frame',            price: tp('Carpentry', 'Install - Bed Frame') },
       { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Install - Ceiling / Wall Panel') },
     ],
-    'Custom Build': [
-      { value: 'Cabinet' },
-      { value: 'Shelves' },
-      { value: 'Table' },
-      { value: 'Bed Frame' },
-      { value: 'Ceiling/Wall Panel' },
-    ],
   }
   const CARPENTRY_EXTRAS_PRICES = {
     'Materials Included':       tp('Carpentry', 'Extra - Materials Included'),
     'Varnishing / Finishing':   tp('Carpentry', 'Extra - Varnishing / Finishing'),
     'Hauling / Debris Removal': tp('Carpentry', 'Extra - Hauling / Debris Removal'),
-  }
-
-  const CARPENTRY_SIZES = {
-    'Cabinet': [
-      { value: 'Single Door',       price: tp('Carpentry', 'Custom Build - Cabinet - Single Door'),       helpers: 0, duration: 4 },
-      { value: 'Double Door',       price: tp('Carpentry', 'Custom Build - Cabinet - Double Door'),       helpers: 1, duration: 8 },
-      { value: 'Built-in/Walk-in',  price: tp('Carpentry', 'Custom Build - Cabinet - Built-in/Walk-in'),  helpers: 2, duration: 8 },
-    ],
-    'Shelves': [
-      { value: 'Wall-mounted',      price: tp('Carpentry', 'Custom Build - Shelves - Wall-mounted'),      helpers: 0, duration: 4 },
-      { value: 'Floor-to-ceiling',  price: tp('Carpentry', 'Custom Build - Shelves - Floor-to-ceiling'),  helpers: 1, duration: 8 },
-      { value: 'Multiple Walls',    price: tp('Carpentry', 'Custom Build - Shelves - Multiple Walls'),    helpers: 2, duration: 8 },
-    ],
-    'Table': [
-      { value: '2-seater',          price: tp('Carpentry', 'Custom Build - Table - 2-seater'),            helpers: 0, duration: 4 },
-      { value: '4 to 6-seater',     price: tp('Carpentry', 'Custom Build - Table - 4 to 6-seater'),       helpers: 1, duration: 8 },
-      { value: '8-seater/Conference',price: tp('Carpentry', 'Custom Build - Table - 8-seater/Conference'), helpers: 2, duration: 8 },
-    ],
-    'Bed Frame': [
-      { value: 'Single/Twin',       price: tp('Carpentry', 'Custom Build - Bed Frame - Single/Twin'),     helpers: 0, duration: 4 },
-      { value: 'Double/Queen',      price: tp('Carpentry', 'Custom Build - Bed Frame - Double/Queen'),    helpers: 1, duration: 8 },
-      { value: 'King/Custom',       price: tp('Carpentry', 'Custom Build - Bed Frame - King/Custom'),     helpers: 2, duration: 8 },
-    ],
-    'Ceiling/Wall Panel': [
-      { value: 'One Section',       price: tp('Carpentry', 'Custom Build - Ceiling/Wall Panel - One Section'), helpers: 0, duration: 4 },
-      { value: 'Half Room',         price: tp('Carpentry', 'Custom Build - Ceiling/Wall Panel - Half Room'),   helpers: 1, duration: 8 },
-      { value: 'Full Room',         price: tp('Carpentry', 'Custom Build - Ceiling/Wall Panel - Full Room'),   helpers: 2, duration: 8 },
-    ],
   }
 
   const ELECTRICAL_TYPES = [
@@ -1411,9 +1372,7 @@ function Step1({ service, onContinue }) {
 
   // Carpentry pricing
   const carpentryItemPrice = carpentryType && carpentryItem
-    ? carpentryType === 'Custom Build'
-      ? (carpentrySize ? (CARPENTRY_SIZES[carpentryItem]?.find(s => s.value === carpentrySize)?.price ?? 0) : 0)
-      : (CARPENTRY_ITEMS[carpentryType]?.find(i => i.value === carpentryItem)?.price ?? 0)
+    ? (CARPENTRY_ITEMS[carpentryType]?.find(i => i.value === carpentryItem)?.price ?? 0)
     : 0
   const carpentryExtrasTotal = carpentryExtras.reduce((sum, e) => sum + (CARPENTRY_EXTRAS_PRICES[e] ?? 0), 0)
   const carpentryFinalPrice = carpentryItemPrice + carpentryExtrasTotal
@@ -1459,10 +1418,6 @@ function Step1({ service, onContinue }) {
     if (isCarpentry) {
       if (!carpentryType || !carpentryItem) return 1
       let n = 1
-      if (carpentryType === 'Custom Build') {
-        const sizeDef = carpentrySize ? CARPENTRY_SIZES[carpentryItem]?.find(s => s.value === carpentrySize) : null
-        n = sizeDef ? 1 + (sizeDef.helpers ?? 0) : 1
-      }
       if (carpentryExtras.includes('Materials Included')) n += 1
       return n
     }
@@ -1492,12 +1447,7 @@ function Step1({ service, onContinue }) {
     if (service?.toLowerCase() === 'cleaning' && cleaningType && cleaningArea)
       return { service: 'Cleaning', type: cleaningType, area: cleaningArea }
     if (service?.toLowerCase() === 'carpentry' && carpentryType && carpentryItem) {
-      const opts = { service: 'Carpentry', type: carpentryType, item: carpentryItem }
-      if (carpentryType === 'Custom Build' && carpentrySize) {
-        const sizeDef = CARPENTRY_SIZES[carpentryItem]?.find(s => s.value === carpentrySize)
-        if (sizeDef) opts.customBuildDuration = sizeDef.duration
-      }
-      return opts
+      return { service: 'Carpentry', type: carpentryType, item: carpentryItem }
     }
     if (service?.toLowerCase() === 'electrical' && electricalType)
       return { service: 'Electrical', type: electricalType }
@@ -1680,7 +1630,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem || (carpentryType === 'Custom Build' && !carpentrySize))) {
+    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1734,7 +1684,6 @@ function Step1({ service, onContinue }) {
           service: 'Carpentry',
           type: carpentryType,
           item: carpentryItem,
-          ...(carpentryType === 'Custom Build' && carpentrySize ? { size: carpentrySize } : {}),
           extras: carpentryExtras,
           base_price: carpentryItemPrice,
           extras_total: carpentryExtrasTotal,
@@ -1997,14 +1946,14 @@ function Step1({ service, onContinue }) {
           <div>
             <p className="font-semibold text-gray-700 text-sm mb-2">Type of Work <span className="text-red-400">*</span></p>
             <div className="space-y-2">
-              {['Repair', 'Install', 'Custom Build'].map((type) => (
+              {['Repair', 'Install'].map((type) => (
                 <label key={type} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryType === type ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
                     name="carpentryType"
                     value={type}
                     checked={carpentryType === type}
-                    onChange={() => { setCarpentryType(type); setCarpentryItem(''); setCarpentrySize(''); setCarpentryExtras([]) }}
+                    onChange={() => { setCarpentryType(type); setCarpentryItem(''); setCarpentryExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{type}</span>
@@ -2025,7 +1974,7 @@ function Step1({ service, onContinue }) {
                       name="carpentryItem"
                       value={opt.value}
                       checked={carpentryItem === opt.value}
-                      onChange={() => { setCarpentryItem(opt.value); setCarpentrySize(''); setCarpentryExtras([]) }}
+                      onChange={() => { setCarpentryItem(opt.value); setCarpentryExtras([]) }}
                       className="accent-orange-500 w-4 h-4"
                     />
                     <span className="text-sm font-medium text-gray-700">{opt.value}</span>
@@ -2036,33 +1985,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2b: Size Selection — Custom Build only, appears after item selected */}
-          {carpentryType === 'Custom Build' && (
-            <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '400px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
-              <p className="font-semibold text-gray-700 text-sm mb-2">Size <span className="text-red-400">*</span></p>
-              <div className="space-y-2">
-                {(CARPENTRY_SIZES[carpentryItem] || []).map((opt) => (
-                  <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentrySize === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="carpentrySize"
-                        value={opt.value}
-                        checked={carpentrySize === opt.value}
-                        onChange={() => { setCarpentrySize(opt.value); setCarpentryExtras([]) }}
-                        className="accent-orange-500 w-4 h-4"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
-                    </div>
-                    <span className="text-sm text-gray-500">₱{opt.price.toLocaleString()}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Section 3: Extras — appears after item selected (and size selected for Custom Build) */}
-          <div style={{ overflow: 'hidden', maxHeight: (carpentryItem && (carpentryType !== 'Custom Build' || carpentrySize)) ? '350px' : '0', opacity: (carpentryItem && (carpentryType !== 'Custom Build' || carpentrySize)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 3: Extras — appears after item selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2090,15 +2014,15 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after item selected (and size selected for Custom Build) */}
-          <div style={{ overflow: 'hidden', maxHeight: (carpentryItem && (carpentryType !== 'Custom Build' || carpentrySize)) ? '350px' : '0', opacity: (carpentryItem && (carpentryType !== 'Custom Build' || carpentrySize)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after item selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{carpentryType}</span>
                 <span></span>
               </div>
               <div className="flex justify-between text-gray-700">
-                <span>{carpentryItem}{carpentryType === 'Custom Build' && carpentrySize ? ` — ${carpentrySize}` : ''}</span>
+                <span>{carpentryItem}</span>
                 <span>₱{carpentryItemPrice.toLocaleString()}</span>
               </div>
               {carpentryExtras.map((e) => (
