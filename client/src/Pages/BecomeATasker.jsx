@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
-import { User, CreditCard as IdCard, ShieldCheck, GraduationCap, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, Trash2, Eye, Star } from 'lucide-react'
+import { User, CreditCard as IdCard, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, FileText } from 'lucide-react'
 
 const NAME_REGEX = /^[a-zA-ZñÑ\s\.\-]*$/
 
@@ -53,18 +53,12 @@ function BecomeATasker() {
     serviceRole: '',
     hourlyRate: '',
     experience: '',
+    resume: null,
+    hasValidId: false,
     idType: '',
-    frontImage: null,
-    backImage: null,
-    nbiClearance: null,
-    policeClearance: null,
-    barangayClearance: null,
-    certificateTraining: null,
-    skillAssessment: null,
-    workExperience: null,
-    optional1: null,
-    optional2: null,
-    optional3: null,
+    hasNbiClearance: false,
+    hasBarangayClearance: false,
+    hasCertificates: false,
   })
 
   const handleChange = (e) => {
@@ -148,7 +142,14 @@ function BecomeATasker() {
         return
       }
     }
-    setStep((prev) => Math.min(prev + 1, 5))
+    if (step === 2) {
+      if (!formData.resume) {
+        setErrors(prev => ({ ...prev, resume: 'Please upload your Resume / CV before proceeding.' }))
+        return
+      }
+      setErrors(prev => ({ ...prev, resume: undefined }))
+    }
+    setStep((prev) => Math.min(prev + 1, 3))
   }
 
   const handleBack = () => {
@@ -224,14 +225,7 @@ function BecomeATasker() {
 
     // Upload files to Supabase Storage
     const fileFields = [
-      { key: 'frontImage',          urlKey: 'front_image_url' },
-      { key: 'backImage',           urlKey: 'back_image_url' },
-      { key: 'nbiClearance',        urlKey: 'nbi_clearance_url' },
-      { key: 'policeClearance',     urlKey: 'police_clearance_url' },
-      { key: 'barangayClearance',   urlKey: 'barangay_clearance_url' },
-      { key: 'certificateTraining', urlKey: 'certificate_training_url' },
-      { key: 'skillAssessment',     urlKey: 'skill_assessment_url' },
-      { key: 'workExperience',      urlKey: 'work_experience_url' },
+      { key: 'resume', urlKey: 'resume_url' },
     ]
 
     const filesToUpload = fileFields.filter(({ key }) => formData[key])
@@ -287,6 +281,11 @@ function BecomeATasker() {
       rating: 0,
       reviews_count: 0,
       hourly_rate: parseFloat(formData.hourlyRate) || 0,
+      has_valid_id: formData.hasValidId,
+      id_type: formData.hasValidId ? (formData.idType || null) : null,
+      has_nbi_clearance: formData.hasNbiClearance,
+      has_barangay_clearance: formData.hasBarangayClearance,
+      has_certificates: formData.hasCertificates,
       ...uploadedUrls,
     }
     console.log('INSERT DATA:', JSON.stringify(insertData))
@@ -301,11 +300,9 @@ function BecomeATasker() {
   }
 
   const steps = [
-    { label: 'Personal Information', icon: <User size={16} /> },
-    { label: 'Valid Identification', icon: <IdCard size={16} /> },
-    { label: 'Background Verification', icon: <ShieldCheck size={16} /> },
-    { label: 'Certifications & Training', icon: <GraduationCap size={16} /> },
-    { label: 'Review & Submit', icon: <Search size={16} /> },
+    { label: 'Personal Information',      icon: <User size={16} /> },
+    { label: 'Documents & Identification', icon: <IdCard size={16} /> },
+    { label: 'Review & Submit',           icon: <Search size={16} /> },
   ]
 
   const statusScreens = {
@@ -750,699 +747,245 @@ function BecomeATasker() {
 
           {step === 2 && (
             <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                Valid Identification
-              </h2>
+              <div className="flex items-center gap-2 mb-1">
+                <Home size={16} className="text-orange-500" />
+                <span className="text-sm font-bold text-orange-500 tracking-wide">hanap.ph</span>
+              </div>
+              <h2 className="text-lg font-bold text-gray-800 mb-4">Documents &amp; Identification</h2>
+
+              {/* Resume Upload */}
+              <div className="mb-5">
+                <p className="text-sm font-semibold text-gray-700 mb-1">
+                  Resume / CV <span className="text-red-400">*</span>
+                </p>
+                <div
+                  onClick={() => document.getElementById('resume-upload').click()}
+                  className={`border-2 border-dashed rounded-lg p-5 text-center cursor-pointer transition-colors ${
+                    errors.resume ? 'border-red-400 bg-red-50' : formData.resume ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-orange-300'
+                  }`}
+                >
+                  {formData.resume ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText size={20} className="text-green-500 flex-shrink-0" />
+                      <span className="text-sm font-medium text-green-700 truncate max-w-[220px]">{formData.resume.name}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, resume: null })) }}
+                        className="text-xs text-gray-400 hover:text-red-500 ml-1"
+                      >✕</button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1">
+                      <FileText size={24} className="text-gray-400" />
+                      <p className="text-sm text-gray-500 font-medium">Click to upload Resume / CV</p>
+                      <p className="text-xs text-gray-400">PDF or image (JPG, PNG)</p>
+                    </div>
+                  )}
+                </div>
+                <input
+                  id="resume-upload"
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files[0]
+                    if (file) {
+                      setFormData(prev => ({ ...prev, resume: file }))
+                      setErrors(prev => ({ ...prev, resume: undefined }))
+                    }
+                  }}
+                />
+                {errors.resume && <p className="text-red-500 text-xs mt-1">{errors.resume}</p>}
+              </div>
+
+              {/* Document Availability Checkboxes */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700">
-                  ID Type
-                </label>
-                <select
-                  name="idType"
-                  value={formData.idType}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-                >
-                  <option value="">Select ID Type</option>
-                  <option>Passport</option>
-                  <option>Driver's License</option>
-                  <option>SSS ID</option>
-                  <option>PhilHealth ID</option>
-                  <option>Postal ID</option>
-                  <option>Voter's ID</option>
-                  <option>National ID</option>
-                </select>
-              </div>
-              <div className="flex space-x-4 mb-8">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Front
-                  </label>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 p-8 text-center cursor-pointer"
-                    onClick={() => document.getElementById('front-upload').click()}
-                  >
-                    {formData.frontImage ? (
-                      <img
-                        src={URL.createObjectURL(formData.frontImage)}
-                        alt="Front"
-                        className="max-w-full max-h-32 mx-auto"
+                <p className="text-sm font-semibold text-gray-700 mb-1">
+                  Which of the following documents do you have available for the in-person interview?
+                </p>
+                <p className="text-xs text-gray-400 mb-3">Select all that apply — these are not required to proceed.</p>
+
+                <div className="space-y-3">
+                  {/* Valid ID */}
+                  <div>
+                    <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-orange-300 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formData.hasValidId}
+                        onChange={(e) => setFormData(prev => ({ ...prev, hasValidId: e.target.checked, idType: e.target.checked ? prev.idType : '' }))}
+                        className="accent-orange-500 w-4 h-4 flex-shrink-0"
                       />
-                    ) : (
-                      <>
-<p className="mt-2 text-gray-500">Upload Front</p>
-                      </>
+                      <span className="text-sm font-medium text-gray-700">I have a Valid ID</span>
+                    </label>
+                    {formData.hasValidId && (
+                      <div className="mt-1.5 ml-7">
+                        <select
+                          value={formData.idType}
+                          onChange={(e) => setFormData(prev => ({ ...prev, idType: e.target.value }))}
+                          className="w-full border border-gray-300 rounded-md p-2 text-sm"
+                        >
+                          <option value="">— Select ID Type —</option>
+                          <option>PhilSys (National ID)</option>
+                          <option>UMID</option>
+                          <option>Driver's License</option>
+                          <option>Passport</option>
+                          <option>SSS ID</option>
+                          <option>PhilHealth ID</option>
+                          <option>Voter's ID</option>
+                          <option>Postal ID</option>
+                        </select>
+                      </div>
                     )}
                   </div>
-                  <input
-                    id="front-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        frontImage: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Back
+
+                  {/* NBI Clearance */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-orange-300 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={formData.hasNbiClearance}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasNbiClearance: e.target.checked }))}
+                      className="accent-orange-500 w-4 h-4 flex-shrink-0"
+                    />
+                    <span className="text-sm font-medium text-gray-700">I have an NBI Clearance</span>
                   </label>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 p-8 text-center cursor-pointer"
-                    onClick={() => document.getElementById('back-upload').click()}
-                  >
-                    {formData.backImage ? (
-                      <img
-                        src={URL.createObjectURL(formData.backImage)}
-                        alt="Back"
-                        className="max-w-full max-h-32 mx-auto"
-                      />
-                    ) : (
-                      <>
-<p className="mt-2 text-gray-500">Upload Back</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="back-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        backImage: e.target.files[0],
-                      }))
-                    }
-                  />
+
+                  {/* Barangay Clearance */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-orange-300 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={formData.hasBarangayClearance}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasBarangayClearance: e.target.checked }))}
+                      className="accent-orange-500 w-4 h-4 flex-shrink-0"
+                    />
+                    <span className="text-sm font-medium text-gray-700">I have a Barangay Clearance</span>
+                  </label>
+
+                  {/* Certificates and Training */}
+                  <label className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 cursor-pointer hover:border-orange-300 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={formData.hasCertificates}
+                      onChange={(e) => setFormData(prev => ({ ...prev, hasCertificates: e.target.checked }))}
+                      className="accent-orange-500 w-4 h-4 flex-shrink-0"
+                    />
+                    <span className="text-sm font-medium text-gray-700">I have Certificates and/or Training documents</span>
+                  </label>
+                </div>
+
+                {/* Info note */}
+                <div className="mt-4 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+                  <p className="text-xs text-blue-600 leading-relaxed">
+                    These documents will be verified during your in-person interview. Please ensure you bring all checked documents.
+                  </p>
                 </div>
               </div>
-              <div className="flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-4 py-2 bg-gray-300 rounded-md"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md"
-                >
-                  Proceed
-                </button>
+
+              <div className="flex justify-between mt-2">
+                <button onClick={handleBack} className="px-4 py-2 bg-gray-300 rounded-md">Back</button>
+                <button onClick={handleNext} className="px-4 py-2 bg-orange-500 text-white rounded-md">Proceed</button>
               </div>
             </>
           )}
+
+
 
           {step === 3 && (
-            <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                Background Verification
-              </h2>
-              <div className="flex flex-col space-y-3 mb-4">
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('nbi-upload').click()}
-                  >
-                    {formData.nbiClearance ? (
-                      <img
-                        src={URL.createObjectURL(formData.nbiClearance)}
-                        alt="NBI Clearance"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">NBI Clearance</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="nbi-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        nbiClearance: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('police-upload').click()}
-                  >
-                    {formData.policeClearance ? (
-                      <img
-                        src={URL.createObjectURL(formData.policeClearance)}
-                        alt="Police Clearance"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Police Clearance</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="police-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        policeClearance: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[100px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('barangay-upload').click()}
-                  >
-                    {formData.barangayClearance ? (
-                      <img
-                        src={URL.createObjectURL(formData.barangayClearance)}
-                        alt="Barangay Clearance"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-<p className="mt-2 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Barangay Clearance</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="barangay-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        barangayClearance: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-4 py-2 bg-gray-300 rounded-md"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md"
-                >
-                  Proceed
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 4 && (
-            <>
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                Certifications & Training
-              </h2>
-              <div className="grid grid-cols-3 gap-4 mb-8">
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('cert-training-upload').click()}
-                  >
-                    {formData.certificateTraining ? (
-                      <img
-                        src={URL.createObjectURL(formData.certificateTraining)}
-                        alt="Certificate of Training"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Certificate of Training</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="cert-training-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        certificateTraining: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('skill-assessment-upload').click()}
-                  >
-                    {formData.skillAssessment ? (
-                      <img
-                        src={URL.createObjectURL(formData.skillAssessment)}
-                        alt="Skill Assessment"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Skill Assessment</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="skill-assessment-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        skillAssessment: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('work-experience-upload').click()}
-                  >
-                    {formData.workExperience ? (
-                      <img
-                        src={URL.createObjectURL(formData.workExperience)}
-                        alt="Work Experience"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Work Experience</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="work-experience-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        workExperience: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional1-upload').click()}
-                  >
-                    {formData.optional1 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional1)}
-                        alt="Optional"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional1-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional1: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional2-upload').click()}
-                  >
-                    {formData.optional2 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional2)}
-                        alt="Optional"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional2-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional2: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-                <div>
-                  <div
-                    className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-200 h-[120px] flex flex-col items-center justify-center text-center cursor-pointer"
-                    onClick={() => document.getElementById('optional3-upload').click()}
-                  >
-                    {formData.optional3 ? (
-                      <img
-                        src={URL.createObjectURL(formData.optional3)}
-                        alt="Optional"
-                        className="max-w-full max-h-24 mx-auto"
-                      />
-                    ) : (
-                      <>
-  <p className="mt-1 text-gray-500 text-sm">Upload Here</p>
-                        <p className="text-xs text-gray-400">Optional</p>
-                      </>
-                    )}
-                  </div>
-                  <input
-                    id="optional3-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(e) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        optional3: e.target.files[0],
-                      }))
-                    }
-                  />
-                </div>
-              </div>
-              <div className="flex justify-between">
-                <button
-                  onClick={handleBack}
-                  className="px-4 py-2 bg-gray-300 rounded-md"
-                >
-                  Back
-                </button>
-                <button
-                  onClick={handleNext}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md"
-                >
-                  Proceed
-                </button>
-              </div>
-            </>
-          )}
-
-          {step === 5 && (
             submitted ? (
               <div className="h-full flex flex-col items-center justify-center text-center">
                 <CheckCircle2 size={64} className="text-green-500 mb-4" />
-                <h2 className="text-2xl font-bold text-gray-800 mb-2">
-                  Application Submitted!
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  We will review your application and contact you within 3-5 business days.
-                </p>
-                <button
-                  onClick={() => navigate('/')}
-                  className="px-6 py-2 bg-orange-500 text-white rounded-md"
-                >
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">Application Submitted!</h2>
+                <p className="text-gray-600 mb-6">We will review your application and contact you within 3-5 business days.</p>
+                <button onClick={() => navigate('/')} className="px-6 py-2 bg-orange-500 text-white rounded-md">
                   Go Back to Home
                 </button>
               </div>
             ) : (
               <>
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">
-                  Review & Submit
-                </h2>
-                <div className="max-h-96 overflow-y-auto space-y-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Review &amp; Submit</h2>
+                <div className="max-h-[420px] overflow-y-auto space-y-5 pr-1">
+
+                  {/* Personal Information */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                      Personal Information
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-gray-500">First Name:</span>
-                        <p className="font-bold text-gray-900">{formData.firstName || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Middle Name:</span>
-                        <p className="font-bold text-gray-900">{formData.middleName || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Last Name:</span>
-                        <p className="font-bold text-gray-900">{formData.lastName || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Suffix:</span>
-                        <p className="font-bold text-gray-900">{formData.suffix || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Age:</span>
-                        <p className="font-bold text-gray-900">{formData.age || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Gender:</span>
-                        <p className="font-bold text-gray-900">{formData.gender || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Phone:</span>
-                        <p className="font-bold text-gray-900">{formData.phone || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Email:</span>
-                        <p className="font-bold text-gray-900">{formData.email || '—'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Service Area:</span>
-                        <p className="font-bold text-gray-900">{formData.area || '—'}</p>
-                      </div>
-                      <div className="col-span-2">
-                        <span className="text-gray-500">Address:</span>
-                        <p className="font-bold text-gray-900">{formData.serviceArea || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Postal Code:</span>
-                        <p className="font-bold text-gray-900">{formData.postalCode || '—'}</p>
-                      </div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Personal Information</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div><span className="text-gray-400">First Name</span><p className="font-semibold text-gray-800">{formData.firstName || '—'}</p></div>
+                      <div><span className="text-gray-400">Middle Name</span><p className="font-semibold text-gray-800">{formData.middleName || '—'}</p></div>
+                      <div><span className="text-gray-400">Last Name</span><p className="font-semibold text-gray-800">{formData.lastName || '—'}</p></div>
+                      <div><span className="text-gray-400">Suffix</span><p className="font-semibold text-gray-800">{formData.suffix || '—'}</p></div>
+                      <div><span className="text-gray-400">Age</span><p className="font-semibold text-gray-800">{formData.age || '—'}</p></div>
+                      <div><span className="text-gray-400">Gender</span><p className="font-semibold text-gray-800">{formData.gender || '—'}</p></div>
+                      <div><span className="text-gray-400">Phone</span><p className="font-semibold text-gray-800">{formData.phone || '—'}</p></div>
+                      <div><span className="text-gray-400">Email</span><p className="font-semibold text-gray-800 break-all">{formData.email || '—'}</p></div>
+                      <div className="col-span-2"><span className="text-gray-400">Service Area</span><p className="font-semibold text-gray-800">{formData.area || '—'}</p></div>
+                      <div className="col-span-2"><span className="text-gray-400">Address</span><p className="font-semibold text-gray-800">{formData.serviceArea || '—'}</p></div>
+                      <div><span className="text-gray-400">Postal Code</span><p className="font-semibold text-gray-800">{formData.postalCode || '—'}</p></div>
                     </div>
                   </div>
+
+                  {/* Service Information */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                      Service Information
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <span className="text-gray-500">Service Role:</span>
-                        <p className="font-bold text-gray-900">{formData.serviceRole || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Experience:</span>
-                        <p className="font-bold text-gray-900">{formData.experience || '—'}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Availability:</span>
-                        <p className="font-bold text-gray-900">
-                          {formData.availType === 'Full Time'
-                            ? 'Full Time'
-                            : formData.availType === 'Part Time' && formData.partTimeShift
-                            ? `Part Time - ${formData.partTimeShift}`
-                            : '—'}
-                        </p>
-                      </div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Service Information</h3>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                      <div><span className="text-gray-400">Service Role</span><p className="font-semibold text-gray-800">{formData.serviceRole || '—'}</p></div>
+                      <div><span className="text-gray-400">Availability</span><p className="font-semibold text-gray-800">
+                        {formData.availType === 'Full Time' ? 'Full Time' : formData.availType === 'Part Time' && formData.partTimeShift ? `Part Time - ${formData.partTimeShift}` : '—'}
+                      </p></div>
+                      {formData.experience && <div className="col-span-2"><span className="text-gray-400">Experience</span><p className="font-semibold text-gray-800">{formData.experience}</p></div>}
                     </div>
                   </div>
+
+                  {/* Resume */}
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                      Valid Identification
-                    </h3>
-                    <p className="text-gray-500 mb-2">ID Type: <span className="font-bold text-gray-900">{formData.idType || 'N/A'}</span></p>
-                    <div className="flex space-x-4">
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Front</p>
-                        {formData.frontImage ? (
-                          <img
-                            src={URL.createObjectURL(formData.frontImage)}
-                            alt="Front"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Resume / CV</h3>
+                    {formData.resume ? (
+                      <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg text-sm">
+                        <FileText size={16} className="text-green-500 flex-shrink-0" />
+                        <span className="text-green-700 font-medium truncate">{formData.resume.name}</span>
                       </div>
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Back</p>
-                        {formData.backImage ? (
-                          <img
-                            src={URL.createObjectURL(formData.backImage)}
-                            alt="Back"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
+                    ) : (
+                      <p className="text-sm text-red-400">No resume uploaded</p>
+                    )}
+                  </div>
+
+                  {/* Documents for Interview */}
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Documents for Interview</h3>
+                    <div className="space-y-1.5 text-sm">
+                      {formData.hasValidId && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={15} className="text-green-500 flex-shrink-0" />
+                          <span className="text-gray-700 font-medium">Valid ID{formData.idType ? ` — ${formData.idType}` : ''}</span>
+                        </div>
+                      )}
+                      {formData.hasNbiClearance && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={15} className="text-green-500 flex-shrink-0" />
+                          <span className="text-gray-700 font-medium">NBI Clearance</span>
+                        </div>
+                      )}
+                      {formData.hasBarangayClearance && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={15} className="text-green-500 flex-shrink-0" />
+                          <span className="text-gray-700 font-medium">Barangay Clearance</span>
+                        </div>
+                      )}
+                      {formData.hasCertificates && (
+                        <div className="flex items-center gap-2">
+                          <CheckCircle2 size={15} className="text-green-500 flex-shrink-0" />
+                          <span className="text-gray-700 font-medium">Certificates &amp; Training documents</span>
+                        </div>
+                      )}
+                      {!formData.hasValidId && !formData.hasNbiClearance && !formData.hasBarangayClearance && !formData.hasCertificates && (
+                        <p className="text-gray-400 text-xs">No documents selected</p>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                      Background Verification
-                    </h3>
-                    <div className="flex space-x-4">
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">NBI Clearance</p>
-                        {formData.nbiClearance ? (
-                          <img
-                            src={URL.createObjectURL(formData.nbiClearance)}
-                            alt="NBI Clearance"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Police Clearance</p>
-                        {formData.policeClearance ? (
-                          <img
-                            src={URL.createObjectURL(formData.policeClearance)}
-                            alt="Police Clearance"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-500 mb-1">Barangay Clearance</p>
-                        {formData.barangayClearance ? (
-                          <img
-                            src={URL.createObjectURL(formData.barangayClearance)}
-                            alt="Barangay Clearance"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                      Certifications & Training
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        {formData.certificateTraining ? (
-                          <img
-                            src={URL.createObjectURL(formData.certificateTraining)}
-                            alt="Certificate of Training"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.skillAssessment ? (
-                          <img
-                            src={URL.createObjectURL(formData.skillAssessment)}
-                            alt="Skill Assessment"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.workExperience ? (
-                          <img
-                            src={URL.createObjectURL(formData.workExperience)}
-                            alt="Work Experience"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional1 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional1)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional2 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional2)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                      <div>
-                        {formData.optional3 ? (
-                          <img
-                            src={URL.createObjectURL(formData.optional3)}
-                            alt="Optional"
-                            className="w-20 h-20 object-cover border rounded"
-                          />
-                        ) : (
-                          <div className="w-20 h-20 bg-gray-200 border rounded"></div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+
                 </div>
-                <div className="mt-8 flex justify-between">
-                  <button
-                    onClick={handleBack}
-                    className="px-4 py-2 bg-gray-300 rounded-md"
-                  >
-                    Back
-                  </button>
-                  {submitError && (
-                    <p className="text-sm text-red-500 self-center">{submitError}</p>
-                  )}
+
+                <div className="mt-4 flex justify-between items-center">
+                  <button onClick={handleBack} className="px-4 py-2 bg-gray-300 rounded-md">Back</button>
+                  {submitError && <p className="text-sm text-red-500 text-center flex-1 px-2">{submitError}</p>}
                   <button
                     onClick={handleSubmit}
                     disabled={submitting}
