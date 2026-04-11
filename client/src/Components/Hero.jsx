@@ -118,7 +118,7 @@ function Hero() {
                         ${showContacts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2 pointer-events-none"}`}
                     >
                       <a
-                        href="https://www.facebook.com/lee.anjhello.baniqued.2025"
+                        href="https://www.facebook.com/malapitan.along"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-white hover:text-blue-400 transition"
@@ -152,10 +152,6 @@ function Hero() {
                   <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1300ms]" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">8+</h3>
                     <p className="text-xs text-gray-400">Taskers</p>
-                  </div>
-                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1500ms]" : "opacity-0 translate-y-6"}`}>
-                    <h3 className="text-2xl font-bold text-orange-400">24/7</h3>
-                    <p className="text-xs text-gray-400">Support</p>
                   </div>
                 </div>
               </div>

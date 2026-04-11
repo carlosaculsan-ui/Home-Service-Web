@@ -7,7 +7,6 @@ import Services from './Components/Services'
 import TaskerShowcase from './Components/TaskerShowcase'
 import WhyChooseUs from './Components/WhyChooseUs'
 import VideoSection from './Components/VideoSection'
-import Pricing from './Components/Pricing'
 import HowItWorks from './Components/HowItWorks'
 import Reviews from './Components/Reviews'
 import LocationMap from './Components/LocationMap'
@@ -39,7 +38,6 @@ function Home() {
       <TaskerShowcase />
       <div id="about"><WhyChooseUs /></div>
       <VideoSection />
-      <Pricing />
       <div id="how-it-works"><HowItWorks /></div>
       <Reviews />
       <LocationMap />
