@@ -2443,7 +2443,27 @@ function TaskerDashboard() {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const [notifTabOpen, setNotifTabOpen] = useState(false)
   const [announcements, setAnnouncements] = useState([])
+  const [showNotifBanner, setShowNotifBanner] = useState(false)
+  const [notifToast, setNotifToast] = useState(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!('Notification' in window)) return
+    if (Notification.permission === 'default') setShowNotifBanner(true)
+  }, [])
+
+  async function handleEnableNotifications() {
+    if (!('Notification' in window)) return
+    const permission = await Notification.requestPermission()
+    setShowNotifBanner(false)
+    if (permission === 'granted') {
+      setNotifToast('Notifications enabled!')
+      setTimeout(() => setNotifToast(null), 3000)
+    } else {
+      setNotifToast('Notifications blocked. You can enable them in browser settings.')
+      setTimeout(() => setNotifToast(null), 4000)
+    }
+  }
 
   async function load(tid) {
     console.log('load() called with tasker_id:', tid)
@@ -2560,7 +2580,18 @@ function TaskerDashboard() {
         schema: 'public',
         table: 'notifications',
         filter: `user_id=eq.${taskerUserId}`,
-      }, () => { fetchNotifications() })
+      }, (payload) => {
+        fetchNotifications()
+        if (payload.eventType === 'INSERT' && 'Notification' in window && Notification.permission === 'granted') {
+          const n = new Notification(payload.new.title ?? 'New Notification', {
+            body: payload.new.message ?? '',
+            icon: '/vite.svg',
+            badge: '/vite.svg',
+            tag: payload.new.id,
+          })
+          n.onclick = () => { window.focus(); setTab('bookings') }
+        }
+      })
       .subscribe()
 
     const announcementsChannel = supabase
@@ -2660,6 +2691,33 @@ function TaskerDashboard() {
           </button>
           <p className="font-semibold text-gray-800 text-sm">{activeLabel}</p>
         </div>
+
+        {/* Push notification permission banner */}
+        {showNotifBanner && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-orange-50 border-b border-orange-100">
+            <Bell size={18} className="text-orange-500 flex-shrink-0" />
+            <p className="text-sm text-gray-700 flex-1">Get notified about your bookings in real time.</p>
+            <button
+              onClick={handleEnableNotifications}
+              className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+            >
+              Enable Notifications
+            </button>
+            <button
+              onClick={() => setShowNotifBanner(false)}
+              className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+            >
+              Maybe Later
+            </button>
+          </div>
+        )}
+
+        {/* Notification toast */}
+        {notifToast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-gray-800 text-white text-sm px-5 py-3 rounded-xl shadow-lg pointer-events-none">
+            {notifToast}
+          </div>
+        )}
 
         <div className="p-4 sm:p-6">
 
