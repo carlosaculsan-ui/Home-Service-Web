@@ -769,6 +769,43 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
 // ─── Leave Request Section ───────────────────────────────────────────────────
 
+function formatDateRanges(isoDateArray) {
+  if (!isoDateArray.length) return ''
+  const sorted = [...isoDateArray].sort()
+  const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+  // Group consecutive dates into ranges
+  const ranges = []
+  let start = sorted[0]
+  let prev = sorted[0]
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prevDate = new Date(prev + 'T00:00:00')
+    const currDate = new Date(sorted[i] + 'T00:00:00')
+    const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24)
+    if (diffDays === 1) {
+      prev = sorted[i]
+    } else {
+      ranges.push([start, prev])
+      start = sorted[i]
+      prev = sorted[i]
+    }
+  }
+  ranges.push([start, prev])
+
+  return ranges.map(([from, to]) => {
+    const d1 = new Date(from + 'T00:00:00')
+    const d2 = new Date(to + 'T00:00:00')
+    if (from === to) {
+      return `${MONTHS[d1.getMonth()]} ${d1.getDate()}`
+    }
+    if (d1.getMonth() === d2.getMonth()) {
+      return `${MONTHS[d1.getMonth()]} ${d1.getDate()}-${d2.getDate()}`
+    }
+    return `${MONTHS[d1.getMonth()]} ${d1.getDate()} – ${MONTHS[d2.getMonth()]} ${d2.getDate()}`
+  }).join(', ')
+}
+
 function LeaveRequestSection({ taskerId }) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -928,7 +965,7 @@ function LeaveRequestSection({ taskerId }) {
 
         {selectedDates.size > 0 && (
           <p className="text-xs text-orange-600 font-medium mb-3">
-            {selectedDates.size} date{selectedDates.size > 1 ? 's' : ''} selected: {[...selectedDates].sort().join(', ')}
+            {selectedDates.size} date{selectedDates.size > 1 ? 's' : ''} selected: {formatDateRanges([...selectedDates])}
           </p>
         )}
 

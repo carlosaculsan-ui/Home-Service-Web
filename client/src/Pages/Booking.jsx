@@ -1222,10 +1222,19 @@ function Step1({ service, onContinue }) {
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
+  const [unsupportedToast, setUnsupportedToast] = useState(false)
   const recognitionRef = useRef(null)
-  const isSpeechSupported = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+  const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent)
+  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+  const shouldShowMic = isSpeechSupported && !(isIOS && isSafari)
 
   function toggleRecording() {
+    if (!isSpeechSupported) {
+      setUnsupportedToast(true)
+      setTimeout(() => setUnsupportedToast(false), 3000)
+      return
+    }
     if (isRecording) {
       recognitionRef.current?.stop()
       return
@@ -2673,7 +2682,7 @@ function Step1({ service, onContinue }) {
           )}
 
           {/* Bottom-right controls */}
-          {isSpeechSupported && (
+          {shouldShowMic && (
             <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
               {/* Mic button */}
               <div className="relative group">
@@ -2706,6 +2715,15 @@ function Step1({ service, onContinue }) {
                   <div className="absolute bottom-full right-0 mb-1.5 z-10 pointer-events-none" style={{ width: '210px' }}>
                     <div className="bg-red-600 text-white text-xs rounded-lg px-2.5 py-2 shadow-lg leading-snug">
                       Microphone access denied. Please allow mic access in your browser settings.
+                    </div>
+                  </div>
+                )}
+
+                {/* Unsupported browser tooltip — safety net */}
+                {unsupportedToast && (
+                  <div className="absolute bottom-full right-0 mb-1.5 z-10 pointer-events-none" style={{ width: '230px' }}>
+                    <div className="bg-red-600 text-white text-xs rounded-lg px-2.5 py-2 shadow-lg leading-snug">
+                      Voice input is not supported on this browser. Please use Chrome for this feature.
                     </div>
                   </div>
                 )}
