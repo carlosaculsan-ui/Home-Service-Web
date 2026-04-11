@@ -864,20 +864,18 @@ function BookingCard({ booking, userId, onCancel }) {
         {/* Price breakdown */}
         {(booking.platform_fee != null || booking.tasker_payout != null) && (() => {
           const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          const basePricePaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0)
           const helperFee = booking.helper_fee ?? 0
-          const totalPaid = basePricePaid + helperFee
+          const totalPaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0) + helperFee
           const helperCount = booking.taskers_needed > 1 ? booking.taskers_needed - 1 : 0
           return (
             <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>Base Price</span>
-                <span>{fmt(basePricePaid)}</span>
+                <span>{fmt(totalPaid)}</span>
               </div>
-              {helperFee > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Helper Fee{helperCount > 0 ? ` (${helperCount} helper${helperCount > 1 ? 's' : ''})` : ''}</span>
-                  <span>{fmt(helperFee)}</span>
+              {helperFee > 0 && helperCount > 0 && (
+                <div className="text-gray-400 text-xs">
+                  {helperCount} helper{helperCount > 1 ? 's' : ''} assigned
                 </div>
               )}
               <div className="flex justify-between font-semibold text-gray-800 border-t border-gray-100 pt-1.5">

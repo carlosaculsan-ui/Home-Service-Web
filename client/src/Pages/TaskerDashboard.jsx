@@ -599,14 +599,20 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       {/* Price breakdown */}
       {(booking.platform_fee != null || booking.tasker_payout != null) && (() => {
         const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        const basePricePaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0)
         const helperFee = booking.helper_fee ?? 0
+        const totalPaid = (booking.tasker_payout ?? 0) + (booking.platform_fee ?? 0) + helperFee
+        const helperCount = booking.taskers_needed > 1 ? booking.taskers_needed - 1 : 0
         return (
           <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
             <div className="flex justify-between text-gray-600">
               <span>Base Price</span>
-              <span>{fmt(basePricePaid)}</span>
+              <span>{fmt(totalPaid)}</span>
             </div>
+            {helperFee > 0 && helperCount > 0 && (
+              <div className="text-gray-400 text-xs">
+                {helperCount} helper{helperCount > 1 ? 's' : ''} assigned
+              </div>
+            )}
             <div className="flex justify-between text-green-700 font-medium">
               <span>Your Payout (70%)</span>
               <span>{fmt(booking.tasker_payout)}</span>
@@ -615,12 +621,6 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
               <span>Platform Fee (30%)</span>
               <span>{fmt(booking.platform_fee)}</span>
             </div>
-            {helperFee > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Helper Fee</span>
-                <span>{fmt(helperFee)}</span>
-              </div>
-            )}
           </div>
         )
       })()}
@@ -2369,14 +2369,20 @@ function BookingHistory({ taskerId, taskerUserId }) {
 
                 {(b.platform_fee != null || b.tasker_payout != null) && (() => {
                   const fmt = (n) => `₱${Number(n ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  const basePricePaid = (b.tasker_payout ?? 0) + (b.platform_fee ?? 0)
                   const helperFee = b.helper_fee ?? 0
+                  const totalPaid = (b.tasker_payout ?? 0) + (b.platform_fee ?? 0) + helperFee
+                  const helperCount = b.taskers_needed > 1 ? b.taskers_needed - 1 : 0
                   return (
                     <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
                       <div className="flex justify-between text-gray-600">
                         <span>Base Price</span>
-                        <span>{fmt(basePricePaid)}</span>
+                        <span>{fmt(totalPaid)}</span>
                       </div>
+                      {helperFee > 0 && helperCount > 0 && (
+                        <div className="text-gray-400 text-xs">
+                          {helperCount} helper{helperCount > 1 ? 's' : ''} assigned
+                        </div>
+                      )}
                       <div className="flex justify-between text-green-700 font-medium">
                         <span>Your Payout (70%)</span>
                         <span>{fmt(b.tasker_payout)}</span>
@@ -2385,12 +2391,6 @@ function BookingHistory({ taskerId, taskerUserId }) {
                         <span>Platform Fee (30%)</span>
                         <span>{fmt(b.platform_fee)}</span>
                       </div>
-                      {helperFee > 0 && (
-                        <div className="flex justify-between text-gray-600">
-                          <span>Helper Fee</span>
-                          <span>{fmt(helperFee)}</span>
-                        </div>
-                      )}
                     </div>
                   )
                 })()}

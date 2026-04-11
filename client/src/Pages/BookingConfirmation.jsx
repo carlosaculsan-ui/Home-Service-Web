@@ -53,29 +53,34 @@ const EXTRAS_LOOKUP = {
   'Plumbing Repair':    { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 },
 }
 
-function buildPriceBreakdown(taskOptions) {
+function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
   if (!taskOptions) return []
   const { service } = taskOptions
   const lines = []
+  const combinedBase = (taskOptions.base_price ?? 0) + (helperFee ?? 0)
 
   if (service === 'Cleaning') {
-    lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: taskOptions.base_price })
+    lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: combinedBase })
   } else if (service === 'Carpentry') {
-    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: taskOptions.base_price })
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: combinedBase })
   } else if (service === 'Electrical') {
-    lines.push({ label: taskOptions.type, price: taskOptions.base_price })
+    lines.push({ label: taskOptions.type, price: combinedBase })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   } else if (service === 'Aircon Maintenance') {
     const u = taskOptions.units || 1
-    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
+    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: combinedBase })
   } else if (service === 'Painting') {
-    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: taskOptions.base_price })
+    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: combinedBase })
     if (taskOptions.paint_cost > 0) {
       lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
     }
   } else if (service === 'Plumbing Repair') {
-    lines.push({ label: taskOptions.problem, price: taskOptions.base_price })
+    lines.push({ label: taskOptions.problem, price: combinedBase })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  }
+
+  if (helperFee > 0 && helperCount > 0) {
+    lines.push({ label: `Helpers: ${helperCount} helper${helperCount > 1 ? 's' : ''} assigned`, price: null, isHelperInfo: true })
   }
 
   const extrasMap = EXTRAS_LOOKUP[service] || {}
@@ -285,7 +290,9 @@ export default function BookingConfirmation() {
     catch { return null }
   })()
 
-  const priceBreakdown = buildPriceBreakdown(taskOptions)
+  const bookingHelperFee = booking?.helper_fee ?? 0
+  const bookingHelperCount = (booking?.taskers_needed ?? 1) > 1 ? (booking.taskers_needed - 1) : 0
+  const priceBreakdown = buildPriceBreakdown(taskOptions, bookingHelperFee, bookingHelperCount)
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center px-4 py-10">
@@ -397,12 +404,14 @@ export default function BookingConfirmation() {
               <div className="border border-gray-100 rounded-xl p-4 space-y-2">
                 <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Price Breakdown</p>
                 {priceBreakdown.map((line, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <span className="text-gray-500">{line.label}</span>
-                    <span className="text-gray-700">
-                      {line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}
-                    </span>
-                  </div>
+                  line.isHelperInfo
+                    ? <div key={i} className="text-xs text-gray-400">{line.label}</div>
+                    : <div key={i} className="flex justify-between text-sm">
+                        <span className="text-gray-500">{line.label}</span>
+                        <span className="text-gray-700">
+                          {line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}
+                        </span>
+                      </div>
                 ))}
               </div>
             )}
