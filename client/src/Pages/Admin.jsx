@@ -813,23 +813,34 @@ function TaskerAccountsPanel() {
               <div><span className="text-gray-500">Availability:</span> <span className="font-medium">{selectedTasker.availability || 'Not provided'}</span></div>
             </div>
 
-            {/* Documents */}
-            {DOC_FIELDS.filter(({ key }) => selectedTasker[key]).length > 0 ? (
-              <div>
-                <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Documents</h4>
-                <div className="flex gap-3 flex-wrap">
-                  {DOC_FIELDS.filter(({ key }) => selectedTasker[key]).map(({ key, label }) => (
-                    <button
-                      key={key}
-                      onClick={() => setLightboxSrc(selectedTasker[key])}
-                      className="text-orange-500 text-sm underline"
-                    >{label}</button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-gray-400 text-sm">No documents uploaded.</p>
-            )}
+            {/* Resume */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Resume</h4>
+              {selectedTasker.resume_url
+                ? <a href={selectedTasker.resume_url} target="_blank" rel="noopener noreferrer" className="text-orange-500 text-sm underline">View Resume</a>
+                : <p className="text-gray-400 text-sm">No resume uploaded</p>
+              }
+            </div>
+
+            {/* Documents for Interview */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Documents for Interview</h4>
+              {(() => {
+                const docs = [
+                  selectedTasker.has_valid_id && `Valid ID${selectedTasker.id_type ? ` (${selectedTasker.id_type})` : ''}`,
+                  selectedTasker.has_nbi_clearance && 'NBI Clearance',
+                  selectedTasker.has_barangay_clearance && 'Barangay Clearance',
+                  selectedTasker.has_certificates && 'Certificates and Training',
+                ].filter(Boolean)
+                return docs.length > 0
+                  ? <ul className="space-y-1">{docs.map((doc) => (
+                      <li key={doc} className="flex items-center gap-2 text-sm text-gray-700">
+                        <span className="text-green-500">✓</span>{doc}
+                      </li>
+                    ))}</ul>
+                  : <p className="text-gray-400 text-sm">No documents indicated</p>
+              })()}
+            </div>
 
             {/* Photo Management */}
             <div className="mt-4">

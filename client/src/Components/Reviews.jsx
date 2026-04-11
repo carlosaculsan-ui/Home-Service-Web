@@ -150,7 +150,7 @@ function Reviews() {
                   <div
                     key={review.id}
                     onClick={() => hasImages && setSelectedReview(review)}
-                    className={`bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow relative ${hasImages ? 'cursor-pointer' : ''}`}
+                    className={`bg-white rounded-xl shadow-md p-6 hover:shadow-xl transition-shadow relative flex flex-col ${hasImages ? 'cursor-pointer' : ''}`}
                   >
                     <div className="flex gap-1 mb-3">
                       {[...Array(review.rating ?? 5)].map((_, i) => (
@@ -176,7 +176,7 @@ function Reviews() {
                     <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
                       {review.service}
                     </span>
-                    <div className="flex items-center gap-3 mt-4">
+                    <div className="flex items-center gap-3 mt-auto pt-4">
                       <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
                         {initial}
                       </div>
