@@ -4,7 +4,7 @@ import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import Groq from 'groq-sdk'
-import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star, Wallet } from 'lucide-react'
+import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star, Wallet, Mic } from 'lucide-react'
 
 const groq = new Groq({
   apiKey: import.meta.env.VITE_GROQ_API_KEY,
@@ -1219,6 +1219,45 @@ function Step1({ service, onContinue }) {
   const [address, setAddress] = useState('')
   const [size] = useState('Medium')
   const [details, setDetails] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+  const [speechLang, setSpeechLang] = useState('en-PH')
+  const [interimText, setInterimText] = useState('')
+  const [micDenied, setMicDenied] = useState(false)
+  const recognitionRef = useRef(null)
+  const isSpeechSupported = typeof window !== 'undefined' && !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+
+  function toggleRecording() {
+    if (isRecording) {
+      recognitionRef.current?.stop()
+      return
+    }
+    setMicDenied(false)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = speechLang
+    rec.onresult = (e) => {
+      let interim = ''
+      let final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) setDetails((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + final)
+      setInterimText(interim)
+    }
+    rec.onerror = (e) => {
+      if (e.error === 'not-allowed') setMicDenied(true)
+      setIsRecording(false)
+      setInterimText('')
+    }
+    rec.onend = () => { setIsRecording(false); setInterimText('') }
+    recognitionRef.current = rec
+    rec.start()
+    setIsRecording(true)
+  }
+
   const [error, setError] = useState('')
   const [imagePreview, setImagePreview] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
@@ -2618,13 +2657,77 @@ function Step1({ service, onContinue }) {
         <p className="text-sm text-gray-400 italic mb-3">
           Start the conversation and tell your Tasker what you need done. This helps us show you only qualified and available Taskers for the job.
         </p>
-        <textarea
-          value={details}
-          onChange={(e) => setDetails(e.target.value)}
-          placeholder="Describe your task..."
-          className="w-full border border-gray-200 rounded-lg p-3 text-base text-gray-700 resize-none outline-none focus:border-orange-400"
-          style={{ minHeight: '140px' }}
-        />
+        <div className="relative">
+          <textarea
+            value={details}
+            onChange={(e) => setDetails(e.target.value)}
+            placeholder="Describe your task..."
+            className="w-full border border-gray-200 rounded-lg p-3 pb-10 text-base text-gray-700 resize-none outline-none focus:border-orange-400"
+            style={{ minHeight: '140px' }}
+          />
+
+          {/* Interim speech preview */}
+          {interimText && (
+            <p className="absolute left-3 right-20 text-sm text-gray-400 italic pointer-events-none" style={{ bottom: '44px' }}>
+              {interimText}
+            </p>
+          )}
+
+          {/* Bottom-right controls */}
+          {isSpeechSupported && (
+            <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
+              {/* Language toggle */}
+              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => { setSpeechLang('en-PH'); if (isRecording) recognitionRef.current?.stop() }}
+                  className={`px-2 py-1 transition-colors ${speechLang === 'en-PH' ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
+                >EN</button>
+                <button
+                  type="button"
+                  onClick={() => { setSpeechLang('fil-PH'); if (isRecording) recognitionRef.current?.stop() }}
+                  className={`px-2 py-1 transition-colors ${speechLang === 'fil-PH' ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
+                >FIL</button>
+              </div>
+
+              {/* Mic button */}
+              <div className="relative group">
+                <button
+                  type="button"
+                  onClick={toggleRecording}
+                  className={`flex items-center justify-center w-8 h-8 rounded-lg transition-colors ${isRecording ? 'bg-red-100 text-red-500 hover:bg-red-200' : 'bg-gray-100 text-gray-400 hover:bg-gray-200'}`}
+                >
+                  {isRecording ? (
+                    <span className="flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                      <Mic size={14} />
+                    </span>
+                  ) : (
+                    <Mic size={14} />
+                  )}
+                </button>
+
+                {/* Hover tooltip — only when not denied */}
+                {!micDenied && (
+                  <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+                    <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+                      Speak your task details
+                    </div>
+                  </div>
+                )}
+
+                {/* Mic denied tooltip — always visible when denied */}
+                {micDenied && (
+                  <div className="absolute bottom-full right-0 mb-1.5 z-10 pointer-events-none" style={{ width: '210px' }}>
+                    <div className="bg-red-600 text-white text-xs rounded-lg px-2.5 py-2 shadow-lg leading-snug">
+                      Microphone access denied. Please allow mic access in your browser settings.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         <div className="mt-4">
           <p className="text-sm font-medium text-gray-600 mb-2">Optional: Upload a photo of the damage</p>
