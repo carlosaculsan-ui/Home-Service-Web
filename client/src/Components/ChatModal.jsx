@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send } from 'lucide-react'
+import { X, Send, Phone } from 'lucide-react'
 import { supabase } from '../supabase'
 
 function formatTime(iso) {
@@ -19,13 +19,14 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const inputRef = useRef(null)
   const [bookingInfo, setBookingInfo] = useState(null)
   const [isCustomer, setIsCustomer] = useState(false)
+  const [taskerPhone, setTaskerPhone] = useState(null)
 
   // ── Fetch booking info + user role for intro message ───────────────────────
   useEffect(() => {
     if (!bookingId || !currentUserId) return
 
     async function fetchIntroData() {
-      const [{ data: booking }, { data: profile }] = await Promise.all([
+      const [{ data: booking }, { data: profile }, { data: tasker }] = await Promise.all([
         supabase
           .from('bookings')
           .select('service, scheduled_date, scheduled_time, reference_number')
@@ -36,9 +37,15 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           .select('role')
           .eq('id', currentUserId)
           .single(),
+        supabase
+          .from('taskers')
+          .select('phone')
+          .eq('user_id', otherUserId)
+          .maybeSingle(),
       ])
       if (booking) setBookingInfo(booking)
       if (profile?.role === 'customer') setIsCustomer(true)
+      if (tasker?.phone) setTaskerPhone(tasker.phone)
     }
 
     fetchIntroData()
@@ -176,12 +183,30 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
               <p className="font-bold text-gray-800 text-base">Chat with {otherUserName}</p>
               <p className="text-xs text-gray-400 mt-0.5">Booking #{bookingId?.slice(0, 8)}</p>
             </div>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
-            >
-              <X size={18} />
-            </button>
+            <div className="flex items-center gap-2">
+              {taskerPhone && (
+                <div className="relative group">
+                  <a
+                    href={`tel:${taskerPhone}`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold transition-colors"
+                  >
+                    <Phone size={13} />
+                    Call
+                  </a>
+                  <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+                    <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+                      Call tasker directly
+                    </div>
+                  </div>
+                </div>
+              )}
+              <button
+                onClick={onClose}
+                className="p-2 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           {/* Intro message — customer only */}

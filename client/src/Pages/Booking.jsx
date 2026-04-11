@@ -1220,7 +1220,6 @@ function Step1({ service, onContinue }) {
   const [size] = useState('Medium')
   const [details, setDetails] = useState('')
   const [isRecording, setIsRecording] = useState(false)
-  const [speechLang, setSpeechLang] = useState('en-PH')
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
   const recognitionRef = useRef(null)
@@ -1236,7 +1235,7 @@ function Step1({ service, onContinue }) {
     const rec = new SR()
     rec.continuous = true
     rec.interimResults = true
-    rec.lang = speechLang
+    rec.lang = 'en-PH'
     rec.onresult = (e) => {
       let interim = ''
       let final = ''
@@ -2676,20 +2675,6 @@ function Step1({ service, onContinue }) {
           {/* Bottom-right controls */}
           {isSpeechSupported && (
             <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5">
-              {/* Language toggle */}
-              <div className="flex rounded-lg overflow-hidden border border-gray-200 text-xs font-semibold">
-                <button
-                  type="button"
-                  onClick={() => { setSpeechLang('en-PH'); if (isRecording) recognitionRef.current?.stop() }}
-                  className={`px-2 py-1 transition-colors ${speechLang === 'en-PH' ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
-                >EN</button>
-                <button
-                  type="button"
-                  onClick={() => { setSpeechLang('fil-PH'); if (isRecording) recognitionRef.current?.stop() }}
-                  className={`px-2 py-1 transition-colors ${speechLang === 'fil-PH' ? 'bg-orange-500 text-white' : 'bg-white text-gray-400 hover:bg-gray-50'}`}
-                >FIL</button>
-              </div>
-
               {/* Mic button */}
               <div className="relative group">
                 <button
