@@ -12,8 +12,7 @@ import Reviews from './Components/Reviews'
 import LocationMap from './Components/LocationMap'
 import Footer from './Components/Footer'
 import Chatbot from './Components/Chatbot'
-import Login from './Pages/Login'
-import Signup from './Pages/Signup'
+import AuthForm from './Pages/AuthForm'
 import ForgotPassword from './Pages/ForgotPassword'
 import ResetPassword from './Pages/ResetPassword'
 import BecomeATasker from './Pages/BecomeATasker'
@@ -148,8 +147,9 @@ function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/login" element={<Login />} />
-      <Route path="/signup" element={<Signup />} />
+      <Route path="/login" element={<AuthForm />} />
+      <Route path="/signup" element={<AuthForm />} />
+      <Route path="/auth" element={<AuthForm />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ResetPassword />} />
       <Route path="/become-a-tasker" element={<BecomeATaskerLanding />} />
@@ -159,6 +159,10 @@ function App() {
       <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
       <Route path="/tasker" element={<TaskerLogin />} />
       <Route path="/tasker-dashboard" element={<TaskerRoute><TaskerDashboard /></TaskerRoute>} />
+      <Route path="/how-it-works" element={<HowItWorks />} />
+      <Route path="/careers" element={<div>Careers Page</div>} />
+      <Route path="/contact" element={<div>Contact Page</div>} />
+      <Route path="/faq" element={<div>FAQ Page</div>} />
       <Route path="/booking-confirmation" element={<BookingConfirmation />} />
       <Route path="/payment-complete" element={<PaymentComplete />} />
     </Routes>
