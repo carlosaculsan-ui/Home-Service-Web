@@ -173,10 +173,11 @@ function Reviews() {
                         )}
                       </div>
                     )}
+                    <div className="mt-auto">
                     <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
                       {review.service}
                     </span>
-                    <div className="flex items-center gap-3 mt-auto pt-4">
+                    <div className="flex items-center gap-3 pt-4">
                       <div className="w-10 h-10 rounded-full bg-orange-500 text-white flex items-center justify-center font-bold text-sm">
                         {initial}
                       </div>
@@ -184,6 +185,7 @@ function Reviews() {
                         <p className="font-semibold text-gray-800 text-sm">{name}</p>
                         <p className="text-gray-400 text-xs">{review.location ?? 'Philippines'}</p>
                       </div>
+                    </div>
                     </div>
                     {hasImages && (
                       <div className="absolute bottom-4 right-4 flex items-center gap-1 text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">

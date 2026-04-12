@@ -9,38 +9,77 @@ function Login() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+
+  // OTP verification state (new Google sign-ups only)
+  const [otpScreen, setOtpScreen] = useState(false)
+  const [otpEmail, setOtpEmail] = useState('')
+  const [otp, setOtp] = useState('')
+  const [otpLoading, setOtpLoading] = useState(false)
+  const [otpError, setOtpError] = useState('')
+  const [otpSending, setOtpSending] = useState(false)
+
   const navigate = useNavigate()
+
+  function isNewGoogleUser(session) {
+    const created = new Date(session.user.created_at).getTime()
+    return (Date.now() - created) < 120000 // created within last 2 minutes = brand new account
+  }
+
+  async function routeByRole(session) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', session.user.id)
+      .single()
+
+    const role = profile?.role
+
+    if (role === 'tasker') {
+      navigate('/tasker-dashboard')
+      return
+    }
+
+    if (role === 'admin') {
+      await supabase.auth.signOut()
+      setError('Admins must log in through the Admin Login page.')
+      setLoading(false)
+      return
+    }
+
+    const redirect = sessionStorage.getItem('redirectAfterLogin')
+    if (redirect) {
+      sessionStorage.removeItem('redirectAfterLogin')
+      navigate(redirect)
+    } else {
+      navigate('/')
+    }
+  }
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] event:', event)
       if (event === 'SIGNED_IN' && session) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', session.user.id)
-          .single()
+        const googleInitiated = sessionStorage.getItem('google_oauth_initiated')
+        const created = new Date(session.user.created_at).getTime()
+        const ageMs = Date.now() - created
+        console.log('[Auth] googleInitiated flag:', googleInitiated)
+        console.log('[Auth] account age (ms):', ageMs, '— new?', ageMs < 120000)
+        console.log('[Auth] provider:', session.user.app_metadata?.provider)
 
-        const role = profile?.role
-
-        if (role === 'tasker') {
-          navigate('/tasker-dashboard')
-          return
-        }
-
-        if (role === 'admin') {
+        if (googleInitiated && isNewGoogleUser(session)) {
+          sessionStorage.removeItem('google_oauth_initiated')
+          const userEmail = session.user.email
           await supabase.auth.signOut()
-          setError('Admins must log in through the Admin Login page.')
-          setLoading(false)
+          setOtpSending(true)
+          await supabase.auth.signInWithOtp({ email: userEmail })
+          setOtpSending(false)
+          setOtpEmail(userEmail)
+          setOtpScreen(true)
           return
         }
 
-        const redirect = sessionStorage.getItem('redirectAfterLogin')
-        if (redirect) {
-          sessionStorage.removeItem('redirectAfterLogin')
-          navigate(redirect)
-        } else {
-          navigate('/')
-        }
+        sessionStorage.removeItem('google_oauth_initiated')
+        await routeByRole(session)
       }
     })
     return () => subscription.unsubscribe()
@@ -59,10 +98,114 @@ function Login() {
   }
 
   const handleGoogleLogin = async () => {
+    sessionStorage.setItem('google_oauth_initiated', 'true')
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+      },
     })
-    if (error) setError(error.message)
+    if (error) {
+      sessionStorage.removeItem('google_oauth_initiated')
+      setError(error.message)
+    }
+  }
+
+  const handleOtpVerify = async () => {
+    if (!otp.trim()) { setOtpError('Please enter the code.'); return }
+    setOtpLoading(true)
+    setOtpError('')
+    const { error } = await supabase.auth.verifyOtp({
+      email: otpEmail,
+      token: otp.trim(),
+      type: 'email',
+    })
+    if (error) {
+      setOtpError('Invalid or expired code. Please try again.')
+      setOtpLoading(false)
+    }
+    // On success onAuthStateChange fires with SIGNED_IN and routes normally
+  }
+
+  const handleResendOtp = async () => {
+    setOtpError('')
+    setOtp('')
+    setOtpSending(true)
+    await supabase.auth.signInWithOtp({ email: otpEmail })
+    setOtpSending(false)
+  }
+
+  if (otpScreen) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4"
+        style={{
+          backgroundImage: `url(${backgroundImg})`,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
+          style={{
+            background: 'rgba(255, 255, 255, 0.1)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+          }}
+        >
+          <div className="text-center mb-8">
+            <div className="w-14 h-14 rounded-full bg-orange-500/20 border border-orange-400/40 flex items-center justify-center mx-auto mb-4">
+              <span className="text-2xl">✉️</span>
+            </div>
+            <h1 className="text-2xl font-extrabold text-white mb-2">Verify your email</h1>
+            <p className="text-gray-300 text-sm">
+              We sent a one-time code to<br />
+              <span className="text-orange-300 font-semibold">{otpEmail}</span>
+            </p>
+          </div>
+
+          {otpSending ? (
+            <div className="flex justify-center py-6">
+              <div className="w-8 h-8 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={8}
+                value={otp}
+                onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '')); setOtpError('') }}
+                placeholder="Enter 8-digit code"
+                className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-400 text-center text-xl tracking-[0.5em] font-bold focus:outline-none focus:ring-2 focus:ring-orange-400"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+              />
+
+              {otpError && <p className="text-red-300 text-sm text-center">{otpError}</p>}
+
+              <button
+                onClick={handleOtpVerify}
+                disabled={otpLoading || otp.length < 8}
+                className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
+              >
+                {otpLoading ? 'Verifying...' : 'Verify & Continue'}
+              </button>
+
+              <p className="text-center text-gray-400 text-sm">
+                Didn't receive it?{' '}
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  className="text-orange-300 hover:text-orange-200 font-semibold"
+                >
+                  Resend code
+                </button>
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
