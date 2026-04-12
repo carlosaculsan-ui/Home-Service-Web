@@ -213,7 +213,8 @@
   transition: 0.5s ease;
 }
 .auth-input:focus + label,
-.auth-input:valid + label {
+.auth-input:valid + label,
+.auth-input:not(:placeholder-shown) + label {
   top: -6px;
   font-size: 0.78rem;
   color: #fdf84c;
@@ -228,6 +229,8 @@
   font-size: 1.1rem;
   color: rgba(255, 255, 255, 0.6);
   transition: 0.5s ease;
+  appearance: none;
+  -webkit-appearance: none;
 }
 .auth-input:focus ~ .auth-icon,
 .auth-input:valid ~ .auth-icon {

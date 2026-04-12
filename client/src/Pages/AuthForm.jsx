@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { FaUser, FaLock, FaEnvelope } from 'react-icons/fa'
+import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import Background from '../Assets/Background.jpg'
 import './AuthForm.css'
 
@@ -10,10 +10,13 @@ function AuthForm() {
   const [isLogin, setIsLogin] = useState(location.pathname !== '/signup')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [username, setUsername] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [show, setShow] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [showSignupPassword, setShowSignupPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // OTP verification state (new Google sign-ups only)
   const [otpScreen, setOtpScreen] = useState(false)
@@ -106,6 +109,7 @@ function AuthForm() {
   const handleSignup = async (e) => {
     e.preventDefault()
     if (password.length < 6) return setError('Password must be at least 6 characters')
+    if (password !== confirmPassword) return setError('Passwords do not match')
     setLoading(true)
     setError('')
     const { error } = await supabase.auth.signUp({ email, password })
@@ -237,6 +241,7 @@ function AuthForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                placeholder=" "
                 className="auth-input"
               />
               <label>Email</label>
@@ -247,14 +252,21 @@ function AuthForm() {
               style={{ '--i': 2 }}
             >
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 className="auth-input"
               />
               <label>Password</label>
-              <FaLock className="auth-icon" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="auth-icon"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                {showPassword ? <FaLockOpen /> : <FaLock />}
+              </button>
             </div>
             {error && isLogin && <p className="auth-error">{error}</p>}
             <div
@@ -295,20 +307,11 @@ function AuthForm() {
           <form onSubmit={handleSignup}>
             <div className="auth-input-box">
               <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                className="auth-input"
-              />
-              <label>Username (optional)</label>
-              <FaUser className="auth-icon" />
-            </div>
-            <div className="auth-input-box">
-              <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
+                placeholder=" "
                 className="auth-input"
               />
               <label>Email</label>
@@ -316,7 +319,7 @@ function AuthForm() {
             </div>
             <div className="auth-input-box">
               <input
-                type="password"
+                type={showSignupPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -324,7 +327,32 @@ function AuthForm() {
                 className="auth-input"
               />
               <label>Password</label>
-              <FaLock className="auth-icon" />
+              <button
+                type="button"
+                onClick={() => setShowSignupPassword(!showSignupPassword)}
+                className="auth-icon"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                {showSignupPassword ? <FaLockOpen /> : <FaLock />}
+              </button>
+            </div>
+            <div className="auth-input-box">
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+                className="auth-input"
+              />
+              <label>Confirm Password</label>
+              <button
+                type="button"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                className="auth-icon"
+                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                {showConfirmPassword ? <FaLockOpen /> : <FaLock />}
+              </button>
             </div>
             {error && !isLogin && <p className="auth-error">{error}</p>}
             <div className="auth-input-box">
