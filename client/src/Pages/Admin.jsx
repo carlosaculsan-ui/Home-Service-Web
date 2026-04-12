@@ -1774,15 +1774,36 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
 const EMPTY_FORM = { icon: '', title: '', description: '', is_active: true }
 
+const KNOWN_SERVICES = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
+
+const EMPTY_ADD_FORM = { service_name: '', task_size: '', price: '' }
+
 function ManagePricesPanel() {
   const [taskPrices, setTaskPrices] = useState([])
   const [pricesLoading, setPricesLoading] = useState(true)
-  const [editPriceId, setEditPriceId] = useState(null)
-  const [editPriceValue, setEditPriceValue] = useState('')
   const [priceToast, setPriceToast] = useState({ msg: '', type: '' })
   const [priceSearch, setPriceSearch] = useState('')
 
+  // edit state: tracks which row is being edited and what fields are being changed
+  const [editId, setEditId] = useState(null)
+  const [editPrice, setEditPrice] = useState('')
+  const [editTaskSize, setEditTaskSize] = useState('')
+
+  // delete confirmation state
+  const [deleteId, setDeleteId] = useState(null)
+
+  // add form state
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [addForm, setAddForm] = useState(EMPTY_ADD_FORM)
+  const [addLoading, setAddLoading] = useState(false)
+
+  function showToast(msg, type = 'success') {
+    setPriceToast({ msg, type })
+    setTimeout(() => setPriceToast({ msg: '', type: '' }), 3000)
+  }
+
   async function fetchTaskPrices() {
+    setPricesLoading(true)
     const { data } = await supabase
       .from('task_prices')
       .select('*')
@@ -1792,21 +1813,53 @@ function ManagePricesPanel() {
     setPricesLoading(false)
   }
 
-  async function handlePriceSave(row) {
-    const val = parseFloat(editPriceValue)
-    if (isNaN(val) || val < 0) return
+  async function handleSave(row) {
+    const priceVal = parseFloat(editPrice)
+    if (isNaN(priceVal) || priceVal < 0) return
+    const taskSizeVal = editTaskSize.trim()
+    if (!taskSizeVal) return
     const { error } = await supabase
       .from('task_prices')
-      .update({ price: val, updated_at: new Date().toISOString() })
+      .update({ price: priceVal, task_size: taskSizeVal, updated_at: new Date().toISOString() })
       .eq('id', row.id)
     if (error) {
-      setPriceToast({ msg: 'Failed to update price.', type: 'error' })
+      showToast('Failed to update row.', 'error')
     } else {
-      setTaskPrices((prev) => prev.map((r) => r.id === row.id ? { ...r, price: val } : r))
-      setPriceToast({ msg: 'Price updated successfully.', type: 'success' })
+      setTaskPrices((prev) => prev.map((r) => r.id === row.id ? { ...r, price: priceVal, task_size: taskSizeVal } : r))
+      showToast('Row updated successfully.')
     }
-    setEditPriceId(null)
-    setTimeout(() => setPriceToast({ msg: '', type: '' }), 3000)
+    setEditId(null)
+  }
+
+  async function handleDelete(id) {
+    const { error } = await supabase.from('task_prices').delete().eq('id', id)
+    if (error) {
+      showToast('Failed to delete row.', 'error')
+    } else {
+      setTaskPrices((prev) => prev.filter((r) => r.id !== id))
+      showToast('Row deleted.')
+    }
+    setDeleteId(null)
+  }
+
+  async function handleAdd() {
+    const priceVal = parseFloat(addForm.price)
+    if (!addForm.service_name || !addForm.task_size.trim() || isNaN(priceVal) || priceVal < 0) return
+    setAddLoading(true)
+    const { error } = await supabase.from('task_prices').insert({
+      service_name: addForm.service_name,
+      task_size: addForm.task_size.trim(),
+      price: priceVal,
+    })
+    if (error) {
+      showToast('Failed to add row.', 'error')
+    } else {
+      showToast('Row added successfully.')
+      setShowAddForm(false)
+      setAddForm(EMPTY_ADD_FORM)
+      await fetchTaskPrices()
+    }
+    setAddLoading(false)
   }
 
   useEffect(() => { fetchTaskPrices() }, [])
@@ -1822,7 +1875,9 @@ function ManagePricesPanel() {
           {priceToast.msg}
         </div>
       )}
-      <div className="mb-3">
+
+      {/* toolbar */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
         <input
           type="text"
           value={priceSearch}
@@ -1830,7 +1885,83 @@ function ManagePricesPanel() {
           placeholder="Search by service or task size..."
           className="w-full sm:w-80 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
         />
+        <button
+          onClick={() => { setShowAddForm(v => !v); setAddForm(EMPTY_ADD_FORM) }}
+          className="ml-auto px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
+        >
+          {showAddForm ? 'Cancel' : '+ Add Row'}
+        </button>
       </div>
+
+      {/* add form */}
+      {showAddForm && (
+        <div className="mb-4 bg-orange-50 border border-orange-200 rounded-xl p-4 flex flex-wrap gap-3 items-end">
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Service</label>
+            <select
+              value={addForm.service_name}
+              onChange={e => setAddForm(f => ({ ...f, service_name: e.target.value }))}
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400 bg-white"
+            >
+              <option value="">Select service…</option>
+              {KNOWN_SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Task Size</label>
+            <input
+              type="text"
+              value={addForm.task_size}
+              onChange={e => setAddForm(f => ({ ...f, task_size: e.target.value }))}
+              placeholder="e.g. Small"
+              className="px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Price (₱)</label>
+            <input
+              type="number"
+              value={addForm.price}
+              onChange={e => setAddForm(f => ({ ...f, price: e.target.value }))}
+              placeholder="0"
+              min="0"
+              step="1"
+              className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
+            />
+          </div>
+          <button
+            onClick={handleAdd}
+            disabled={addLoading}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white text-xs font-semibold rounded-lg transition-colors"
+          >
+            {addLoading ? 'Saving…' : 'Save Row'}
+          </button>
+        </div>
+      )}
+
+      {/* delete confirmation modal */}
+      {deleteId !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
+            <p className="text-sm text-gray-700 mb-4">Are you sure you want to delete this price row? This cannot be undone.</p>
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteId)}
+                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pricesLoading ? (
         <div className="flex justify-center py-8">
           <div className="w-7 h-7 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -1845,7 +1976,7 @@ function ManagePricesPanel() {
           <p className="text-center text-gray-400 py-10 text-sm">No results found.</p>
         ) : (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
-          <table className="w-full text-sm min-w-[540px]">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Service</th>
@@ -1858,13 +1989,24 @@ function ManagePricesPanel() {
               {filtered.map((row) => (
                 <tr key={row.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors last:border-0">
                   <td className="px-4 py-3 text-gray-700 font-medium">{row.service_name}</td>
-                  <td className="px-4 py-3 text-gray-600">{row.task_size}</td>
+                  <td className="px-4 py-3 text-gray-600">
+                    {editId === row.id ? (
+                      <input
+                        type="text"
+                        value={editTaskSize}
+                        onChange={e => setEditTaskSize(e.target.value)}
+                        className="w-36 px-2 py-1 border border-orange-400 rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-orange-400"
+                      />
+                    ) : (
+                      row.task_size
+                    )}
+                  </td>
                   <td className="px-4 py-3 text-right">
-                    {editPriceId === row.id ? (
+                    {editId === row.id ? (
                       <input
                         type="number"
-                        value={editPriceValue}
-                        onChange={(e) => setEditPriceValue(e.target.value)}
+                        value={editPrice}
+                        onChange={e => setEditPrice(e.target.value)}
                         className="w-28 px-2 py-1 border border-orange-400 rounded-lg text-sm text-right focus:outline-none focus:ring-1 focus:ring-orange-400"
                         min="0"
                         step="1"
@@ -1875,28 +2017,36 @@ function ManagePricesPanel() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {editPriceId === row.id ? (
+                    {editId === row.id ? (
                       <div className="flex items-center justify-end gap-2">
                         <button
-                          onClick={() => handlePriceSave(row)}
+                          onClick={() => handleSave(row)}
                           className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
                         >
                           Save
                         </button>
                         <button
-                          onClick={() => setEditPriceId(null)}
+                          onClick={() => setEditId(null)}
                           className="px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors"
                         >
                           Cancel
                         </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => { setEditPriceId(row.id); setEditPriceValue(String(row.price)) }}
-                        className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors"
-                      >
-                        Edit
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => { setEditId(row.id); setEditPrice(String(row.price)); setEditTaskSize(row.task_size) }}
+                          className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(row.id)}
+                          className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>
@@ -5256,7 +5406,7 @@ const NAV_ITEMS = [
   { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, pendingCount, onLogout, onClose }) {
   // ── Subtab open state ───────────────────────────────────────────────────────
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
   const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
@@ -5324,6 +5474,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           >
             <UserCheck size={17} className="flex-shrink-0" />
             Employee Accounts
+            {pendingCount > 0 && (
+              <span className="ml-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {pendingCount > 99 ? '99+' : pendingCount}
+              </span>
+            )}
             <ChevronRight
               size={14}
               className="ml-auto flex-shrink-0 transition-transform duration-200"
@@ -5486,6 +5641,7 @@ function Admin() {
   const [adminEmail, setAdminEmail] = useState('')
   const [adminUserId, setAdminUserId] = useState('')
   const [inboxUnread, setInboxUnread] = useState(0)
+  const [pendingCount, setPendingCount] = useState(0)
   const [calendarBookings, setCalendarBookings] = useState([])
   const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -5578,6 +5734,25 @@ function Admin() {
     return () => { supabase.removeChannel(channel) }
   }, [adminUserId])
 
+  async function fetchPendingCount() {
+    const { count } = await supabase
+      .from('taskers')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+    setPendingCount(count ?? 0)
+  }
+
+  useEffect(() => {
+    fetchPendingCount()
+    const channel = supabase
+      .channel('admin-pending-taskers')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'taskers' }, () => {
+        fetchPendingCount()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/admin')
@@ -5611,6 +5786,7 @@ function Admin() {
           setMsgSubtab={setMsgSubtab}
           adminEmail={adminEmail}
           inboxUnread={inboxUnread}
+          pendingCount={pendingCount}
           onLogout={handleLogout}
         />
       </div>
@@ -5635,6 +5811,8 @@ function Admin() {
               msgSubtab={msgSubtab}
               setMsgSubtab={setMsgSubtab}
               adminEmail={adminEmail}
+              inboxUnread={inboxUnread}
+              pendingCount={pendingCount}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
             />
