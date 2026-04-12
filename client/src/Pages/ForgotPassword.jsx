@@ -14,7 +14,7 @@ function ForgotPassword() {
     setLoading(true)
     setError('')
     setSuccess('')
-    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: 'http://localhost:5173/reset-password' })
+    const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: 'https://home-service-web-five.vercel.app/reset-password' })
     if (error) {
       setError(error.message)
     } else {

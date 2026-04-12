@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
@@ -9,7 +9,29 @@ function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [sessionReady, setSessionReady] = useState(false)
+  const [sessionError, setSessionError] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setSessionReady(true)
+      }
+    })
+
+    const timeout = setTimeout(() => {
+      setSessionReady((ready) => {
+        if (!ready) setSessionError(true)
+        return ready
+      })
+    }, 8000)
+
+    return () => {
+      subscription.unsubscribe()
+      clearTimeout(timeout)
+    }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -51,6 +73,23 @@ function ResetPassword() {
           boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
         }}
       >
+        {!sessionReady && !sessionError && (
+          <div className="text-center py-8">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white font-semibold">Verifying your reset link...</p>
+          </div>
+        )}
+
+        {sessionError && (
+          <div className="text-center py-8">
+            <p className="text-red-300 mb-4">This reset link is invalid or has expired.</p>
+            <Link to="/forgot-password" className="text-orange-400 hover:text-orange-300 hover:underline text-sm font-semibold">
+              Request a new reset link
+            </Link>
+          </div>
+        )}
+
+        {sessionReady && <>
         {/* Title */}
         <div className="text-center mb-8">
           <h1 className="text-3xl font-extrabold text-white">Reset Password</h1>
@@ -106,6 +145,7 @@ function ResetPassword() {
             <Link to="/login" className="text-orange-400 hover:text-orange-300 hover:underline text-sm">Back to Login</Link>
           </div>
         </div>
+        </>}
 
       </div>
     </div>
