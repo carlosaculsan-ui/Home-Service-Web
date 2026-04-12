@@ -5,7 +5,7 @@ import LocationMap from '../Components/LocationMap'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset, Home, Bell,
+  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import {
@@ -440,6 +440,22 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       return
     }
 
+    // Credit tasker wallet on completion
+    if (newStatus === 'completed' && updatePayload.tasker_payout && currentUserId) {
+      const payout = updatePayload.tasker_payout
+      await supabase.rpc('increment_wallet_balance', {
+        target_user_id: currentUserId,
+        increment_amount: payout,
+      })
+      await supabase.from('wallet_transactions').insert({
+        user_id: currentUserId,
+        booking_id: booking.id,
+        amount: payout,
+        type: 'credit',
+        description: `Earnings from booking ${booking.reference_number ?? booking.id}`,
+      })
+    }
+
     // Notify customer of status change
     if (booking.client_id) {
       const statusMessages = {
@@ -583,16 +599,13 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
           <span className="text-gray-700">{booking.customer_name ?? 'Unknown'}</span>
         </div>
 
-        {/* Phone — visible only after acceptance */}
+        {/* Phone */}
         <div className="flex gap-2">
           <span className="text-gray-400 w-28 flex-shrink-0">Phone</span>
-          {['accepted', 'on_the_way', 'in_progress', 'completed'].includes(booking.status) ? (
-            booking.customer_phone
-              ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium flex items-center gap-1"><Phone size={14} />{booking.customer_phone}</a>
-              : <span className="text-gray-700">Not provided</span>
-          ) : (
-            <span className="text-gray-400 italic text-xs self-center">Available after acceptance</span>
-          )}
+          {booking.customer_phone
+            ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium flex items-center gap-1"><Phone size={14} />{booking.customer_phone}</a>
+            : <span className="text-gray-700">Not provided</span>
+          }
         </div>
       </div>
 
@@ -1146,10 +1159,12 @@ const PHP = (amount) =>
 
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
-function EarningsSummary({ taskerId }) {
+function EarningsSummary({ taskerId, taskerUserId }) {
   const [completedBookings, setCompletedBookings] = useState([])
   const [earningsLoading, setEarningsLoading] = useState(true)
   const [reviews, setReviews] = useState([])
+  const [chartWindow, setChartWindow] = useState(new Date().getMonth() < 6 ? 0 : 1)
+  const [earningsSubtab, setEarningsSubtab] = useState('overview')
 
   useEffect(() => {
     async function fetchEarnings() {
@@ -1202,10 +1217,11 @@ function EarningsSummary({ taskerId }) {
     .reduce((sum, b) => sum + (b.tasker_payout ?? 0), 0)
   const completedCount = completedBookings.length
 
-  // ── Jan–Jun chart data ────────────────────────────────────────────────────
+  // ── Chart data (window 0 = Jan–Jun, window 1 = Jul–Dec) ─────────────────
+  const chartWindowStart = chartWindow === 0 ? 0 : 6
   const chartData = Array.from({ length: 6 }, (_, i) => {
     const yr = now.getFullYear()
-    const mo = i // 0 = Jan, 1 = Feb, ... 5 = Jun
+    const mo = chartWindowStart + i
     const total = completedBookings
       .filter((b) => {
         if (!b.scheduled_date) return false
@@ -1215,6 +1231,7 @@ function EarningsSummary({ taskerId }) {
       .reduce((sum, b) => sum + (b.tasker_payout ?? 0), 0)
     return { month: SHORT_MONTHS[mo], total }
   })
+  const chartWindowLabel = chartWindow === 0 ? 'January – June' : 'July – December'
 
   function fmtEarningsDate(dateStr) {
     if (!dateStr) return '—'
@@ -1224,6 +1241,30 @@ function EarningsSummary({ taskerId }) {
 
   return (
     <div className="space-y-6">
+
+      {/* Subtab toggle */}
+      <div className="flex gap-2 border-b border-gray-200 pb-0">
+        {[
+          { key: 'overview', label: 'Overview' },
+          { key: 'ewallet', label: 'E-Wallet' },
+        ].map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => setEarningsSubtab(key)}
+            className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
+              earningsSubtab === key
+                ? 'border-orange-500 text-orange-600'
+                : 'border-transparent text-gray-400 hover:text-gray-600'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {earningsSubtab === 'ewallet' && <TaskerEWallet userId={taskerUserId} />}
+
+      {earningsSubtab === 'overview' && <>
 
       {/* Performance Overview */}
       <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col sm:flex-row gap-6 items-center sm:items-start">
@@ -1276,7 +1317,27 @@ function EarningsSummary({ taskerId }) {
 
       {/* Section 2 — Bar Chart */}
       <div className="bg-white rounded-2xl shadow-sm p-5">
-        <h3 className="font-bold text-gray-800 mb-4">Monthly Earnings (January – June)</h3>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-bold text-gray-800">Monthly Earnings ({chartWindowLabel})</h3>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setChartWindow(0)}
+              disabled={chartWindow === 0}
+              className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              aria-label="Previous window"
+            >
+              <ChevronLeft size={16} />
+            </button>
+            <button
+              onClick={() => setChartWindow(1)}
+              disabled={chartWindow === 1}
+              className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              aria-label="Next window"
+            >
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
         <ResponsiveContainer width="100%" height={220}>
           <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -1342,6 +1403,369 @@ function EarningsSummary({ taskerId }) {
         </div>
       </div>
 
+      </>}
+
+    </div>
+  )
+}
+
+// ─── Tasker E-Wallet ─────────────────────────────────────────────────────────
+
+function TaskerEWallet({ userId }) {
+  const [balance, setBalance] = useState(null)
+  const [transactions, setTransactions] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const [cashoutOpen, setCashoutOpen] = useState(false)
+  const [cashoutScreen, setCashoutScreen] = useState(1)
+  const [cashoutMethod, setCashoutMethod] = useState('')
+  const [cashoutNumber, setCashoutNumber] = useState('')
+  const [cashoutName, setCashoutName] = useState('')
+  const [cashoutAmount, setCashoutAmount] = useState('')
+  const [cashoutErrors, setCashoutErrors] = useState({})
+  const [cashoutApiError, setCashoutApiError] = useState('')
+  const [cashoutRef, setCashoutRef] = useState('')
+  const [cashoutTimestamp, setCashoutTimestamp] = useState('')
+  const [cashoutFinalAmount, setCashoutFinalAmount] = useState(0)
+
+  useEffect(() => {
+    if (!userId) return
+    async function fetchWallet() {
+      setLoading(true)
+      const [{ data: profile }, { data: txns }] = await Promise.all([
+        supabase.from('profiles').select('wallet_balance').eq('id', userId).single(),
+        supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+      ])
+      setBalance(Number(profile?.wallet_balance) || 0)
+      setTransactions(txns ?? [])
+      setLoading(false)
+    }
+    fetchWallet()
+  }, [userId])
+
+  const formatAmount = (amount) =>
+    Number(amount).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  const formatDate = (dateStr) =>
+    new Date(dateStr).toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+
+  function openCashout() {
+    setCashoutScreen(1)
+    setCashoutMethod('')
+    setCashoutNumber('')
+    setCashoutName('')
+    setCashoutAmount('')
+    setCashoutErrors({})
+    setCashoutApiError('')
+    setCashoutOpen(true)
+  }
+
+  function closeCashout() {
+    if (cashoutScreen === 2) return
+    setCashoutOpen(false)
+  }
+
+  async function handleCashoutProceed() {
+    const errors = {}
+    if (!cashoutMethod) errors.method = 'Please select a cashout method.'
+    const ph = cashoutNumber.trim()
+    if (!ph) errors.number = 'Account number is required.'
+    else if (!/^09\d{9}$/.test(ph)) errors.number = 'Must be an 11-digit number starting with 09.'
+    if (!cashoutName.trim()) errors.name = 'Account name is required.'
+    const amt = parseFloat(cashoutAmount)
+    if (!cashoutAmount || isNaN(amt)) errors.amount = 'Please enter an amount.'
+    else if (amt < 100) errors.amount = 'Minimum cashout amount is ₱100.'
+    else if (amt > balance) errors.amount = 'Amount exceeds your available balance.'
+    if (Object.keys(errors).length > 0) { setCashoutErrors(errors); return }
+
+    setCashoutErrors({})
+    setCashoutApiError('')
+    setCashoutFinalAmount(amt)
+    const ref = String(Math.floor(Math.random() * 900000000000) + 100000000000)
+    const ts = new Date().toLocaleString('en-US', {
+      month: 'long', day: 'numeric', year: 'numeric',
+      hour: 'numeric', minute: '2-digit', hour12: true,
+    })
+    setCashoutRef(ref)
+    setCashoutTimestamp(ts)
+    setCashoutScreen(2)
+
+    await new Promise((resolve) => setTimeout(resolve, 2500))
+
+    const methodLabel = cashoutMethod === 'gcash' ? 'GCash' : 'PayMaya'
+    const maskedNumber = `09XX-XXX-${cashoutNumber.slice(-4)}`
+
+    const { error: rpcError } = await supabase.rpc('increment_wallet_balance', {
+      target_user_id: userId,
+      increment_amount: -amt,
+    })
+    if (rpcError) {
+      setCashoutApiError('Failed to process cashout. Please try again.')
+      setCashoutScreen(1)
+      return
+    }
+
+    const { error: txnError } = await supabase.from('wallet_transactions').insert({
+      user_id: userId,
+      booking_id: null,
+      amount: amt,
+      type: 'debit',
+      description: `Cashout via ${methodLabel} — ${maskedNumber}`,
+      created_at: new Date().toISOString(),
+    })
+    if (txnError) {
+      setCashoutApiError('Cashout sent but transaction log failed. Contact support if your history is missing.')
+    }
+
+    setBalance((prev) => prev - amt)
+    setTransactions((prev) => [{
+      id: `co-${Date.now()}`,
+      user_id: userId,
+      booking_id: null,
+      amount: amt,
+      type: 'debit',
+      description: `Cashout via ${methodLabel} — ${maskedNumber}`,
+      created_at: new Date().toISOString(),
+    }, ...prev])
+
+    setCashoutScreen(3)
+  }
+
+  const maskedDisplay = cashoutNumber.length >= 4
+    ? `09XX-XXX-${cashoutNumber.slice(-4)}`
+    : cashoutNumber || '—'
+
+  return (
+    <div>
+      {/* Balance Card */}
+      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-6 mb-6 shadow-md">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Wallet className="w-8 h-8 text-white" />
+            <p className="text-white font-semibold text-base">Hanap.ph Wallet Balance</p>
+          </div>
+          <button
+            onClick={openCashout}
+            disabled={loading || balance === null || balance < 100}
+            className="flex items-center gap-2 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-xl border border-white/30 transition-colors"
+          >
+            Cash Out
+          </button>
+        </div>
+        {loading ? (
+          <div className="w-7 h-7 border-4 border-white border-t-transparent rounded-full animate-spin my-1" />
+        ) : (
+          <p className="text-white text-4xl font-bold tracking-tight">₱{formatAmount(balance)}</p>
+        )}
+        <p className="text-orange-100 text-sm mt-2">Your earnings from completed bookings</p>
+      </div>
+
+      {/* Transaction History */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h3 className="text-base font-bold text-gray-800">Transaction History</h3>
+        </div>
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : transactions.length === 0 ? (
+          <div className="text-center py-12 px-6">
+            <Wallet className="w-10 h-10 text-gray-200 mx-auto mb-3" />
+            <p className="text-gray-400 text-sm">No wallet transactions yet. Earnings appear here after completing a booking.</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {transactions.map((txn) => (
+              <div key={txn.id} className="flex items-center justify-between px-5 py-4 gap-4">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-gray-700 leading-snug">{txn.description}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(txn.created_at)}</p>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className={`text-sm font-bold ${txn.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
+                    {txn.type === 'credit' ? '+' : '-'}₱{formatAmount(txn.amount)}
+                  </span>
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${txn.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    {txn.type === 'credit' ? 'Credit' : 'Debit'}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Cashout Modal ─────────────────────────────────────────────── */}
+      {cashoutOpen && (
+        <div
+          className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4"
+          onClick={cashoutScreen !== 2 ? closeCashout : undefined}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Screen 1: Select Method & Enter Details */}
+            {cashoutScreen === 1 && (
+              <>
+                <button
+                  onClick={closeCashout}
+                  className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors text-lg font-bold"
+                >✕</button>
+
+                <h3 className="text-lg font-bold text-gray-800 mb-5">Cash Out</h3>
+
+                {cashoutApiError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3">
+                    {cashoutApiError}
+                  </div>
+                )}
+
+                <div className="mb-4">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Select Method</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => { setCashoutMethod('gcash'); setCashoutErrors((p) => ({ ...p, method: undefined })) }}
+                      className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-colors ${cashoutMethod === 'gcash' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500 hover:border-green-300'}`}
+                    >
+                      <span className="text-base">🟢</span> GCash
+                    </button>
+                    <button
+                      onClick={() => { setCashoutMethod('paymaya'); setCashoutErrors((p) => ({ ...p, method: undefined })) }}
+                      className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-colors ${cashoutMethod === 'paymaya' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-purple-300'}`}
+                    >
+                      <span className="text-base">🟣</span> PayMaya
+                    </button>
+                  </div>
+                  {cashoutErrors.method && <p className="text-red-500 text-xs mt-1">{cashoutErrors.method}</p>}
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">
+                    {cashoutMethod === 'paymaya' ? 'PayMaya Number' : 'GCash Number'}
+                  </label>
+                  <input
+                    type="tel"
+                    value={cashoutNumber}
+                    onChange={(e) => { setCashoutNumber(e.target.value.replace(/\D/g, '').slice(0, 11)); setCashoutErrors((p) => ({ ...p, number: undefined })) }}
+                    placeholder="09XX XXX XXXX"
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 ${cashoutErrors.number ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {cashoutErrors.number && <p className="text-red-500 text-xs mt-1">{cashoutErrors.number}</p>}
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Account Name</label>
+                  <input
+                    type="text"
+                    value={cashoutName}
+                    onChange={(e) => { setCashoutName(e.target.value); setCashoutErrors((p) => ({ ...p, name: undefined })) }}
+                    placeholder="Enter account name"
+                    className={`w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 ${cashoutErrors.name ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                  />
+                  {cashoutErrors.name && <p className="text-red-500 text-xs mt-1">{cashoutErrors.name}</p>}
+                </div>
+
+                <div className="mb-5">
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Amount to Cash Out</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₱</span>
+                    <input
+                      type="number"
+                      min="100"
+                      max={balance ?? 0}
+                      value={cashoutAmount}
+                      onChange={(e) => { setCashoutAmount(e.target.value); setCashoutErrors((p) => ({ ...p, amount: undefined })) }}
+                      placeholder="Enter amount"
+                      className={`w-full border rounded-lg pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 ${cashoutErrors.amount ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Available balance: ₱{formatAmount(balance ?? 0)} · Min ₱100</p>
+                  {cashoutErrors.amount && <p className="text-red-500 text-xs mt-1">{cashoutErrors.amount}</p>}
+                </div>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeCashout}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCashoutProceed}
+                    className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors"
+                  >
+                    Proceed
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Screen 2: Processing */}
+            {cashoutScreen === 2 && (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <div className="w-14 h-14 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-6" />
+                <p className="text-base font-bold text-gray-800 mb-1">Processing your cashout...</p>
+                <p className="text-sm text-gray-400">Please wait, do not close this window.</p>
+              </div>
+            )}
+
+            {/* Screen 3: Success */}
+            {cashoutScreen === 3 && (
+              <>
+                <div className="flex flex-col items-center text-center mb-5">
+                  <CheckCircle2 className="w-14 h-14 text-green-500 mb-3" />
+                  <h3 className="text-lg font-bold text-gray-800">Cashout Successful!</h3>
+                </div>
+
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm mb-5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Amount Sent</span>
+                    <span className="font-bold text-gray-800">₱{formatAmount(cashoutFinalAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">To</span>
+                    <span className="font-semibold text-gray-800">
+                      {cashoutMethod === 'gcash' ? 'GCash' : 'PayMaya'} · {maskedDisplay}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Account Name</span>
+                    <span className="font-semibold text-gray-800">{cashoutName}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2.5">
+                    <span className="text-gray-500">Remaining Balance</span>
+                    <span className="font-bold text-orange-600">₱{formatAmount(balance ?? 0)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Reference No.</span>
+                    <span className="font-mono text-xs text-gray-700">{cashoutRef}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Date &amp; Time</span>
+                    <span className="text-gray-700 text-xs text-right">{cashoutTimestamp}</span>
+                  </div>
+                </div>
+
+                {cashoutApiError && (
+                  <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">{cashoutApiError}</p>
+                )}
+
+                <button
+                  onClick={closeCashout}
+                  className="w-full py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors"
+                >
+                  Done
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -2802,7 +3226,7 @@ function TaskerDashboard() {
                   <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : taskerId ? (
-                <EarningsSummary taskerId={taskerId} />
+                <EarningsSummary taskerId={taskerId} taskerUserId={taskerUserId} />
               ) : (
                 <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
               )}
