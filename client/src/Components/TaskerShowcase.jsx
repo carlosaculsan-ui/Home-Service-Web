@@ -269,7 +269,7 @@ function TaskerShowcase() {
                   <img
                     src={tasker.profile_photo}
                     alt={tasker.name}
-                    className="w-full h-40 object-cover group-hover:scale-110 transition-transform duration-700"
+                    className="w-full h-40 object-cover object-top group-hover:scale-110 transition-transform duration-700"
                   />
                 ) : taskerImages[tasker.avatar_url] ? (
                   <img

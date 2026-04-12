@@ -164,6 +164,19 @@ function BecomeATasker() {
   const [locationError, setLocationError] = useState('')
   const [phoneError, setPhoneError] = useState('')
   const [errors, setErrors] = useState({})
+  const [resumePreviewUrl, setResumePreviewUrl] = useState(null)
+
+  const isImageFile = (file) => file && /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.type)
+
+  useEffect(() => {
+    if (!formData.resume || !isImageFile(formData.resume)) {
+      setResumePreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(formData.resume)
+    setResumePreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [formData.resume])
 
   const PH_PHONE_RE = /^(09|\+639)\d{9}$/
   const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
@@ -765,15 +778,33 @@ function BecomeATasker() {
                   }`}
                 >
                   {formData.resume ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <FileText size={20} className="text-green-500 flex-shrink-0" />
-                      <span className="text-sm font-medium text-green-700 truncate max-w-[220px]">{formData.resume.name}</span>
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, resume: null })) }}
-                        className="text-xs text-gray-400 hover:text-red-500 ml-1"
-                      >✕</button>
-                    </div>
+                    isImageFile(formData.resume) && resumePreviewUrl ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <img
+                          src={resumePreviewUrl}
+                          alt="Resume preview"
+                          className="max-h-40 max-w-full rounded-md object-contain"
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-medium text-green-700 truncate max-w-[200px]">{formData.resume.name}</span>
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, resume: null })) }}
+                            className="text-xs text-gray-400 hover:text-red-500"
+                          >✕</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        <FileText size={20} className="text-green-500 flex-shrink-0" />
+                        <span className="text-sm font-medium text-green-700 truncate max-w-[220px]">{formData.resume.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, resume: null })) }}
+                          className="text-xs text-gray-400 hover:text-red-500 ml-1"
+                        >✕</button>
+                      </div>
+                    )
                   ) : (
                     <div className="flex flex-col items-center gap-1">
                       <FileText size={24} className="text-gray-400" />
@@ -938,10 +969,21 @@ function BecomeATasker() {
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Resume / CV</h3>
                     {formData.resume ? (
-                      <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg text-sm">
-                        <FileText size={16} className="text-green-500 flex-shrink-0" />
-                        <span className="text-green-700 font-medium truncate">{formData.resume.name}</span>
-                      </div>
+                      isImageFile(formData.resume) && resumePreviewUrl ? (
+                        <div className="p-2 bg-green-50 border border-green-200 rounded-lg">
+                          <img
+                            src={resumePreviewUrl}
+                            alt="Resume preview"
+                            className="max-h-48 max-w-full rounded object-contain mb-1"
+                          />
+                          <p className="text-xs text-green-700 font-medium truncate">{formData.resume.name}</p>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg text-sm">
+                          <FileText size={16} className="text-green-500 flex-shrink-0" />
+                          <span className="text-green-700 font-medium truncate">{formData.resume.name}</span>
+                        </div>
+                      )
                     ) : (
                       <p className="text-sm text-red-400">No resume uploaded</p>
                     )}

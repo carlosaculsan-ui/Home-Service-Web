@@ -1552,7 +1552,7 @@ function TaskerEWallet({ userId }) {
             disabled={loading || balance === null || balance < 100}
             className="flex items-center gap-2 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-xl border border-white/30 transition-colors"
           >
-            Cash Out
+            Withdraw
           </button>
         </div>
         {loading ? (
