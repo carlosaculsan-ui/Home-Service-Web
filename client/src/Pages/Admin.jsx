@@ -1552,6 +1552,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
+  const [bookingSearch, setBookingSearch] = useState('')
 
   async function fetchBookings() {
     const { data } = await supabase
@@ -1631,12 +1632,42 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     return <p className="text-center text-gray-400 mt-16">No bookings yet.</p>
   }
 
-  const filteredBookings = bookingFilter === 'all'
-    ? bookings
-    : bookings.filter((b) => b.status === bookingFilter)
+  const filteredBookings = (() => {
+    const byStatus = bookingFilter === 'all'
+      ? bookings
+      : bookings.filter((b) => b.status === bookingFilter)
+    const q = bookingSearch.trim().toLowerCase()
+    if (!q) return byStatus
+    return byStatus.filter((b) =>
+      (b.reference_number ?? '').toLowerCase().includes(q) ||
+      (b.customer_name ?? '').toLowerCase().includes(q) ||
+      (b.clientEmail ?? '').toLowerCase().includes(q) ||
+      (b.taskerName ?? '').toLowerCase().includes(q)
+    )
+  })()
 
   return (
     <div className="space-y-4">
+      {/* Search bar */}
+      <div className="relative">
+        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={bookingSearch}
+          onChange={e => setBookingSearch(e.target.value)}
+          placeholder="Search by reference, customer, or tasker name..."
+          className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-400 bg-white shadow-sm"
+        />
+        {bookingSearch && (
+          <button
+            onClick={() => setBookingSearch('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <X size={15} />
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {[
           { value: 'confirmed',   label: 'Pending Booking' },
@@ -4660,6 +4691,8 @@ function TransactionsPanel() {
   const [detailBooking, setDetailBooking] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [refundDetailModal, setRefundDetailModal] = useState(null) // auto-refunded booking object
+  const [refundTaskerName, setRefundTaskerName] = useState(null)
+  const [refundTaskerLoading, setRefundTaskerLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [searchLoading, setSearchLoading] = useState(false)
   const [filteredPayments, setFilteredPayments] = useState(null) // null = show all
@@ -4706,6 +4739,28 @@ function TransactionsPanel() {
     setDetailBooking(data ?? null)
     setDetailLoading(false)
   }
+
+  useEffect(() => {
+    if (!refundDetailModal?.tasker_id) {
+      setRefundTaskerName(null)
+      return
+    }
+    let cancelled = false
+    setRefundTaskerName(null)
+    setRefundTaskerLoading(true)
+    supabase
+      .from('taskers')
+      .select('name')
+      .eq('id', refundDetailModal.tasker_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) {
+          setRefundTaskerName(data?.name ?? null)
+          setRefundTaskerLoading(false)
+        }
+      })
+    return () => { cancelled = true }
+  }, [refundDetailModal])
 
   const fetchPayments = async () => {
     setLoading(true)
@@ -5011,7 +5066,7 @@ function TransactionsPanel() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
             <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-gray-800">Refund Details</h3>
+                <h3 className="text-lg font-bold text-gray-800">Payment Details</h3>
                 <button onClick={() => setRefundDetailModal(null)} className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none">✕</button>
               </div>
 
@@ -5081,8 +5136,11 @@ function TransactionsPanel() {
                   )}
                   {b.tasker_id && (
                     <div className="flex justify-between items-start gap-2">
-                      <span className="text-gray-500 shrink-0">Tasker ID</span>
-                      <span className="font-mono text-xs text-gray-500 break-all text-right">{b.tasker_id}</span>
+                      <span className="text-gray-500 shrink-0">Rejected by</span>
+                      {refundTaskerLoading
+                        ? <span className="text-gray-400 text-xs">Loading…</span>
+                        : <span className="text-gray-700 text-right">{refundTaskerName ?? '—'}</span>
+                      }
                     </div>
                   )}
                 </div>
