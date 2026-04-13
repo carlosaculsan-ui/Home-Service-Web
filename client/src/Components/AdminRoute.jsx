@@ -3,7 +3,7 @@ import { Lock } from 'lucide-react'
 import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
-import './AuthForm.css'
+import '../pages/AuthForm.css'
 
 // ─── Admin Login Form ────────────────────────────────────────────────────────
 
