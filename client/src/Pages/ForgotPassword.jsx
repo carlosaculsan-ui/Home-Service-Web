@@ -1,13 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { FaEnvelope } from 'react-icons/fa'
 import backgroundImg from '../Assets/Background.jpg'
+import './AuthForm.css'
 
 function ForgotPassword() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [show, setShow] = useState(false)
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 100)
+    return () => clearTimeout(t)
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -24,60 +32,82 @@ function ForgotPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4"
+    <div
+      className="auth-page"
       style={{
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
+      <div className="auth-overlay" />
 
-      {/* Glass Card */}
-      <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
+      <div
+        className={`auth-box-enter ${show ? 'auth-box-visible' : ''}`}
         style={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: '420px',
+          background: '#2a323f',
+          border: '2px solid #fdf84c',
+          boxShadow: '0 0 30px rgba(253,248,76,0.3)',
+          borderRadius: '20px',
+          padding: '2.5rem',
         }}
       >
-        {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-white">Forgot Password</h1>
-          <p className="text-gray-300 mt-2 text-sm">Enter your email and we'll send you a reset link.</p>
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(249,115,22,0.15)',
+            border: '1px solid rgba(249,115,22,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 0.75rem',
+          }}>
+            <FaEnvelope style={{ color: '#f97316', fontSize: '1.4rem' }} />
+          </div>
+          <h1 className="auth-title" style={{ marginBottom: '0.25rem' }}>Forgot Password</h1>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>
+            Enter your email and we'll send you a reset link.
+          </p>
         </div>
 
         {/* Form */}
-        <div className="space-y-5">
-          <div>
+        <form onSubmit={handleSubmit}>
+          <div
+            className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 1 }}
+          >
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="Email"
-              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+              placeholder=" "
+              required
+              className="auth-input"
             />
+            <label>Email</label>
+            <FaEnvelope className="auth-icon" />
           </div>
 
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
+          {error && <p className="auth-error">{error}</p>}
+          {success && <p style={{ fontSize: '0.8rem', color: '#4ade80', marginBottom: '0.5rem' }}>{success}</p>}
+
+          <div
+            className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 2 }}
           >
-            {loading ? 'Sending...' : 'Send Reset Email'}
-          </button>
+            <button type="submit" disabled={loading} className="auth-btn">
+              {loading ? 'Sending...' : 'Send Reset Email'}
+            </button>
+          </div>
+        </form>
 
-          {error && <p className="text-red-300 text-sm">{error}</p>}
-          {success && <p className="text-green-300 text-sm">{success}</p>}
-        </div>
-
-        <p className="text-center text-gray-300 text-sm mt-6">
+        <div className="auth-regi-link" style={{ marginTop: '1.2rem' }}>
           Remember your password?{' '}
-          <Link to="/login" className="text-orange-300 font-semibold hover:text-orange-200">Back to Login</Link>
-        </p>
-
+          <Link to="/login" className="auth-link">Back to Login</Link>
+        </div>
       </div>
     </div>
   )

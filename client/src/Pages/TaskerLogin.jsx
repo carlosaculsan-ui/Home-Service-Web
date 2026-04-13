@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { Briefcase } from 'lucide-react'
+import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import backgroundImg from '../Assets/Background.jpg'
+import './AuthForm.css'
 
 function TaskerLogin() {
   const [email, setEmail] = useState('')
@@ -10,7 +12,13 @@ function TaskerLogin() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [show, setShow] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const t = setTimeout(() => setShow(true), 100)
+    return () => clearTimeout(t)
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -44,87 +52,111 @@ function TaskerLogin() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4"
+      className="auth-page"
       style={{
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
+      <div className="auth-overlay" />
+
       <div
-        className="relative z-10 w-full max-w-md rounded-2xl p-10"
+        className={`auth-box-enter ${show ? 'auth-box-visible' : ''}`}
         style={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)',
+          position: 'relative',
+          zIndex: 10,
+          width: '100%',
+          maxWidth: '420px',
+          background: '#2a323f',
+          border: '2px solid #fdf84c',
+          boxShadow: '0 0 30px rgba(253,248,76,0.3)',
+          borderRadius: '20px',
+          padding: '2.5rem',
         }}
       >
         {/* Header */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center mb-3">
-            <div className="w-12 h-12 rounded-full bg-orange-500/20 flex items-center justify-center">
-              <Briefcase size={24} className="text-orange-400" />
-            </div>
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(249,115,22,0.15)',
+            border: '1px solid rgba(249,115,22,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 0.75rem',
+          }}>
+            <Briefcase size={24} style={{ color: '#f97316' }} />
           </div>
-          <h1 className="text-3xl font-extrabold text-white">Tasker Login</h1>
-          <p className="text-gray-300 text-sm mt-1">Sign in to your tasker dashboard.</p>
+          <h1 className="auth-title" style={{ marginBottom: '0.25rem' }}>Tasker Login</h1>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>
+            Sign in to your tasker dashboard.
+          </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
+        <form onSubmit={handleSubmit}>
+          <div
+            className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 1 }}
+          >
             <input
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError('') }}
-              placeholder="Email"
+              placeholder=" "
               required
-              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+              className="auth-input"
             />
+            <label>Email</label>
+            <FaEnvelope className="auth-icon" />
           </div>
 
-          <div className="relative">
+          <div
+            className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 2 }}
+          >
             <input
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError('') }}
-              placeholder="Password"
+              placeholder=" "
               required
-              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+              className="auth-input"
             />
+            <label>Password</label>
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white text-sm"
+              className="auth-icon"
+              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              {showPassword ? 'Hide' : 'Show'}
+              {showPassword ? <FaLockOpen /> : <FaLock />}
             </button>
           </div>
 
-          <div className="text-right mt-1">
-            <a href="/forgot-password" className="text-sm text-orange-300 hover:text-orange-200 hover:underline">
+          <div
+            className={`auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 3, textAlign: 'right', marginBottom: '1rem' }}
+          >
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: '0.82rem' }}>
               Forgot Password?
-            </a>
+            </Link>
           </div>
 
-          {error && <p className="text-red-300 text-sm">{error}</p>}
+          {error && <p className="auth-error">{error}</p>}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
+          <div
+            className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 4 }}
           >
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
+            <button type="submit" disabled={loading} className="auth-btn">
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </div>
         </form>
 
-        <p className="text-center text-gray-300 text-sm mt-6">
-          <Link to="/" className="text-orange-300 hover:text-orange-200">← Back to homepage</Link>
-        </p>
+        <div className="auth-regi-link" style={{ marginTop: '1.2rem' }}>
+          <Link to="/" className="auth-link">← Back to homepage</Link>
+        </div>
       </div>
     </div>
   )
