@@ -579,6 +579,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
         {[
+          ['Client',      booking.customer_name ?? '—'],
           ['Date & Time', fmtHistoryDate(booking.scheduled_date, booking.scheduled_time)],
           ['Booked on',  booking.created_at
             ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
@@ -592,12 +593,6 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             <span className="text-gray-700">{val}</span>
           </div>
         ))}
-
-        {/* Customer name — always visible */}
-        <div className="flex gap-2">
-          <span className="text-gray-400 w-28 flex-shrink-0">Customer</span>
-          <span className="text-gray-700">{booking.customer_name ?? 'Unknown'}</span>
-        </div>
 
         {/* Phone */}
         <div className="flex gap-2">

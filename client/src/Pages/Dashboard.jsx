@@ -2393,6 +2393,7 @@ function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
+  const [bookingSearch, setBookingSearch] = useState('')
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
@@ -2654,6 +2655,25 @@ function Dashboard() {
                 </div>
               ) : (
                 <>
+                  {/* Search bar */}
+                  <div className="relative mb-4">
+                    <input
+                      type="text"
+                      value={bookingSearch}
+                      onChange={(e) => setBookingSearch(e.target.value)}
+                      placeholder="Search by tasker name or reference number..."
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 pr-9 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 bg-white"
+                    />
+                    {bookingSearch && (
+                      <button
+                        onClick={() => setBookingSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </div>
+
                   {/* Status filter toggles */}
                   <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
                     {[
@@ -2680,12 +2700,22 @@ function Dashboard() {
                   </div>
 
                   <div className="space-y-4">
-                    {(bookingFilter === 'all' ? bookings : bookings.filter((b) => b.status === bookingFilter)).map((booking) => (
-                      <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
-                    ))}
-                    {bookingFilter !== 'all' && bookings.filter((b) => b.status === bookingFilter).length === 0 && (
-                      <p className="text-center text-gray-400 py-10">No bookings with this status.</p>
-                    )}
+                    {(() => {
+                      const q = bookingSearch.trim().toLowerCase()
+                      const filtered = bookings.filter((b) => {
+                        const matchesStatus = bookingFilter === 'all' || b.status === bookingFilter
+                        const matchesSearch = !q ||
+                          (b.taskerName ?? '').toLowerCase().includes(q) ||
+                          (b.reference_number ?? '').toLowerCase().includes(q)
+                        return matchesStatus && matchesSearch
+                      })
+                      if (filtered.length === 0) return (
+                        <p className="text-center text-gray-400 py-10">No bookings found.</p>
+                      )
+                      return filtered.map((booking) => (
+                        <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
+                      ))
+                    })()}
                   </div>
                 </>
               )}
