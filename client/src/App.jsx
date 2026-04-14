@@ -27,7 +27,7 @@ import TaskerDashboard from './Pages/TaskerDashboard'
 import TaskerLogin from './Pages/TaskerLogin'
 import BookingConfirmation from './Pages/BookingConfirmation'
 import PaymentComplete from './Pages/PaymentComplete'
-import AboutUs from './pages/AboutUs'
+import AboutUs from './Pages/AboutUs'
 
 function Home() {
   return (
