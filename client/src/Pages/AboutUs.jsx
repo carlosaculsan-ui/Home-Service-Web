@@ -5,7 +5,7 @@ import hero from "../Assets/hero.jpg";
 import leeFormal from "../Assets/LEE FORMAL.png";
 import carloFormal from "../Assets/CARLO FORMAL.png";
 import cjFormal from "../Assets/CJ FORMAL.png";
-import danicaFormal from "../Assets/DANICA FORMAL.png";
+import danicaFormal from "../Assets/Danica.jpg";
 import mannyFormal from "../Assets/VARGAS-FORMAL.png";
 import joanaFormal from "../Assets/JOANA FORMAL.png";
 import aaronFormal from "../Assets/AARON FORMAL.png";

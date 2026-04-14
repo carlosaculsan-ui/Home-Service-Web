@@ -4985,6 +4985,8 @@ function TransactionsPanel() {
       .limit(1)
       .maybeSingle()
 
+    console.log('[handleConfirmRefund] booking lookup:', booking)
+
     if (!booking) {
       setRefundProcessing(false)
       setRefundModal(null)
@@ -5038,6 +5040,17 @@ function TransactionsPanel() {
     try {
       await supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
     } catch (err) { console.error('Refund: bookings update failed:', err) }
+
+    if (booking.client_id) {
+      const refundAmt = Number(booking.estimated_total) || amountCentavos / 100
+      const { error: notifError } = await supabase.from('notifications').insert({
+        user_id: booking.client_id,
+        title: 'Refund Processed',
+        message: `Your refund of ₱${refundAmt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been processed back to your original payment method.`,
+        is_read: false,
+      })
+      console.log('[handleConfirmRefund] notifError:', notifError)
+    }
 
     // Step 5 — UI updates
     setRefundedIds((prev) => new Set([...prev, paymentId]))
