@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { FaLock, FaLockOpen } from 'react-icons/fa'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
+import '../Pages/AuthForm.css'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -11,7 +13,13 @@ function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionError, setSessionError] = useState(false)
+  const [show, setShow] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShow(true), 100)
+    return () => clearTimeout(timer)
+  }, [])
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -57,20 +65,32 @@ function ResetPassword() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4"
+    <div
       style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
+      <div className="auth-overlay" />
+
+      <div
+        className={`auth-box-enter ${show ? 'auth-box-visible' : ''}`}
         style={{
-          background: 'rgba(255, 255, 255, 0.1)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
-          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
+          position: 'relative',
+          zIndex: 1,
+          width: '100%',
+          maxWidth: '420px',
+          background: '#2a323f',
+          border: '2px solid #fdf84c',
+          boxShadow: '0 0 30px rgba(253, 248, 76, 0.3)',
+          borderRadius: '20px',
+          padding: '40px 45px',
         }}
       >
         {!sessionReady && !sessionError && (
@@ -83,70 +103,78 @@ function ResetPassword() {
         {sessionError && (
           <div className="text-center py-8">
             <p className="text-red-300 mb-4">This reset link is invalid or has expired.</p>
-            <Link to="/forgot-password" className="text-orange-400 hover:text-orange-300 hover:underline text-sm font-semibold">
+            <Link to="/forgot-password" className="auth-link">
               Request a new reset link
             </Link>
           </div>
         )}
 
-        {sessionReady && <>
-        {/* Title */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-white">Reset Password</h1>
-          <p className="text-gray-300 mt-2">Enter your new password below</p>
-        </div>
+        {sessionReady && (
+          <>
+            <h2 className="auth-title">Reset Password</h2>
+            <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', marginTop: '-0.6rem', marginBottom: '1.4rem' }}>
+              Enter your new password below.
+            </p>
 
-        {/* Form */}
-        <div className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">New Password</label>
-            <div className="relative">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white text-sm"
+            <form onSubmit={handleSubmit}>
+              <div
+                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+                style={{ '--i': 1 }}
               >
-                {showPassword ? 'Hide' : 'Show'}
-              </button>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder=" "
+                  className="auth-input"
+                />
+                <label>New Password</label>
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="auth-icon"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  {showPassword ? <FaLockOpen /> : <FaLock />}
+                </button>
+              </div>
+
+              <div
+                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+                style={{ '--i': 2 }}
+              >
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder=" "
+                  className="auth-input"
+                />
+                <label>Confirm Password</label>
+                <FaLock className="auth-icon" />
+              </div>
+
+              {error && <p className="auth-error">{error}</p>}
+
+              <div
+                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
+                style={{ '--i': 3 }}
+              >
+                <button type="submit" disabled={loading} className="auth-btn">
+                  {loading ? 'Updating...' : 'Update Password'}
+                </button>
+              </div>
+            </form>
+
+            <div className="auth-regi-link">
+              <p>
+                <Link to="/login" className="auth-link">Back to Login</Link>
+              </p>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-white mb-1">Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
-            />
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Updating...' : 'Update Password'}
-          </button>
-
-          {error && <p className="text-red-400 text-sm">{error}</p>}
-
-          <div className="text-center mt-4">
-            <Link to="/login" className="text-orange-400 hover:text-orange-300 hover:underline text-sm">Back to Login</Link>
-          </div>
-        </div>
-        </>}
-
+          </>
+        )}
       </div>
     </div>
   )

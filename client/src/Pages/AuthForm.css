@@ -200,6 +200,13 @@
 .auth-input:valid {
   border-bottom: 2px solid #fdf84c;
 }
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover,
+.auth-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px #2a323f inset;
+  -webkit-text-fill-color: #fff;
+  transition: background-color 5000s ease-in-out 0s;
+}
 
 
 .auth-input-box label {
@@ -214,7 +221,8 @@
 }
 .auth-input:focus + label,
 .auth-input:valid + label,
-.auth-input:not(:placeholder-shown) + label {
+.auth-input:not(:placeholder-shown) + label,
+.auth-input:-webkit-autofill + label {
   top: -6px;
   font-size: 0.78rem;
   color: #fdf84c;
@@ -233,7 +241,8 @@
   -webkit-appearance: none;
 }
 .auth-input:focus ~ .auth-icon,
-.auth-input:valid ~ .auth-icon {
+.auth-input:valid ~ .auth-icon,
+.auth-input:-webkit-autofill ~ .auth-icon {
   color: #fdf84c;
 }
 
