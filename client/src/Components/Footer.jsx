@@ -1,49 +1,126 @@
-import { Phone, Mail, MapPin, Facebook, Instagram, Twitter } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import {
+  Phone,
+  Mail,
+  MapPin,
+  Facebook,
+  Instagram,
+  Twitter,
+} from "lucide-react";
+
 
 function Footer() {
   return (
-    <footer id="contact" className="bg-gray-900 text-gray-400 py-12 px-6 md:px-8">
-
+    <footer
+      id="contact"
+      className="bg-gray-900 text-gray-400 py-12 px-6 md:px-8"
+    >
       <div className="max-w-6xl mx-auto grid grid-cols-2 sm:grid-cols-2 md:grid-cols-5 gap-8">
-
         {/* Brand */}
         <div className="col-span-2 sm:col-span-2 md:col-span-1">
           <h2 className="text-white text-2xl font-bold mb-4">hanap.ph</h2>
-          <p className="text-sm">Your trusted platform for home services. Quality professionals, guaranteed.</p>
+          <p className="text-sm">
+            Your trusted platform for home services. Quality professionals,
+            guaranteed.
+          </p>
         </div>
+
 
         {/* Services */}
         <div>
           <h3 className="text-white font-semibold mb-4">Services</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#" className="hover:text-white">Cleaning</a></li>
-            <li><a href="#" className="hover:text-white">Plumbing</a></li>
-            <li><a href="#" className="hover:text-white">Electrical</a></li>
-            <li><a href="#" className="hover:text-white">Carpentry</a></li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Cleaning
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Plumbing
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Electrical
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Carpentry
+              </a>
+            </li>
           </ul>
         </div>
 
-        {/* Company */}
+
+        {/* Company - FIXED */}
         <div>
           <h3 className="text-white font-semibold mb-4">Company</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#" className="hover:text-white">About Us</a></li>
-            <li><a href="#" className="hover:text-white">How It Works</a></li>
-            <li><a href="#" className="hover:text-white">Careers</a></li>
-            <li><a href="#" className="hover:text-white">Contact</a></li>
+            <li>
+              <Link // ✅ CHANGED from <a>
+                to="/about" // ✅ Route path
+                className="hover:text-white block py-1 transition-colors"
+              >
+                About Us
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/how-it-works"
+                className="hover:text-white block py-1 transition-colors"
+              >
+                How It Works
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/careers"
+                className="hover:text-white block py-1 transition-colors"
+              >
+                Careers
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="/contact"
+                className="hover:text-white block py-1 transition-colors"
+              >
+                Contact
+              </Link>
+            </li>
           </ul>
         </div>
+
 
         {/* Support */}
         <div>
           <h3 className="text-white font-semibold mb-4">Support</h3>
           <ul className="space-y-2 text-sm">
-            <li><a href="#" className="hover:text-white">FAQ</a></li>
-            <li><a href="#" className="hover:text-white">Privacy Policy</a></li>
-            <li><a href="#" className="hover:text-white">Terms of Service</a></li>
-            <li><a href="#" className="hover:text-white">Help Center</a></li>
+            <li>
+              <a href="#" className="hover:text-white">
+                FAQ
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Privacy Policy
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Terms of Service
+              </a>
+            </li>
+            <li>
+              <a href="#" className="hover:text-white">
+                Help Center
+              </a>
+            </li>
           </ul>
         </div>
+
 
         {/* Contact */}
         <div>
@@ -62,21 +139,30 @@ function Footer() {
               <span>Unit 6, Bisakol Street, hanap.ph Bldg. Quezon City</span>
             </li>
             <li className="flex items-center gap-3 mt-4">
-              <a href="#" className="hover:text-white"><Facebook size={28} /></a>
-              <a href="#" className="hover:text-white"><Instagram size={28} /></a>
-              <a href="#" className="hover:text-white"><Twitter size={28} /></a>
+              <a href="#" className="hover:text-white">
+                <Facebook size={28} />
+              </a>
+              <a href="#" className="hover:text-white">
+                <Instagram size={28} />
+              </a>
+              <a href="#" className="hover:text-white">
+                <Twitter size={28} />
+              </a>
             </li>
           </ul>
         </div>
-
       </div>
+
 
       <div className="border-t border-gray-700 mt-10 pt-6 text-center text-sm">
         © 2025 hanap.ph. All rights reserved.
       </div>
-
     </footer>
-  )
+  );
 }
 
-export default Footer
+
+export default Footer;
+
+
+
