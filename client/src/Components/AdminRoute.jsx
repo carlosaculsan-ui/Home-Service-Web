@@ -3,7 +3,7 @@ import { Navigate } from 'react-router-dom'
 import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
-import '../pages/AuthForm.css'
+import '../Pages/AuthForm.css'
 
 // ─── Admin Login Form ────────────────────────────────────────────────────────
 
