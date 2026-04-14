@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { FaLock, FaLockOpen } from 'react-icons/fa'
 import backgroundImg from '../Assets/Background.jpg'
-import './AuthForm.css'
 
 function ResetPassword() {
   const [password, setPassword] = useState('')
@@ -13,7 +11,6 @@ function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionError, setSessionError] = useState(false)
-  const [show, setShow] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -34,11 +31,6 @@ function ResetPassword() {
       subscription.unsubscribe()
       clearTimeout(timeout)
     }
-  }, [])
-
-  useEffect(() => {
-    const t = setTimeout(() => setShow(true), 100)
-    return () => clearTimeout(t)
   }, [])
 
   const handleSubmit = async (e) => {
@@ -65,132 +57,96 @@ function ResetPassword() {
   }
 
   return (
-    <div
-      className="auth-page"
+    <div className="min-h-screen flex items-center justify-center px-4"
       style={{
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
       }}
     >
-      <div className="auth-overlay" />
-
-      <div
-        className={`auth-box-enter ${show ? 'auth-box-visible' : ''}`}
+      <div className="relative z-10 w-full max-w-md rounded-2xl p-10"
         style={{
-          position: 'relative',
-          zIndex: 10,
-          width: '100%',
-          maxWidth: '420px',
-          background: '#2a323f',
-          border: '2px solid #fdf84c',
-          boxShadow: '0 0 30px rgba(253,248,76,0.3)',
-          borderRadius: '20px',
-          padding: '2.5rem',
+          background: 'rgba(255, 255, 255, 0.1)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          boxShadow: '0 25px 50px rgba(0, 0, 0, 0.3)'
         }}
       >
-        {/* Verifying state */}
         {!sessionReady && !sessionError && (
-          <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-            <div style={{
-              width: 36, height: 36, border: '4px solid #fdf84c',
-              borderTopColor: 'transparent', borderRadius: '50%',
-              animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem',
-            }} />
-            <p style={{ color: '#fff', fontWeight: 600 }}>Verifying your reset link...</p>
+          <div className="text-center py-8">
+            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-white font-semibold">Verifying your reset link...</p>
           </div>
         )}
 
-        {/* Error state */}
         {sessionError && (
-          <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-            <p className="auth-error" style={{ marginBottom: '1rem' }}>
-              This reset link is invalid or has expired.
-            </p>
-            <Link to="/forgot-password" className="auth-link">
+          <div className="text-center py-8">
+            <p className="text-red-300 mb-4">This reset link is invalid or has expired.</p>
+            <Link to="/forgot-password" className="text-orange-400 hover:text-orange-300 hover:underline text-sm font-semibold">
               Request a new reset link
             </Link>
           </div>
         )}
 
-        {/* Ready state */}
-        {sessionReady && (
-          <>
-            {/* Header */}
-            <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-              <div style={{
-                width: 56, height: 56, borderRadius: '50%',
-                background: 'rgba(249,115,22,0.15)',
-                border: '1px solid rgba(249,115,22,0.35)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                margin: '0 auto 0.75rem',
-              }}>
-                <FaLock style={{ color: '#f97316', fontSize: '1.3rem' }} />
-              </div>
-              <h1 className="auth-title" style={{ marginBottom: '0.25rem' }}>Reset Password</h1>
-              <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>
-                Enter your new password below.
-              </p>
+        {sessionReady && <>
+        {/* Title */}
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-extrabold text-white">Reset Password</h1>
+          <p className="text-gray-300 mt-2">Enter your new password below</p>
+        </div>
+
+        {/* Form */}
+        <div className="space-y-5">
+          <div>
+            <label className="block text-sm font-medium text-white mb-1">New Password</label>
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+                style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-white text-sm"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
             </div>
+          </div>
 
-            {/* Form */}
-            <form onSubmit={handleSubmit}>
-              <div
-                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
-                style={{ '--i': 1 }}
-              >
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder=" "
-                  required
-                  className="auth-input"
-                />
-                <label>New Password</label>
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="auth-icon"
-                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                >
-                  {showPassword ? <FaLockOpen /> : <FaLock />}
-                </button>
-              </div>
+          <div>
+            <label className="block text-sm font-medium text-white mb-1">Confirm Password</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
+              style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
+            />
+          </div>
 
-              <div
-                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
-                style={{ '--i': 2 }}
-              >
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder=" "
-                  required
-                  className="auth-input"
-                />
-                <label>Confirm Password</label>
-                <FaLock className="auth-icon" />
-              </div>
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full bg-orange-500 text-white py-3 rounded-lg hover:bg-orange-600 font-semibold text-lg disabled:opacity-50 transition-colors"
+          >
+            {loading ? 'Updating...' : 'Update Password'}
+          </button>
 
-              {error && <p className="auth-error">{error}</p>}
+          {error && <p className="text-red-400 text-sm">{error}</p>}
 
-              <div
-                className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
-                style={{ '--i': 3 }}
-              >
-                <button type="submit" disabled={loading} className="auth-btn">
-                  {loading ? 'Updating...' : 'Update Password'}
-                </button>
-              </div>
-            </form>
+          <div className="text-center mt-4">
+            <Link to="/login" className="text-orange-400 hover:text-orange-300 hover:underline text-sm">Back to Login</Link>
+          </div>
+        </div>
+        </>}
 
-            <div className="auth-regi-link" style={{ marginTop: '1.2rem' }}>
-              <Link to="/login" className="auth-link">← Back to Login</Link>
-            </div>
-          </>
-        )}
       </div>
     </div>
   )

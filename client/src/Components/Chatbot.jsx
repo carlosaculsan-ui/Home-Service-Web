@@ -74,7 +74,7 @@ GENERAL RULES:
 function Chatbot() {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([
-    { from: 'bot', text: "Kumusta! 👋 Ako si Hana, ang inyong assistant sa hanap.ph. Paano kita matutulungan ngayon?" }
+    { from: 'bot', text: "Kumusta! 👋 Ako si Hanap AI, ang inyong assistant sa hanap.ph. Paano kita matutulungan ngayon?" }
   ])
   const [chatHistory, setChatHistory] = useState([])
   const [input, setInput] = useState('')
@@ -126,7 +126,7 @@ function Chatbot() {
             <div className="flex items-center gap-2">
               <Bot size={24} className="text-white" />
               <div>
-                <p className="font-bold text-sm">Hana</p>
+                <p className="font-bold text-sm">Hanap AI</p>
                 <p className="text-xs text-orange-200">Always here to help</p>
               </div>
             </div>
