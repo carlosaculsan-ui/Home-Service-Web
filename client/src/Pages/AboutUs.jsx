@@ -2,6 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import "../aboutus.css";
 import hero from "../Assets/hero.jpg";
+import leeFormal from "../Assets/LEE FORMAL.png";
+import carloFormal from "../Assets/CARLO FORMAL.png";
+import cjFormal from "../Assets/CJ FORMAL.png";
+import danicaFormal from "../Assets/DANICA FORMAL.png";
+import mannyFormal from "../Assets/VARGAS-FORMAL.png";
+import joanaFormal from "../Assets/JOANA FORMAL.png";
+import aaronFormal from "../Assets/AARON FORMAL.png";
 
 
 
@@ -25,43 +32,43 @@ const team = [
   {
     name: "Lee Anjhello Baniqued",
     role: "Lead Developer",
-    image: null,
+    image: leeFormal,
     bio: "Lee is the lead developer of Hanap.ph, responsible for building and maintaining the core system. He focuses on creating a smooth booking experience, secure authentication, and efficient backend processes to ensure reliable service for users.",
   },
   {
     name: "Carlo Saculsan",
     role: "Full Stack Developer",
-    image: null,
+    image: carloFormal,
     bio: "Carlo works alongside the development team to implement both frontend and backend features. He ensures that the platform runs smoothly, from user interactions to database management, helping deliver a seamless experience for both customers and taskers.",
   },
   {
     name: "Cj Cerbito",
     role: "UI/UX Designer",
-    image: null,
+    image: cjFormal,
     bio: "Cj designs the overall look and feel of Hanap.ph. He focuses on creating a clean, user-friendly interface that makes booking home services simple and intuitive for all users.",
   },
   {
     name: "Danica Joy Flores",
     role: "Data Analyst",
-    image: null,
+    image: danicaFormal,
     bio: "Danica analyzes user data and system performance to improve the platform. Her insights help optimize booking flow, understand customer needs, and enhance overall service efficiency.",
   },
   {
     name: "Manny John Paul Vargas",
     role: "System Analyst",
-    image: null,
+    image: mannyFormal,
     bio: "Manny ensures that all system requirements align with user needs. He helps design workflows and system logic to improve functionality, making the platform more efficient and reliable.",
   },
   {
     name: "Joana Montañez",
     role: "Technical Writer",
-    image: null,
+    image: joanaFormal,
     bio: "Joana is responsible for creating and maintaining the technical documentation of Hanap.ph. She ensures that system processes, features, and user guides are clearly written and easy to understand, helping both users and developers navigate the platform effectively.",
   },
   {
     name: "Ahron Gainsan",
     role: "Documentation Specialist",
-    image: null,
+    image: aaronFormal,
     bio: "Ahron manages and organizes all project documentation for Hanap.ph, including reports, system records, and user manuals. He ensures that all information is accurate, well-structured, and supports the overall development and usability of the platform.",
   },
 ];
