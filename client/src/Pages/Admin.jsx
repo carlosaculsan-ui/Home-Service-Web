@@ -1534,7 +1534,7 @@ const getStatusBadge = (status) => {
     cancelled:   'bg-red-100 text-red-700',
   }
   const labels = {
-    confirmed:   'Pending',
+    confirmed:   'Awaiting Tasker',
     accepted:    'Accepted',
     on_the_way:  'On The Way',
     in_progress: 'In Progress',
@@ -1553,6 +1553,11 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
   const [bookingSearch, setBookingSearch] = useState('')
+  const [cancelModal, setCancelModal] = useState(null)
+  const [cancelReason, setCancelReason] = useState('')
+  const [cancelNote, setCancelNote] = useState('')
+  const [cancelProcessing, setCancelProcessing] = useState(false)
+  const [cancelReasonError, setCancelReasonError] = useState('')
 
   async function fetchBookings() {
     const { data } = await supabase
@@ -1603,11 +1608,72 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
   }
 
-  async function handleCancelBooking(id) {
-    if (!window.confirm('Cancel this booking? This cannot be undone.')) return
-    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id)
-    if (error) { alert('Failed: ' + error.message); return }
-    setBookings(prev => prev.map(b => b.id === id ? { ...b, status: 'cancelled' } : b))
+  async function handleConfirmCancel() {
+    if (!cancelReason.trim()) { setCancelReasonError('Cancellation reason is required.'); return }
+    setCancelProcessing(true)
+    const b = cancelModal
+    const refundAmount = Number(b.estimated_total) || 0
+
+    // 1. Update booking
+    const updatePayload = {
+      status: 'cancelled',
+      cancellation_reason: cancelReason.trim(),
+      cancellation_note: cancelNote.trim() || null,
+    }
+    if (refundAmount > 0) updatePayload.is_refunded = true
+    await supabase.from('bookings').update(updatePayload).eq('id', b.id)
+
+    // 2. Wallet refund
+    if (refundAmount > 0 && b.client_id) {
+      await supabase.rpc('increment_wallet_balance', {
+        target_user_id: b.client_id,
+        increment_amount: refundAmount,
+      })
+      await supabase.from('wallet_transactions').insert({
+        user_id: b.client_id,
+        booking_id: b.id,
+        amount: refundAmount,
+        type: 'credit',
+        description: 'Refund issued — booking cancelled by admin',
+        created_at: new Date().toISOString(),
+      })
+    }
+
+    // 3. Customer notification
+    if (b.client_id) {
+      const refundNote = refundAmount > 0
+        ? ` A full refund of ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your Hanap.ph E-wallet.`
+        : ''
+      await supabase.from('notifications').insert({
+        user_id: b.client_id,
+        title: 'Booking Cancelled',
+        message: `Your booking (${b.reference_number ?? b.id}) has been cancelled by the admin. Reason: ${cancelReason.trim()}.${refundNote}`,
+        is_read: false,
+      })
+    }
+
+    // 4. Tasker notification
+    if (b.tasker_id) {
+      const { data: tasker } = await supabase.from('taskers').select('user_id').eq('id', b.tasker_id).single()
+      if (tasker?.user_id) {
+        await supabase.from('notifications').insert({
+          user_id: tasker.user_id,
+          title: 'Booking Cancelled',
+          message: `Booking ${b.reference_number ?? b.id} (${b.service ?? ''}) has been cancelled by the admin.`,
+          is_read: false,
+        })
+      }
+    }
+
+    // 5. Update local state
+    setBookings(prev => prev.map(bk => bk.id === b.id
+      ? { ...bk, status: 'cancelled', cancellation_reason: cancelReason.trim(), cancellation_note: cancelNote.trim() || null, is_refunded: refundAmount > 0 }
+      : bk
+    ))
+    setCancelModal(null)
+    setCancelReason('')
+    setCancelNote('')
+    setCancelProcessing(false)
   }
 
   async function handleDeleteBooking(id) {
@@ -1647,6 +1713,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   })()
 
   return (
+    <>
     <div className="space-y-4">
       {/* Search bar */}
       <div className="relative">
@@ -1732,9 +1799,9 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
             <div className="md:flex-shrink-0 flex flex-col items-end gap-2">
               {getStatusBadge(b.status)}
-              {!['completed', 'cancelled'].includes(b.status) && (
+              {b.status === 'confirmed' && (
                 <button
-                  onClick={() => handleCancelBooking(b.id)}
+                  onClick={() => { setCancelModal(b); setCancelReason(''); setCancelNote(''); setCancelReasonError('') }}
                   className="text-xs border border-red-400 text-red-500 px-3 py-1 rounded-lg hover:bg-red-50 transition"
                 >
                   Cancel Booking
@@ -1798,6 +1865,68 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
         </div>
       ))}
     </div>
+
+    {/* Cancel Booking Modal */}
+    {cancelModal && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+        <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
+          <h3 className="text-base font-bold text-gray-800 mb-1">Cancel Booking</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Ref: <span className="font-medium text-gray-700">{cancelModal.reference_number ?? cancelModal.id}</span>
+            {Number(cancelModal.estimated_total) > 0 && (
+              <> &mdash; ₱{Number(cancelModal.estimated_total).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} will be refunded to the customer's E-wallet.</>
+            )}
+          </p>
+
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              Reason <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={cancelReason}
+              onChange={(e) => { setCancelReason(e.target.value); setCancelReasonError('') }}
+              disabled={cancelProcessing}
+              placeholder="Enter cancellation reason"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 disabled:opacity-50"
+            />
+            {cancelReasonError && <p className="text-xs text-red-500 mt-1">{cancelReasonError}</p>}
+          </div>
+
+          <div className="mb-5">
+            <label className="block text-xs font-semibold text-gray-600 mb-1">
+              Note <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={cancelNote}
+              onChange={(e) => setCancelNote(e.target.value)}
+              disabled={cancelProcessing}
+              placeholder="Additional details (optional)"
+              rows={3}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 resize-none disabled:opacity-50"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => { setCancelModal(null); setCancelReason(''); setCancelNote(''); setCancelReasonError('') }}
+              disabled={cancelProcessing}
+              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              Back
+            </button>
+            <button
+              onClick={handleConfirmCancel}
+              disabled={cancelProcessing}
+              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors disabled:opacity-50"
+            >
+              {cancelProcessing ? 'Cancelling…' : 'Confirm Cancel'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 

@@ -2895,6 +2895,8 @@ function TaskerDashboard() {
   })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
+  const [bookingSearch, setBookingSearch] = useState('')
+  const [bookingStatusFilter, setBookingStatusFilter] = useState('all')
   const [taskerId, setTaskerId] = useState(null)
   const [taskerUserId, setTaskerUserId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -3182,26 +3184,86 @@ function TaskerDashboard() {
 
         <div className="p-4 sm:p-6">
 
-          {tab === 'bookings' && (
-            <>
-              <h2 className="text-xl font-bold text-gray-800 mb-6">My Bookings</h2>
-              {loading ? (
-                <div className="flex justify-center mt-20">
-                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+          {tab === 'bookings' && (() => {
+            const STATUS_FILTER_TABS = [
+              { key: 'all',        label: 'All' },
+              { key: 'pending',    label: 'Pending' },
+              { key: 'confirmed',  label: 'Confirmed' },
+              { key: 'on_the_way', label: 'On the Way' },
+              { key: 'completed',  label: 'Completed' },
+              { key: 'cancelled',  label: 'Cancelled' },
+            ]
+            const q = bookingSearch.trim().toLowerCase()
+            const filteredBookings = bookings.filter((b) => {
+              const matchesStatus = bookingStatusFilter === 'all' || b.status === bookingStatusFilter
+              const matchesSearch = !q ||
+                (b.customer_name ?? '').toLowerCase().includes(q) ||
+                (b.reference_number ?? '').toLowerCase().includes(q)
+              return matchesStatus && matchesSearch
+            })
+            return (
+              <>
+                <h2 className="text-xl font-bold text-gray-800 mb-4">My Bookings</h2>
+
+                {/* Search bar */}
+                <div className="relative mb-4">
+                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                    <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                  </svg>
+                  <input
+                    type="text"
+                    value={bookingSearch}
+                    onChange={(e) => setBookingSearch(e.target.value)}
+                    placeholder="Search by customer name or reference number…"
+                    className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                  />
+                  {bookingSearch && (
+                    <button
+                      onClick={() => setBookingSearch('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      ✕
+                    </button>
+                  )}
                 </div>
-              ) : bookings.length === 0 ? (
-                <div className="text-center mt-20">
-                  <p className="text-gray-400 text-lg font-medium">No tasks assigned yet.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {bookings.map((booking) => (
-                    <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
+
+                {/* Status filter tabs */}
+                <div className="flex flex-wrap gap-2 mb-6">
+                  {STATUS_FILTER_TABS.map((s) => (
+                    <button
+                      key={s.key}
+                      onClick={() => setBookingStatusFilter(s.key)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                        bookingStatusFilter === s.key
+                          ? 'bg-orange-500 text-white'
+                          : 'bg-white text-gray-500 border border-gray-200 hover:border-orange-300 hover:text-orange-500'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
                   ))}
                 </div>
-              )}
-            </>
-          )}
+
+                {loading ? (
+                  <div className="flex justify-center mt-20">
+                    <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : filteredBookings.length === 0 ? (
+                  <div className="text-center mt-20">
+                    <p className="text-gray-400 text-lg font-medium">
+                      {bookings.length === 0 ? 'No tasks assigned yet.' : 'No bookings match your search.'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredBookings.map((booking) => (
+                      <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          })()}
 
           {tab === 'leave' && (
             <>
