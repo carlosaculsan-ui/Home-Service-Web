@@ -144,21 +144,45 @@ function TaskerShowcase() {
       const { data, error } = await supabase.from('taskers').select('*').eq('status', 'approved').eq('is_featured', true)
       if (error) {
         setFetchError(true)
-      } else {
-        setTaskers(data.map((t) => ({
+        setLoading(false)
+        return
+      }
+
+      const taskerIds = (data ?? []).map((t) => t.id)
+
+      const [{ data: completedBookings }, { data: allReviews }] = await Promise.all([
+        supabase.from('bookings').select('tasker_id').eq('status', 'completed').in('tasker_id', taskerIds),
+        supabase.from('reviews').select('tasker_id, rating').in('tasker_id', taskerIds),
+      ])
+
+      const jobCounts = {}
+      completedBookings?.forEach((b) => {
+        if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+      })
+
+      const ratingMap = {}
+      allReviews?.forEach((r) => {
+        if (!ratingMap[r.tasker_id]) ratingMap[r.tasker_id] = []
+        ratingMap[r.tasker_id].push(r.rating ?? 0)
+      })
+
+      setTaskers(data.map((t) => {
+        const ratings = ratingMap[t.id] ?? []
+        const avgRating = ratings.length > 0 ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1) : null
+        return {
           id: t.id,
           user_id: t.user_id,
           name: t.name,
           role: t.role,
-          rating: t.rating,
-          reviews: t.reviews_count,
+          rating: avgRating,
+          jobsCompleted: jobCounts[t.id] || 0,
           avatar_url: t.avatar_url,
           profile_photo: t.profile_photo,
           bio: t.bio,
           hourly_rate: t.hourly_rate,
           service_area: t.service_area,
-        })))
-      }
+        }
+      }))
       setLoading(false)
     }
     fetchTaskers()
@@ -298,10 +322,10 @@ function TaskerShowcase() {
 
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-yellow-400 text-sm font-medium">
-                      ★ {tasker.rating}
+                      ★ {tasker.rating ?? '—'}
                     </span>
                     <span className="text-slate-400 text-xs">
-                      ({(tasker.reviews ?? 0).toLocaleString()})
+                      {tasker.jobsCompleted.toLocaleString()} jobs done
                     </span>
                   </div>
 

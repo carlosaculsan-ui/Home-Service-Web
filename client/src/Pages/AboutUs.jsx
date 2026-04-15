@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+
+import Navbar from "../Components/Navbar";
 import "../aboutus.css";
 import hero from "../Assets/hero.jpg";
 import leeFormal from "../Assets/LEE FORMAL.png";
@@ -149,7 +150,6 @@ function TeamModal({ member, onClose }) {
 
 /* ── Main ───────────────────────────────────────────────────── */
 export default function AboutUs() {
-  const navigate = useNavigate();
   const [selected, setSelected] = useState(null);
   const [missionRef, missionIn] = useInView(0.1);
   const [statsRef, statsIn] = useInView(0.1);
@@ -161,18 +161,7 @@ export default function AboutUs() {
 
 
       {/* NAV */}
-      <nav className="tr-nav">
-        <button className="tr-nav-logo" onClick={() => navigate("/")}>
-          <span className="tr-logo-dot" /> hanap.ph
-        </button>
-        <div className="tr-nav-links">
-          <a href="#">Services</a>
-          <a href="#">Sign up / Log in</a>
-          <button onClick={() => navigate("/")} className="tr-nav-cta">
-            Become a Tasker
-          </button>
-        </div>
-      </nav>
+      <Navbar />
 
 
     <div className="tr-hero">
@@ -245,7 +234,7 @@ export default function AboutUs() {
       <section className="tr-team-section" ref={teamRef}>
         <div className={`tr-team-header ${teamIn ? "tr-in" : ""}`}>
           <span className="tr-section-label">The people behind it</span>
-          <h2 className="tr-team-title">Dream team</h2>
+          <h2 className="tr-team-title">Meet Our Team</h2>
           <p className="tr-team-sub">Click on any member to learn more</p>
         </div>
 
