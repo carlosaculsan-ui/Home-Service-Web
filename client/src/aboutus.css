@@ -654,28 +654,67 @@
 
 
 /* ── RESPONSIVE ─────────────────────────────────────────────── */
+
+/* Tablet */
 @media (max-width: 720px) {
-  .tr-nav { padding: 0 20px; }
-  .tr-nav-links a { display: none; }
+  .tr-hero { height: 260px; }
   .tr-hero-title { font-size: 2rem; }
-  .tr-team-grid { grid-template-columns: repeat(2, 1fr); gap: 20px 14px; }
-  .tr-stats-bar { flex-wrap: wrap; }
+  .tr-hero-sub { font-size: 0.85rem; padding: 0 16px; }
+
+  .tr-mission { padding: 48px 24px 40px; }
+
+  .tr-stats-bar { flex-wrap: wrap; padding: 20px 24px; }
   .tr-stat-item {
     border-right: none;
     border-bottom: 1px solid var(--tr-border);
-    padding: 16px 0;
+    padding: 14px 0;
     max-width: 100%;
     width: 50%;
   }
-  .tr-stat-item:last-child { border-bottom: none; }
+  .tr-stat-item:nth-child(odd) { border-right: 1px solid var(--tr-border); }
+  .tr-stat-item:nth-last-child(-n+2) { border-bottom: none; }
+
+  .tr-team-section { padding: 48px 20px 64px; }
+  .tr-team-grid { grid-template-columns: repeat(3, 1fr); gap: 20px 14px; }
+
   .tr-modal-inner { flex-direction: column; }
   .tr-modal-photo { width: 100%; min-height: 220px; }
   .tr-modal-placeholder { min-height: 220px; }
+
+  .tr-footer { padding: 28px 24px; }
   .tr-footer-inner { flex-direction: column; text-align: center; }
   .tr-footer-links { justify-content: center; }
 }
 
+/* Large phone */
+@media (max-width: 540px) {
+  .tr-hero { height: 220px; }
+  .tr-hero-title { font-size: 1.7rem; }
 
-@media (max-width: 420px) {
+  .tr-mission { padding: 40px 20px 32px; }
+  .tr-mission h2 { font-size: 1.2rem; }
+
   .tr-team-grid { grid-template-columns: repeat(2, 1fr); gap: 16px 12px; }
+
+  .stat-num { font-size: 1.6rem; }
+}
+
+/* Small phone */
+@media (max-width: 380px) {
+  .tr-hero-title { font-size: 1.45rem; }
+  .tr-hero-sub { font-size: 0.78rem; }
+
+  .tr-mission h2 { font-size: 1.1rem; }
+  .tr-mission p { font-size: 0.85rem; }
+
+  .tr-team-grid { grid-template-columns: repeat(2, 1fr); gap: 12px 10px; }
+  .tr-card-name { font-size: 0.78rem; }
+
+  .tr-stats-bar { padding: 16px; }
+  .stat-num { font-size: 1.4rem; }
+  .tr-stat-label { font-size: 0.68rem; }
+
+  .tr-modal-info { padding: 24px 20px; }
+  .tr-modal-info h2 { font-size: 1.05rem; }
+  .tr-modal-bio { font-size: 0.8rem; }
 }
