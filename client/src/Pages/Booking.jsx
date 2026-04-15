@@ -1276,6 +1276,7 @@ function Step1({ service, onContinue }) {
   const [imagePreview, setImagePreview] = useState(null)
   const [analyzing, setAnalyzing] = useState(false)
   const [validating, setValidating] = useState(false)
+  const [validatingDescription, setValidatingDescription] = useState(false)
   const [imageError, setImageError] = useState('')
   const [aiResult, setAiResult] = useState('')
   const [fileInputKey, setFileInputKey] = useState(0)
@@ -1695,7 +1696,7 @@ function Step1({ service, onContinue }) {
     reader.readAsDataURL(file)
   }
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (taskPrices === null) {
       setError('Prices are still loading, please wait.')
       return
@@ -1718,7 +1719,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem || !carpentrySubOption)) {
+    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem || (CARPENTRY_SUB_OPTIONS[carpentryItem]?.length > 0 && !carpentrySubOption))) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1739,6 +1740,40 @@ function Step1({ service, onContinue }) {
       return
     }
     setError('')
+
+    // Groq description validation
+    setValidatingDescription(true)
+    try {
+      const response = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a validation assistant. Your only job is to determine if a user-provided task description is meaningful and readable, or if it is gibberish, random characters, nonsensical input, or too vague to be useful. Respond ONLY with a JSON object in this exact format: { "valid": true } or { "valid": false }. No other text.'
+          },
+          {
+            role: 'user',
+            content: `Task description: "${details.trim()}"`
+          }
+        ],
+        max_tokens: 20,
+      })
+      const raw = response.choices[0].message.content.trim()
+      try {
+        const json = JSON.parse(raw.replace(/```json|```/g, '').trim())
+        if (json.valid === false) {
+          setError('Please provide a clear description of the task. We need enough detail to match you with the right tasker.')
+          setValidatingDescription(false)
+          return
+        }
+      } catch {
+        // Unparseable response — fail open and proceed
+      }
+    } catch {
+      // API error — fail open and proceed
+    }
+    setValidatingDescription(false)
+
     const aiImageAnalysis = aiResult && aiResult !== 'error' ? aiResult : null
     const isCleaning = service?.toLowerCase() === 'cleaning'
     const isCarpentry = service?.toLowerCase() === 'carpentry'
@@ -1768,7 +1803,7 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: finalPrice + helperFee,
       } : {}),
-      ...(isCarpentry && carpentryType && carpentryItem && carpentrySubOption ? {
+      ...(isCarpentry && carpentryType && carpentryItem && (!CARPENTRY_SUB_OPTIONS[carpentryItem]?.length || carpentrySubOption) ? {
         taskOptions: {
           service: 'Carpentry',
           type: carpentryType,
@@ -2116,8 +2151,8 @@ function Step1({ service, onContinue }) {
             </select>
           </div>
 
-          {/* Section 4: Extras — appears after sub-option selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentrySubOption ? '350px' : '0', opacity: carpentrySubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 4: Extras — appears after sub-option selected, or immediately if item has no sub-options */}
+          <div style={{ overflow: 'hidden', maxHeight: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? '350px' : '0', opacity: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2145,8 +2180,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after sub-option selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentrySubOption ? '350px' : '0', opacity: carpentrySubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after sub-option selected, or immediately if item has no sub-options */}
+          <div style={{ overflow: 'hidden', maxHeight: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? '350px' : '0', opacity: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{carpentryType}</span>
@@ -2893,9 +2928,20 @@ function Step1({ service, onContinue }) {
 
       {error && <p className="text-red-500 text-base">{error}</p>}
 
+      {validatingDescription && (
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <svg className="animate-spin w-4 h-4 text-orange-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+          </svg>
+          Checking your description...
+        </div>
+      )}
+
       <button
         onClick={handleContinue}
-        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-4 text-base rounded-xl transition-colors"
+        disabled={validatingDescription}
+        className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-4 text-base rounded-xl transition-colors"
       >
         Continue
       </button>
