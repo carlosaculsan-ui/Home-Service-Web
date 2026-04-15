@@ -1788,6 +1788,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ['Booked on', b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ['Task',      getTaskLabel(b)],
                   ['Address',   b.address],
+                  ...(b.landmark ? [['Landmark', b.landmark]] : []),
                 ].map(([label, val]) => (
                   <div key={label} className="flex gap-2">
                     <span className="text-gray-400 w-20 flex-shrink-0">{label}</span>

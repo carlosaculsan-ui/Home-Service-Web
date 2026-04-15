@@ -585,6 +585,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             : '—'],
           ['Task Size',   getTaskLabel(booking)],
           ['Address',     booking.address ?? '—'],
+          ...(booking.landmark ? [['Landmark', booking.landmark]] : []),
           ['Reference',   booking.reference_number ?? '—'],
         ].map(([label, val]) => (
           <div key={label} className="flex gap-2">

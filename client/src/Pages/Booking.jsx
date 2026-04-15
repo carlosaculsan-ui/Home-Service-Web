@@ -806,7 +806,7 @@ function DetailRow({ label, value, valueClass = '' }) {
   )
 }
 
-function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails, taskOptions, taskersNeeded, taskDuration, onBack, onContinue }) {
+function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, taskOptions, taskersNeeded, taskDuration, onBack, onContinue }) {
   const navigate = useNavigate()
 
   const [userProfile, setUserProfile] = useState(null)
@@ -945,6 +945,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
         <DetailRow label="Date &amp; Time" value={formattedDate} />
         {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hours`} />}
         <DetailRow label="Address" value={taskAddress} />
+        {taskLandmark && <DetailRow label="Landmark" value={taskLandmark} />}
         <DetailRow label="Task Description" value={taskDetails} />
         {taskOptions && taskOptions.service === 'Cleaning' && (
           <>
@@ -1221,6 +1222,7 @@ function ProgressTracker({ step }) {
 
 function Step1({ service, onContinue }) {
   const [address, setAddress] = useState('')
+  const [landmark, setLandmark] = useState('')
   const [size] = useState('Medium')
   const [details, setDetails] = useState('')
   const [isRecording, setIsRecording] = useState(false)
@@ -1746,6 +1748,7 @@ function Step1({ service, onContinue }) {
     const isPlumbing = service?.toLowerCase() === 'plumbing repair'
     onContinue({
       address: address.trim(),
+      landmark: landmark.trim(),
       size,
       details: details.trim(),
       aiImageAnalysis,
@@ -1903,6 +1906,23 @@ function Step1({ service, onContinue }) {
             <LocationMap address={address} />
           </div>
         )}
+      </div>
+
+      {/* Landmark */}
+      <div className="border border-gray-200 rounded-xl p-5">
+        <label className="block font-bold text-gray-800 text-base mb-3">
+          Nearest Landmark <span className="text-gray-400 font-normal text-sm">(optional)</span>
+        </label>
+        <div className="flex items-center gap-2">
+          <MapPin size={20} className="text-orange-400 flex-shrink-0" />
+          <input
+            type="text"
+            value={landmark}
+            onChange={(e) => setLandmark(e.target.value)}
+            placeholder="e.g. near 7-Eleven, beside Jollibee"
+            className="flex-1 text-base text-gray-700 outline-none placeholder-gray-400"
+          />
+        </div>
       </div>
 
       {service?.toLowerCase() === 'cleaning' && (
@@ -2883,7 +2903,7 @@ function Step1({ service, onContinue }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
   const [cardErrors, setCardErrors] = useState({})
@@ -3356,6 +3376,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                   : taskSize,
                 task_description: taskDetails,
                 address: taskAddress,
+                landmark: taskLandmark || null,
                 scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
                 scheduled_time: time,
                 payment_method: paymentMethod,
@@ -3614,6 +3635,7 @@ function Booking() {
 
   // Step 1 data
   const [taskAddress, setTaskAddress] = useState('')
+  const [taskLandmark, setTaskLandmark] = useState('')
   const [taskSize, setTaskSize] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
@@ -3722,6 +3744,7 @@ function Booking() {
 
   const handleStep1Continue = (data) => {
     setTaskAddress(data.address)
+    setTaskLandmark(data.landmark ?? '')
     setTaskSize(data.size)
     setTaskDetails(data.details)
     setAiImageAnalysis(data.aiImageAnalysis)
@@ -3813,6 +3836,7 @@ function Booking() {
             time={selectedTime}
             taskSize={taskSize}
             taskAddress={taskAddress}
+            taskLandmark={taskLandmark}
             taskDetails={taskDetails}
             taskOptions={taskOptions}
             taskersNeeded={taskersNeeded}
@@ -3830,6 +3854,7 @@ function Booking() {
             time={selectedTime}
             taskSize={taskSize}
             taskAddress={taskAddress}
+            taskLandmark={taskLandmark}
             taskDetails={taskDetails}
             aiImageAnalysis={aiImageAnalysis}
             taskOptions={taskOptions}
