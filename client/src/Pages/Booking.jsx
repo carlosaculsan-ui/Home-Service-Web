@@ -105,6 +105,9 @@ function buildPriceBreakdown(taskOptions) {
     lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: taskOptions.base_price })
   } else if (service === 'Carpentry') {
     lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: taskOptions.base_price })
+    if (taskOptions.sub_option) {
+      lines.push({ label: taskOptions.sub_option, price: taskOptions.sub_option_price ?? 0, isExtra: taskOptions.sub_option_price !== 0 })
+    }
   } else if (service === 'Electrical') {
     lines.push({ label: taskOptions.type, price: taskOptions.base_price })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
@@ -529,7 +532,7 @@ function getTaskOptionsSummary(taskOptions) {
   const { service } = taskOptions
   let label = ''
   if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
-  else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}`
+  else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}${taskOptions.sub_option ? ` (${taskOptions.sub_option})` : ''}`
   else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
   else if (service === 'Aircon Maintenance') label = `${taskOptions.aircon_type} · ${taskOptions.service_type}`
   else if (service === 'Painting')     label = `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
@@ -956,6 +959,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskDetails
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
             <DetailRow label="Item" value={taskOptions.item} />
+            {taskOptions.sub_option && <DetailRow label="Specific Item" value={taskOptions.sub_option} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1292,6 +1296,7 @@ function Step1({ service, onContinue }) {
   const [cleaningExtras, setCleaningExtras] = useState([])
   const [carpentryType, setCarpentryType] = useState('')
   const [carpentryItem, setCarpentryItem] = useState('')
+  const [carpentrySubOption, setCarpentrySubOption] = useState('')
   const [carpentryExtras, setCarpentryExtras] = useState([])
   const [electricalType, setElectricalType] = useState('')
   const [electricalUrgency, setElectricalUrgency] = useState('')
@@ -1357,6 +1362,37 @@ function Step1({ service, onContinue }) {
       { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Install - Ceiling / Wall Panel') },
     ],
   }
+  const CARPENTRY_SUB_OPTIONS = {
+    'Door / Window':        [
+      { value: 'Wooden Door',          price: 0 },
+      { value: 'Window Frame',         price: 200 },
+      { value: 'Cabinet Door',         price: -100 },
+      { value: 'Sliding Door Panel',   price: 400 },
+    ],
+    'Cabinet / Drawer':     [
+      { value: 'Kitchen Cabinet',      price: 500 },
+      { value: 'Wooden Cabinet',       price: 0 },
+      { value: 'PVC Cabinet',          price: 200 },
+      { value: 'Dresser / Drawer Unit', price: 150 },
+    ],
+    'Table / Chair':        [
+      { value: 'Wooden Dining Table',  price: 300 },
+      { value: 'Study/Office Table',   price: 150 },
+      { value: 'Wooden Chair',         price: 0 },
+      { value: 'Bench',                price: 100 },
+    ],
+    'Bed Frame':            [
+      { value: 'Single Bed Frame',           price: 0 },
+      { value: 'Double / Queen Bed Frame',   price: 300 },
+      { value: 'Double Deck Frame',          price: 500 },
+    ],
+    'Ceiling / Wall Panel': [
+      { value: 'Wooden Ceiling Panel',       price: 0 },
+      { value: 'Wall Cladding / Paneling',   price: 250 },
+      { value: 'Partition Wall',             price: 400 },
+    ],
+  }
+
   const CARPENTRY_EXTRAS_PRICES = {
     'Materials Included':       tp('Carpentry', 'Extra - Materials Included'),
     'Varnishing / Finishing':   tp('Carpentry', 'Extra - Varnishing / Finishing'),
@@ -1421,8 +1457,11 @@ function Step1({ service, onContinue }) {
   const carpentryItemPrice = carpentryType && carpentryItem
     ? (CARPENTRY_ITEMS[carpentryType]?.find(i => i.value === carpentryItem)?.price ?? 0)
     : 0
+  const carpentrySubOptionPrice = carpentryItem && carpentrySubOption
+    ? (CARPENTRY_SUB_OPTIONS[carpentryItem]?.find(s => s.value === carpentrySubOption)?.price ?? 0)
+    : 0
   const carpentryExtrasTotal = carpentryExtras.reduce((sum, e) => sum + (CARPENTRY_EXTRAS_PRICES[e] ?? 0), 0)
-  const carpentryFinalPrice = carpentryItemPrice + carpentryExtrasTotal
+  const carpentryFinalPrice = carpentryItemPrice + carpentrySubOptionPrice + carpentryExtrasTotal
 
   // Electrical pricing
   const electricalBasePrice = ELECTRICAL_TYPES.find(t => t.value === electricalType)?.price ?? 0
@@ -1677,7 +1716,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem)) {
+    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem || !carpentrySubOption)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1726,11 +1765,13 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: finalPrice + helperFee,
       } : {}),
-      ...(isCarpentry && carpentryType && carpentryItem ? {
+      ...(isCarpentry && carpentryType && carpentryItem && carpentrySubOption ? {
         taskOptions: {
           service: 'Carpentry',
           type: carpentryType,
           item: carpentryItem,
+          sub_option: carpentrySubOption,
+          sub_option_price: carpentrySubOptionPrice,
           extras: carpentryExtras,
           base_price: carpentryItemPrice,
           extras_total: carpentryExtrasTotal,
@@ -1989,6 +2030,12 @@ function Step1({ service, onContinue }) {
         <div className="border border-gray-200 rounded-xl p-5 space-y-5">
           <p className="font-bold text-gray-800 text-base">Task Options</p>
 
+          {/* Disclaimer */}
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-800">
+            <Info size={16} className="mt-0.5 flex-shrink-0 text-amber-500" />
+            <p>Hanap.ph Carpentry services are for <strong>wood-based items only</strong>. Metal, glass, and other materials are not covered.</p>
+          </div>
+
           {/* Section 1: Type of Work — always visible */}
           <div>
             <p className="font-semibold text-gray-700 text-sm mb-2">Type of Work <span className="text-red-400">*</span></p>
@@ -2021,7 +2068,7 @@ function Step1({ service, onContinue }) {
                       name="carpentryItem"
                       value={opt.value}
                       checked={carpentryItem === opt.value}
-                      onChange={() => { setCarpentryItem(opt.value); setCarpentryExtras([]) }}
+                      onChange={() => { setCarpentryItem(opt.value); setCarpentrySubOption(''); setCarpentryExtras([]) }}
                       className="accent-orange-500 w-4 h-4"
                     />
                     <span className="text-sm font-medium text-gray-700">{opt.value}</span>
@@ -2032,8 +2079,25 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 3: Extras — appears after item selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 3: Sub-option dropdown — appears after item selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryItem && CARPENTRY_SUB_OPTIONS[carpentryItem] ? '160px' : '0', opacity: carpentryItem && CARPENTRY_SUB_OPTIONS[carpentryItem] ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Specific Item <span className="text-red-400">*</span></p>
+            <select
+              value={carpentrySubOption}
+              onChange={(e) => setCarpentrySubOption(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+            >
+              <option value="">— Select specific item —</option>
+              {(CARPENTRY_SUB_OPTIONS[carpentryItem] || []).map((sub) => (
+                <option key={sub.value} value={sub.value}>
+                  {sub.value}{sub.price > 0 ? ` (+₱${sub.price.toLocaleString()})` : sub.price < 0 ? ` (-₱${Math.abs(sub.price).toLocaleString()})` : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Section 4: Extras — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentrySubOption ? '350px' : '0', opacity: carpentrySubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2061,8 +2125,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after item selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentryItem ? '350px' : '0', opacity: carpentryItem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentrySubOption ? '350px' : '0', opacity: carpentrySubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{carpentryType}</span>
@@ -2072,6 +2136,14 @@ function Step1({ service, onContinue }) {
                 <span>{carpentryItem}</span>
                 <span>₱{carpentryItemPrice.toLocaleString()}</span>
               </div>
+              {carpentrySubOption && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{carpentrySubOption}</span>
+                  <span className={carpentrySubOptionPrice === 0 ? 'text-gray-400' : carpentrySubOptionPrice > 0 ? '' : 'text-green-600'}>
+                    {carpentrySubOptionPrice === 0 ? 'Included' : carpentrySubOptionPrice > 0 ? `+₱${carpentrySubOptionPrice.toLocaleString()}` : `-₱${Math.abs(carpentrySubOptionPrice).toLocaleString()}`}
+                  </span>
+                </div>
+              )}
               {carpentryExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
                   <span>{e}</span>
@@ -2812,7 +2884,6 @@ function Step1({ service, onContinue }) {
 }
 
 function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
-  const navigate = useNavigate()
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
   const [cardErrors, setCardErrors] = useState({})
@@ -2845,8 +2916,8 @@ function Step4({ service, tasker, date, time, taskSize, taskAddress, taskDetails
   }, [])
 
 const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
-  const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
   const estimatedTotal = estimatedTotalProp && estimatedTotalProp > 0 ? estimatedTotalProp : rate * (taskSize === 'Small' ? 1 : taskSize === 'Large' ? 4 : 2)
+  const estHours = taskSize === 'Small' ? '1 hr' : taskSize === 'Large' ? '4+ hrs' : '2-3 hrs'
   const estTotal =
     taskSize === 'Small'
       ? `₱${rate.toLocaleString()}`
