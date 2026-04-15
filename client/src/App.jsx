@@ -28,6 +28,9 @@ import TaskerLogin from './Pages/TaskerLogin'
 import BookingConfirmation from './Pages/BookingConfirmation'
 import PaymentComplete from './Pages/PaymentComplete'
 import AboutUs from './Pages/AboutUs'
+import TermsOfService from './Pages/TermsOfService'
+import PrivacyPolicy from './Pages/PrivacyPolicy'
+import FAQ from './Pages/FAQ'
 
 function Home() {
   return (
@@ -161,10 +164,12 @@ function App() {
       <Route path="/tasker" element={<TaskerLogin />} />
       <Route path="/tasker-dashboard" element={<TaskerRoute><TaskerDashboard /></TaskerRoute>} />
       <Route path="/about" element={<AboutUs />} />
+      <Route path="/terms" element={<TermsOfService />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/how-it-works" element={<HowItWorks />} />
       <Route path="/careers" element={<div>Careers Page</div>} />
       <Route path="/contact" element={<div>Contact Page</div>} />
-      <Route path="/faq" element={<div>FAQ Page</div>} />
+      <Route path="/faq" element={<FAQ />} />
       <Route path="/booking-confirmation" element={<BookingConfirmation />} />
       <Route path="/payment-complete" element={<PaymentComplete />} />
     </Routes>

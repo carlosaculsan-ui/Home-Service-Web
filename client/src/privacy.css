@@ -1,0 +1,318 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap");
+
+.pp-root {
+  --tr-brown: #e08127;
+  --tr-brown-dark: #8a5018;
+  --tr-brown-light: #f5ede2;
+  --tr-dark: #1a1a1a;
+  --tr-gray: #666;
+  --tr-light: #f7f6f4;
+  --tr-border: #e8e2da;
+  --tr-white: #ffffff;
+  --tr-ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  font-family: "Inter", sans-serif;
+  background: var(--tr-white);
+  color: var(--tr-dark);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.pp-root *,
+.pp-root *::before,
+.pp-root *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── HERO ───────────────────────────────────────────────────── */
+.pp-hero {
+  background: linear-gradient(135deg, #1a1a1a 0%, #0e1f2d 100%);
+  padding: 64px 32px 56px;
+  text-align: center;
+}
+
+.pp-hero-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 14px;
+}
+
+.pp-hero-title {
+  font-size: 2.8rem;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 14px;
+}
+
+.pp-hero-title span {
+  color: var(--tr-brown);
+}
+
+.pp-hero-sub {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.45);
+  font-weight: 400;
+}
+
+/* ── LAYOUT ─────────────────────────────────────────────────── */
+.pp-layout {
+  display: flex;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 56px 32px 80px;
+  gap: 56px;
+  align-items: flex-start;
+}
+
+/* ── SIDEBAR ─────────────────────────────────────────────────── */
+.pp-sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 80px;
+}
+
+.pp-sidebar-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-bottom: 12px;
+}
+
+.pp-toc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pp-toc-item {
+  background: none;
+  border: none;
+  text-align: left;
+  font-family: "Inter", sans-serif;
+  font-size: 0.78rem;
+  color: var(--tr-gray);
+  padding: 7px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+  line-height: 1.4;
+}
+
+.pp-toc-item:hover {
+  background: var(--tr-light);
+  color: var(--tr-dark);
+}
+
+.pp-toc-item.pp-toc-active {
+  background: var(--tr-brown-light);
+  color: var(--tr-brown-dark);
+  font-weight: 600;
+}
+
+/* ── MAIN ────────────────────────────────────────────────────── */
+.pp-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.pp-intro {
+  background: var(--tr-light);
+  border-left: 3px solid var(--tr-brown);
+  border-radius: 0 8px 8px 0;
+  padding: 20px 24px;
+  margin-bottom: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pp-intro p {
+  font-size: 0.92rem;
+  line-height: 1.8;
+  color: var(--tr-gray);
+}
+
+/* ── SECTION ─────────────────────────────────────────────────── */
+.pp-section {
+  margin-bottom: 52px;
+  padding-bottom: 52px;
+  border-bottom: 1px solid var(--tr-border);
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.6s var(--tr-ease), transform 0.6s var(--tr-ease);
+  scroll-margin-top: 90px;
+}
+
+.pp-section:last-of-type {
+  border-bottom: none;
+}
+
+.pp-section.pp-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.pp-badge {
+  display: inline-block;
+  background: var(--tr-brown-light);
+  color: var(--tr-brown-dark);
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 20px;
+  margin-bottom: 14px;
+}
+
+.pp-section-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--tr-dark);
+  margin-bottom: 18px;
+  line-height: 1.3;
+}
+
+.pp-section-body p,
+.pp-section-body ul,
+.pp-section-body h3 {
+  margin-bottom: 14px;
+}
+
+.pp-section-body p {
+  font-size: 0.9rem;
+  line-height: 1.85;
+  color: var(--tr-gray);
+}
+
+.pp-section-body h3 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--tr-dark);
+  margin-top: 20px;
+}
+
+.pp-section-body ul {
+  padding-left: 20px;
+  list-style: none;
+}
+
+.pp-section-body ul li {
+  font-size: 0.9rem;
+  line-height: 1.8;
+  color: var(--tr-gray);
+  padding-left: 4px;
+  position: relative;
+}
+
+.pp-section-body ul li::before {
+  content: "–";
+  position: absolute;
+  left: -16px;
+  color: var(--tr-brown);
+  font-weight: 600;
+}
+
+/* ── CONTACT CALLOUT ─────────────────────────────────────────── */
+.pp-contact-box {
+  background: linear-gradient(135deg, #1a1a1a 0%, #0e1f2d 100%);
+  border-radius: 12px;
+  padding: 32px 36px;
+  margin-top: 12px;
+}
+
+.pp-contact-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--tr-brown);
+  margin-bottom: 10px;
+}
+
+.pp-contact-text {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.pp-contact-text strong {
+  color: #fff;
+}
+
+/* ── FOOTER ─────────────────────────────────────────────────── */
+.pp-footer {
+  background: var(--tr-light);
+  border-top: 1px solid var(--tr-border);
+  padding: 36px 40px;
+}
+
+.pp-footer-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.pp-footer-logo {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--tr-brown);
+}
+
+.pp-footer p {
+  font-size: 0.75rem;
+  color: var(--tr-gray);
+}
+
+.pp-footer-links {
+  display: flex;
+  gap: 22px;
+}
+
+.pp-footer-links a {
+  font-size: 0.75rem;
+  color: var(--tr-gray);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.pp-footer-links a:hover {
+  color: var(--tr-brown);
+}
+
+/* ── RESPONSIVE ─────────────────────────────────────────────── */
+@media (max-width: 820px) {
+  .pp-sidebar { display: none; }
+  .pp-layout { padding: 40px 24px 64px; gap: 0; }
+}
+
+@media (max-width: 540px) {
+  .pp-hero { padding: 48px 20px 40px; }
+  .pp-hero-title { font-size: 2rem; }
+  .pp-layout { padding: 32px 20px 56px; }
+  .pp-section-title { font-size: 1.1rem; }
+  .pp-contact-box { padding: 24px 20px; }
+  .pp-footer { padding: 28px 20px; }
+  .pp-footer-inner { flex-direction: column; text-align: center; }
+  .pp-footer-links { justify-content: center; }
+}
+
+@media (max-width: 380px) {
+  .pp-hero-title { font-size: 1.7rem; }
+  .pp-section-body p,
+  .pp-section-body ul li { font-size: 0.84rem; }
+}

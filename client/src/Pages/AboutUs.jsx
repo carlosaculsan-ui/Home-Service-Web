@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 
 import Navbar from "../Components/Navbar";
 import "../aboutus.css";
@@ -281,7 +282,7 @@ export default function AboutUs() {
           <p>© 2026 hanap.ph. All rights reserved. · Quezon City, Philippines</p>
           <div className="tr-footer-links">
             <a href="#">Privacy</a>
-            <a href="#">Terms</a>
+            <Link to="/terms">Terms</Link>
             <a href="#contact">Contact</a>
           </div>
         </div>
