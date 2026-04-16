@@ -259,6 +259,7 @@ function LiveMapContent({ taskerPos, customerPos }) {
   const customerMarkerRef = useRef(null)
   const polylineRef = useRef(null)
 
+  // Markers + bounds
   useEffect(() => {
     if (!customerPos) return
 
@@ -284,17 +285,45 @@ function LiveMapContent({ taskerPos, customerPos }) {
         taskerMarkerRef.current.setLatLng(taskerPos)
       }
 
-      // Polyline
-      if (!polylineRef.current) {
-        polylineRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
-      } else {
-        polylineRef.current.setLatLngs([taskerPos, customerPos])
-      }
-
       map.fitBounds([taskerPos, customerPos], { padding: [50, 50] })
     } else {
       map.setView(customerPos, 15)
     }
+  }, [taskerPos, customerPos])
+
+  // OSRM road routing — re-fetches whenever taskerPos changes
+  useEffect(() => {
+    if (!taskerPos || !customerPos) return
+
+    const [taskerLat, taskerLng] = taskerPos
+    const [customerLat, customerLng] = customerPos
+
+    fetch(
+      `https://router.project-osrm.org/route/v1/driving/${taskerLng},${taskerLat};${customerLng},${customerLat}?overview=full&geometries=geojson`
+    )
+      .then(r => r.json())
+      .then(data => {
+        const coords = data?.routes?.[0]?.geometry?.coordinates
+        if (!coords?.length) throw new Error('no route')
+        // OSRM returns [lng, lat]; Leaflet needs [lat, lng]
+        const latLngs = coords.map(([lng, lat]) => [lat, lng])
+        if (!polylineRef.current) {
+          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 4 }).addTo(map)
+        } else {
+          polylineRef.current.setLatLngs(latLngs)
+          polylineRef.current.setStyle({ dashArray: null, weight: 4 })
+        }
+      })
+      .catch(() => {
+        // Silent fallback: straight line
+        const latLngs = [taskerPos, customerPos]
+        if (!polylineRef.current) {
+          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
+        } else {
+          polylineRef.current.setLatLngs(latLngs)
+          polylineRef.current.setStyle({ dashArray: '6,6', weight: 3 })
+        }
+      })
   }, [taskerPos, customerPos])
 
   return null
@@ -308,10 +337,18 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
       : null
   )
 
-  // Geocode customer address
+  // Resolve customer position — prefer GPS coords from detect-location, fall back to city-level Nominatim
   useEffect(() => {
+    const custLat = booking.task_options?.customer_lat
+    const custLng = booking.task_options?.customer_lng
+    if (custLat && custLng) {
+      setCustomerPos([Number(custLat), Number(custLng)])
+      return
+    }
     if (!booking.address) return
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(booking.address)}&countrycodes=ph`)
+    const parts = booking.address.split(',')
+    const cityQuery = parts.slice(-2).join(',').trim() + ', Philippines'
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityQuery)}&countrycodes=ph`)
       .then(r => r.json())
       .then(data => {
         if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
