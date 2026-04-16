@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
 import { supabase } from '../supabase'
@@ -1220,6 +1222,84 @@ function ProgressTracker({ step }) {
   )
 }
 
+const NOMINATIM_BASE_BOOKING = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
+
+function MapClickHandler({ onMapClick }) {
+  useMapEvents({ click: (e) => onMapClick(e.latlng) })
+  return null
+}
+
+function InteractiveAddressMap({ address, onLandmarkFound }) {
+  const [coords, setCoords] = useState(null)
+  const [clickedPin, setClickedPin] = useState(null)
+  const [geocoding, setGeocoding] = useState(false)
+
+  useEffect(() => {
+    if (!address) return
+    fetch(`${NOMINATIM_BASE_BOOKING}/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.length > 0) setCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+      })
+      .catch(() => {})
+  }, [address])
+
+  function handleMapClick(latlng) {
+    setClickedPin([latlng.lat, latlng.lng])
+    setGeocoding(true)
+    fetch(`${NOMINATIM_BASE_BOOKING}/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data) {
+          const a = data.address || {}
+          const label = data.name || a.amenity || a.building || a.shop || a.tourism || a.road || data.display_name.split(',')[0]
+          onLandmarkFound(label)
+        }
+      })
+      .catch(() => {})
+      .finally(() => setGeocoding(false))
+  }
+
+  const pinIcon = L.divIcon({
+    html: '<div style="width:14px;height:14px;background:#f97316;border:3px solid #fff;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.4)"></div>',
+    className: '', iconSize: [14, 14], iconAnchor: [7, 7],
+  })
+
+  if (!coords) {
+    return (
+      <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200">
+        <div className="text-center">
+          <MapPin size={32} className="text-gray-400" />
+          <p className="text-sm text-gray-400">Locating address...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <MapContainer center={coords} zoom={15} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
+        <TileLayer
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        />
+        <Marker position={coords}>
+          <Popup>{address}</Popup>
+        </Marker>
+        {clickedPin && (
+          <Marker position={clickedPin} icon={pinIcon}>
+            <Popup>Selected location</Popup>
+          </Marker>
+        )}
+        <MapClickHandler onMapClick={handleMapClick} />
+      </MapContainer>
+      <div className="absolute bottom-2 left-2 z-10 bg-white/85 rounded-lg px-2.5 py-1 text-xs text-gray-500 shadow pointer-events-none">
+        {geocoding ? 'Finding landmark…' : 'Tap map to pin a landmark'}
+      </div>
+    </div>
+  )
+}
+
 function Step1({ service, onContinue }) {
   const [address, setAddress] = useState('')
   const [landmark, setLandmark] = useState('')
@@ -1938,7 +2018,7 @@ function Step1({ service, onContinue }) {
         )}
         {address.length > 5 && (
           <div className="mt-3">
-            <LocationMap address={address} />
+            <InteractiveAddressMap address={address} onLandmarkFound={(val) => setLandmark(val)} />
           </div>
         )}
       </div>
