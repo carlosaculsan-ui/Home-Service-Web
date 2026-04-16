@@ -188,7 +188,7 @@ function BecomeATasker() {
       try {
         const { latitude, longitude } = pos.coords
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          `${import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'}/reverse?format=json&lat=${latitude}&lon=${longitude}`
         )
         const json = await res.json()
         setFormData((prev) => ({ ...prev, serviceArea: json.display_name }))

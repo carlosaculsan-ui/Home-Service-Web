@@ -1562,7 +1562,7 @@ function Step1({ service, onContinue }) {
       try {
         const { latitude, longitude } = position.coords
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          `${import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'}/reverse?format=json&lat=${latitude}&lon=${longitude}`
         )
         const data = await res.json()
         if (data?.display_name) {

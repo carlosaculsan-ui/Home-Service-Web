@@ -251,6 +251,8 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
   )
 }
 
+const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
+
 // ─── Track Tasker Map ────────────────────────────────────────────────────────
 
 // Haversine distance in meters between two [lat, lng] points
@@ -379,23 +381,15 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
       return
     }
     if (!booking.address) return
-    // Split by comma, strip noise parts (zones, districts, lot/blk refs, zip codes, "Philippines"),
-    // then take the first 2 meaningful geographic parts (barangay area + city/municipality)
-    const NOISE = /^(zone|district|purok|sitio|phase|blk|block|lot|unit|floor|rm|room|bldg|building|\d{4,}|philippines|barangay\s+[\d-])/i
-    const parts = booking.address.split(',').map(p => p.trim()).filter(Boolean)
-    const meaningful = parts.filter(p => !NOISE.test(p))
-    // Drop the first part if it looks like a barangay code (e.g. "Barangay 176-B") — keep named areas
-    const locationParts = meaningful.length >= 2
-      ? meaningful.slice(0, 2)
-      : meaningful
-    if (!locationParts.length) return
-    const query = locationParts.join(', ') + ', Philippines'
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph`)
-      .then(r => r.json())
-      .then(data => {
-        if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
-      })
-      .catch(() => {})
+    const timer = setTimeout(() => {
+      fetch(`${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(booking.address)}&countrycodes=ph`)
+        .then(r => r.json())
+        .then(data => {
+          if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+        })
+        .catch(() => {})
+    }, 800)
+    return () => clearTimeout(timer)
   }, [booking.address])
 
   // Realtime: live tasker location + status change to in_progress

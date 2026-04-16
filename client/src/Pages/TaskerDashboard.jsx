@@ -438,7 +438,8 @@ function TaskerLiveMapContent({ taskerPos, customerPos }) {
   return null
 }
 
-const NOISE = /^(zone|district|purok|sitio|phase|blk|block|lot|unit|floor|rm|room|bldg|building|\d{4,}|philippines|barangay\s+[\d-])/i
+let _geocodeSlot = 0  // shared slot counter — staggers Nominatim requests 1.2 s apart
+const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
 
 function TaskerLiveMap({ address }) {
   const [taskerPos, setTaskerPos] = useState(null)
@@ -457,20 +458,20 @@ function TaskerLiveMap({ address }) {
     return () => navigator.geolocation.clearWatch(id)
   }, [])
 
-  // Customer geocoding — city-level Nominatim
+  // Customer geocoding — full address, slotted to avoid rate-limit
   useEffect(() => {
     if (!address) return
-    const parts = address.split(',').map(p => p.trim()).filter(Boolean)
-    const meaningful = parts.filter(p => !NOISE.test(p))
-    const locationParts = meaningful.length >= 2 ? meaningful.slice(0, 2) : meaningful
-    if (!locationParts.length) return
-    const query = locationParts.join(', ') + ', Philippines'
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph`)
-      .then(r => r.json())
-      .then(data => {
-        if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
-      })
-      .catch(() => {})
+    const slot  = _geocodeSlot++
+    const delay = 800 + slot * 1200
+    const timer = setTimeout(() => {
+      fetch(`${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`)
+        .then(r => r.json())
+        .then(data => {
+          if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+        })
+        .catch(() => {})
+    }, delay)
+    return () => clearTimeout(timer)
   }, [address])
 
   const center = taskerPos ?? customerPos ?? [14.5995, 120.9842]

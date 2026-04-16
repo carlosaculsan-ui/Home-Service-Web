@@ -14,16 +14,24 @@ L.Icon.Default.mergeOptions({
 const HQ_ADDRESS = 'St. Clare College of Caloocan, Zabarte Road, Barangay 172, Zone 15, Camarin, District 1, Caloocan, Northern Manila District, Metro Manila, 1422, Philippines'
 const GOOGLE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(HQ_ADDRESS)}`
 
+const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
+
+// Sequential slot counter — spreads concurrent geocode requests 1.2 s apart
+// so Nominatim's 1 req/s rate limit is never hit when many cards mount together.
+let _geocodeSlot = 0
+
 // ── Small reusable map (used in Booking, BecomeATasker, TaskerDashboard) ──────
 function AddressMap({ address }) {
   const [coords, setCoords] = useState(null)
 
   useEffect(() => {
     if (!address) return
+    const slot  = _geocodeSlot++
+    const delay = 800 + slot * 1200   // slot 0 → 800 ms, slot 1 → 2000 ms, etc.
     const timer = setTimeout(async () => {
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`
+          `${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`
         )
         const data = await res.json()
         if (data && data.length > 0) {
@@ -34,7 +42,7 @@ function AddressMap({ address }) {
       } catch {
         setCoords(null)
       }
-    }, 1000)
+    }, delay)
     return () => clearTimeout(timer)
   }, [address])
 
@@ -93,7 +101,7 @@ function HQSection() {
   // Geocode HQ address
   useEffect(() => {
     fetch(
-      `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(HQ_ADDRESS)}&countrycodes=ph`
+      `${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(HQ_ADDRESS)}&countrycodes=ph`
     )
       .then((r) => r.json())
       .then((data) => {
