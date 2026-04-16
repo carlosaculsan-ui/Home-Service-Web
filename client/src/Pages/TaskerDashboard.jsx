@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
+import { MapContainer, TileLayer, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
@@ -326,6 +328,134 @@ function RejectModal({ onClose, onConfirm, loading }) {
 }
 
 // ─── Task Card ──────────────────────────────────────────────────────────────
+
+// ─── Tasker Live Map (on_the_way) ────────────────────────────────────────────
+
+function TaskerLiveMapContent({ taskerPos, customerPos }) {
+  const map = useMap()
+  const taskerMarkerRef = useRef(null)
+  const customerMarkerRef = useRef(null)
+  const polylineRef = useRef(null)
+
+  // Markers + bounds
+  useEffect(() => {
+    if (taskerPos) {
+      if (!taskerMarkerRef.current) {
+        const icon = L.divIcon({
+          html: '<div style="width:16px;height:16px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
+          className: '',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        })
+        taskerMarkerRef.current = L.marker(taskerPos, { icon }).addTo(map).bindPopup('You')
+      } else {
+        taskerMarkerRef.current.setLatLng(taskerPos)
+      }
+    }
+
+    if (customerPos && !customerMarkerRef.current) {
+      const icon = L.divIcon({ html: '🏠', className: '', iconSize: [28, 28], iconAnchor: [14, 14] })
+      customerMarkerRef.current = L.marker(customerPos, { icon }).addTo(map).bindPopup('Customer')
+    }
+
+    if (taskerPos && customerPos) {
+      map.fitBounds([taskerPos, customerPos], { padding: [50, 50] })
+    } else if (taskerPos) {
+      map.setView(taskerPos, 15)
+    } else if (customerPos) {
+      map.setView(customerPos, 15)
+    }
+  }, [taskerPos, customerPos])
+
+  // OSRM road routing — re-fetches whenever taskerPos changes
+  useEffect(() => {
+    if (!taskerPos || !customerPos) return
+    const [taskerLat, taskerLng] = taskerPos
+    const [customerLat, customerLng] = customerPos
+    fetch(
+      `https://router.project-osrm.org/route/v1/driving/${taskerLng},${taskerLat};${customerLng},${customerLat}?overview=full&geometries=geojson`
+    )
+      .then(r => r.json())
+      .then(data => {
+        const coords = data?.routes?.[0]?.geometry?.coordinates
+        if (!coords?.length) throw new Error('no route')
+        const latLngs = coords.map(([lng, lat]) => [lat, lng])
+        if (!polylineRef.current) {
+          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 4 }).addTo(map)
+        } else {
+          polylineRef.current.setLatLngs(latLngs)
+          polylineRef.current.setStyle({ dashArray: null, weight: 4 })
+        }
+      })
+      .catch(() => {
+        const latLngs = [taskerPos, customerPos]
+        if (!polylineRef.current) {
+          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
+        } else {
+          polylineRef.current.setLatLngs(latLngs)
+          polylineRef.current.setStyle({ dashArray: '6,6', weight: 3 })
+        }
+      })
+  }, [taskerPos, customerPos])
+
+  return null
+}
+
+const NOISE = /^(zone|district|purok|sitio|phase|blk|block|lot|unit|floor|rm|room|bldg|building|\d{4,}|philippines|barangay\s+[\d-])/i
+
+function TaskerLiveMap({ address }) {
+  const [taskerPos, setTaskerPos] = useState(null)
+  const [customerPos, setCustomerPos] = useState(null)
+  const watchIdRef = useRef(null)
+
+  // Own GPS — read-only watch, does not broadcast
+  useEffect(() => {
+    if (!navigator.geolocation) return
+    const id = navigator.geolocation.watchPosition(
+      (pos) => setTaskerPos([pos.coords.latitude, pos.coords.longitude]),
+      () => {},
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 }
+    )
+    watchIdRef.current = id
+    return () => navigator.geolocation.clearWatch(id)
+  }, [])
+
+  // Customer geocoding — city-level Nominatim
+  useEffect(() => {
+    if (!address) return
+    const parts = address.split(',').map(p => p.trim()).filter(Boolean)
+    const meaningful = parts.filter(p => !NOISE.test(p))
+    const locationParts = meaningful.length >= 2 ? meaningful.slice(0, 2) : meaningful
+    if (!locationParts.length) return
+    const query = locationParts.join(', ') + ', Philippines'
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
+      })
+      .catch(() => {})
+  }, [address])
+
+  const center = taskerPos ?? customerPos ?? [14.5995, 120.9842]
+
+  if (!taskerPos && !customerPos) {
+    return (
+      <div className="w-full h-48 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
+        <p className="text-sm text-gray-400">Locating…</p>
+      </div>
+    )
+  }
+
+  return (
+    <MapContainer center={center} zoom={14} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
+      <TileLayer
+        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      />
+      <TaskerLiveMapContent taskerPos={taskerPos} customerPos={customerPos} />
+    </MapContainer>
+  )
+}
 
 function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [actionLoading, setActionLoading] = useState(null)
@@ -661,7 +791,9 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       )}
 
       {booking.address && (
-        <LocationMap address={booking.address} />
+        booking.status === 'on_the_way'
+          ? <TaskerLiveMap address={booking.address} />
+          : <LocationMap address={booking.address} />
       )}
 
       {/* Accept / Reject — confirmed only */}
@@ -1050,7 +1182,7 @@ function LeaveRequestSection({ taskerId }) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, onLogout, onClose, unreadNotifCount = 0, setUnreadNotifCount, setNotifTabOpen }) {
+function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, taskerUserId, onLogout, onClose, unreadNotifCount = 0, setUnreadNotifCount, setNotifTabOpen }) {
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -3112,6 +3244,7 @@ function TaskerDashboard() {
           setTab={setTab}
           taskerName={taskerName}
           taskerEmail={taskerEmail}
+          taskerUserId={taskerUserId}
           onLogout={handleLogout}
           unreadNotifCount={unreadNotifCount}
           setUnreadNotifCount={setUnreadNotifCount}
@@ -3132,6 +3265,7 @@ function TaskerDashboard() {
               setTab={setTab}
               taskerName={taskerName}
               taskerEmail={taskerEmail}
+              taskerUserId={taskerUserId}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
               unreadNotifCount={unreadNotifCount}

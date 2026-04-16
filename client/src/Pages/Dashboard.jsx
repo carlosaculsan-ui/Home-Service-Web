@@ -337,7 +337,7 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
       : null
   )
 
-  // Resolve customer position — prefer GPS coords from detect-location, fall back to city-level Nominatim
+  // Resolve customer position — prefer GPS coords from detect-location, fall back to Nominatim
   useEffect(() => {
     const custLat = booking.task_options?.customer_lat
     const custLng = booking.task_options?.customer_lng
@@ -346,9 +346,18 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
       return
     }
     if (!booking.address) return
-    const parts = booking.address.split(',')
-    const cityQuery = parts.slice(-2).join(',').trim() + ', Philippines'
-    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cityQuery)}&countrycodes=ph`)
+    // Split by comma, strip noise parts (zones, districts, lot/blk refs, zip codes, "Philippines"),
+    // then take the first 2 meaningful geographic parts (barangay area + city/municipality)
+    const NOISE = /^(zone|district|purok|sitio|phase|blk|block|lot|unit|floor|rm|room|bldg|building|\d{4,}|philippines|barangay\s+[\d-])/i
+    const parts = booking.address.split(',').map(p => p.trim()).filter(Boolean)
+    const meaningful = parts.filter(p => !NOISE.test(p))
+    // Drop the first part if it looks like a barangay code (e.g. "Barangay 176-B") — keep named areas
+    const locationParts = meaningful.length >= 2
+      ? meaningful.slice(0, 2)
+      : meaningful
+    if (!locationParts.length) return
+    const query = locationParts.join(', ') + ', Philippines'
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=ph`)
       .then(r => r.json())
       .then(data => {
         if (data?.length > 0) setCustomerPos([parseFloat(data[0].lat), parseFloat(data[0].lon)])
