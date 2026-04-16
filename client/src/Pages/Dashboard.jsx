@@ -1,7 +1,7 @@
 // NOTE: Run this SQL in Supabase if not already done:
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2 } from 'lucide-react'
@@ -255,6 +255,37 @@ const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.o
 
 // ─── Track Tasker Map ────────────────────────────────────────────────────────
 
+function calcBearing([lat1, lng1], [lat2, lng2]) {
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
+}
+
+function makeArrowIcon(bearing) {
+  return L.divIcon({
+    html: `<div style="width:46px;height:46px;background:#1e3a8a;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;transform:rotate(${bearing}deg)"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M12 3 L20 21 L12 16 L4 21 Z" fill="white"/></svg></div>`,
+    className: '',
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
+  })
+}
+
+function calcPathDist(points) {
+  let d = 0
+  for (let i = 1; i < points.length; i++) d += haversineDist(points[i - 1], points[i])
+  return d
+}
+
+function formatETA(seconds) {
+  const mins = Math.round(seconds / 60)
+  if (mins < 1) return '< 1 min'
+  if (mins < 60) return `${mins} min`
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`
+}
+
 // Haversine distance in meters between two [lat, lng] points
 function haversineDist([lat1, lng1], [lat2, lng2]) {
   const R = 6371000
@@ -276,14 +307,18 @@ function getRemainingPoints(pos, points) {
   return [pos, ...points.slice(idx)]
 }
 
-function LiveMapContent({ taskerPos, customerPos }) {
+function LiveMapContent({ taskerPos, customerPos, onRouteUpdate }) {
   const map = useMap()
-  const taskerMarkerRef = useRef(null)
+  const taskerMarkerRef   = useRef(null)
   const customerMarkerRef = useRef(null)
-  const fullPolyRef = useRef(null)       // grey full route (background)
-  const remainPolyRef = useRef(null)     // orange remaining route
-  const routePointsRef = useRef([])      // stored route for trimming
-  const fetchedRef = useRef(false)
+  const fullPolyRef       = useRef(null)
+  const remainPolyRef     = useRef(null)
+  const routePointsRef    = useRef([])
+  const totalDistRef      = useRef(0)
+  const totalDurRef       = useRef(0)
+  const fetchedRef        = useRef(false)
+  const prevPosRef        = useRef(null)
+  const bearingRef        = useRef(0)
 
   // Markers + bounds
   useEffect(() => {
@@ -296,17 +331,19 @@ function LiveMapContent({ taskerPos, customerPos }) {
     }
 
     if (taskerPos) {
+      // Update bearing when tasker moves more than 3 m
+      if (prevPosRef.current && haversineDist(prevPosRef.current, taskerPos) > 3) {
+        bearingRef.current = calcBearing(prevPosRef.current, taskerPos)
+      }
+      prevPosRef.current = taskerPos
+
       if (!taskerMarkerRef.current) {
-        const icon = L.divIcon({
-          html: '<div style="width:16px;height:16px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
-          className: '',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
-        })
-        taskerMarkerRef.current = L.marker(taskerPos, { icon }).addTo(map)
+        taskerMarkerRef.current = L.marker(taskerPos, { icon: makeArrowIcon(bearingRef.current) })
+          .addTo(map)
           .bindPopup('Tasker location')
       } else {
         taskerMarkerRef.current.setLatLng(taskerPos)
+        taskerMarkerRef.current.setIcon(makeArrowIcon(bearingRef.current))
       }
       map.fitBounds([taskerPos, customerPos], { padding: [50, 50] })
     } else {
@@ -329,7 +366,10 @@ function LiveMapContent({ taskerPos, customerPos }) {
       .then(r => r.json())
       .then(data => {
         if (data?.code !== 'Ok') throw new Error('bad response')
-        const points = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
+        const route  = data.routes[0]
+        totalDistRef.current = route.distance
+        totalDurRef.current  = route.duration
+        const points = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
         routePointsRef.current = points
 
         // Full route — grey background
@@ -346,19 +386,30 @@ function LiveMapContent({ taskerPos, customerPos }) {
         } else {
           remainPolyRef.current.setLatLngs(remaining)
         }
+
+        const remainDist = calcPathDist(remaining)
+        const remainSec  = route.duration > 0 ? (remainDist / route.distance) * route.duration : 0
+        onRouteUpdate?.(remainDist, remainSec)
       })
       .catch(() => {
         // Silent fallback: straight dashed line
         if (!remainPolyRef.current) {
           remainPolyRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
         }
+        onRouteUpdate?.(haversineDist(taskerPos, customerPos), null)
       })
   }, [taskerPos, customerPos])
 
   // Trim remaining route as tasker moves — no re-fetch
   useEffect(() => {
     if (!taskerPos || !routePointsRef.current.length || !remainPolyRef.current) return
-    remainPolyRef.current.setLatLngs(getRemainingPoints(taskerPos, routePointsRef.current))
+    const remaining  = getRemainingPoints(taskerPos, routePointsRef.current)
+    remainPolyRef.current.setLatLngs(remaining)
+    const remainDist = calcPathDist(remaining)
+    const remainSec  = totalDistRef.current > 0
+      ? (remainDist / totalDistRef.current) * totalDurRef.current
+      : null
+    onRouteUpdate?.(remainDist, remainSec)
   }, [taskerPos])
 
   return null
@@ -371,6 +422,13 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
       ? [Number(booking.tasker_lat), Number(booking.tasker_lng)]
       : null
   )
+  const [remainDist, setRemainDist] = useState(null)
+  const [remainSec,  setRemainSec]  = useState(null)
+
+  const handleRouteUpdate = useCallback((dist, sec) => {
+    setRemainDist(dist)
+    setRemainSec(sec)
+  }, [])
 
   // Resolve customer position — prefer GPS coords from detect-location, fall back to Nominatim
   useEffect(() => {
@@ -440,7 +498,7 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
           {/* Header */}
           <div style={{ padding: '16px 20px', borderBottom: '1px solid #f3f4f6' }}>
             <p style={{ fontWeight: 700, fontSize: '16px', color: '#1f2937' }}>
-              🔴 {booking.taskerName ?? 'Your tasker'} is on the way!
+              🔵 {booking.taskerName ?? 'Your tasker'} is on the way!
             </p>
             <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
               Live location updates automatically
@@ -465,16 +523,32 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 />
-                <LiveMapContent taskerPos={taskerPos} customerPos={customerPos} />
+                <LiveMapContent taskerPos={taskerPos} customerPos={customerPos} onRouteUpdate={handleRouteUpdate} />
               </MapContainer>
             )}
           </div>
 
-          {/* Legend */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '10px 20px', borderTop: '1px solid #f3f4f6', fontSize: '12px', color: '#6b7280' }}>
-            <span>🔴 Tasker</span>
-            <span>🏠 Your location</span>
-            {!taskerPos && <span style={{ color: '#f97316' }}>Waiting for tasker to start sharing…</span>}
+          {/* Stats row */}
+          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid #f3f4f6', gap: '0' }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontSize: '26px', fontWeight: 900, color: '#111827', lineHeight: 1 }}>
+                {remainDist != null ? (remainDist / 1000).toFixed(1) : '—'}
+              </p>
+              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>km away</p>
+            </div>
+            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontSize: '26px', fontWeight: 900, color: '#f97316', lineHeight: 1 }}>
+                {remainSec != null ? formatETA(remainSec) : '—'}
+              </p>
+              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>est. arrival</p>
+            </div>
+            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
+            <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '16px', fontSize: '12px', color: '#6b7280' }}>
+              <span>🔵 Tasker</span>
+              <span>🏠 You</span>
+              {!taskerPos && <span style={{ color: '#f97316', fontSize: '11px' }}>Waiting…</span>}
+            </div>
           </div>
 
           {/* Footer */}

@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import {
-  Phone, Bot, Car, Wrench, CheckCircle2,
+  Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
   LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight,
 } from 'lucide-react'
@@ -329,7 +329,7 @@ function RejectModal({ onClose, onConfirm, loading }) {
 
 // ─── Task Card ──────────────────────────────────────────────────────────────
 
-// ─── Tasker Live Map (on_the_way) ────────────────────────────────────────────
+// ─── Navigation Overlay (Angkas / MoveIt style) ──────────────────────────────
 
 function haversineDist([lat1, lng1], [lat2, lng2]) {
   const R = 6371000
@@ -350,89 +350,139 @@ function getRemainingPoints(pos, points) {
   return [pos, ...points.slice(idx)]
 }
 
-function TaskerLiveMapContent({ taskerPos, customerPos }) {
-  const map = useMap()
-  const taskerMarkerRef = useRef(null)
-  const customerMarkerRef = useRef(null)
-  const fullPolyRef = useRef(null)       // grey full route (background)
-  const remainPolyRef = useRef(null)     // orange remaining route
-  const routePointsRef = useRef([])
-  const fetchedRef = useRef(false)
+function calcPathDist(points) {
+  let d = 0
+  for (let i = 1; i < points.length; i++) d += haversineDist(points[i - 1], points[i])
+  return d
+}
 
-  // Markers + bounds
+function formatETA(seconds) {
+  const mins = Math.round(seconds / 60)
+  if (mins < 1) return '< 1 min'
+  if (mins < 60) return `${mins} min`
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`
+}
+
+function calcBearing([lat1, lng1], [lat2, lng2]) {
+  const φ1 = lat1 * Math.PI / 180
+  const φ2 = lat2 * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const y = Math.sin(Δλ) * Math.cos(φ2)
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ)
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360
+}
+
+function makeArrowIcon(bearing) {
+  return L.divIcon({
+    html: `<div style="width:46px;height:46px;background:#1e3a8a;border-radius:50%;border:3px solid #fff;box-shadow:0 3px 12px rgba(0,0,0,0.45);display:flex;align-items:center;justify-content:center;transform:rotate(${bearing}deg)"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"><path d="M12 3 L20 21 L12 16 L4 21 Z" fill="white"/></svg></div>`,
+    className: '',
+    iconSize: [46, 46],
+    iconAnchor: [23, 23],
+  })
+}
+
+// Inner map component — runs inside MapContainer via useMap
+function NavigationMapContent({ taskerPos, customerPos, onRouteUpdate }) {
+  const map = useMap()
+  const taskerMarkerRef   = useRef(null)
+  const customerMarkerRef = useRef(null)
+  const fullPolyRef       = useRef(null)
+  const remainPolyRef     = useRef(null)
+  const routePointsRef    = useRef([])
+  const totalDistRef      = useRef(0)
+  const totalDurRef       = useRef(0)
+  const fetchedRef        = useRef(false)
+  const prevPosRef        = useRef(null)
+  const bearingRef        = useRef(0)
+
+  // Place / move markers and fit bounds
   useEffect(() => {
     if (taskerPos) {
+      // Update bearing if we have a previous position and moved meaningfully
+      if (prevPosRef.current && haversineDist(prevPosRef.current, taskerPos) > 3) {
+        bearingRef.current = calcBearing(prevPosRef.current, taskerPos)
+      }
+      prevPosRef.current = taskerPos
+
       if (!taskerMarkerRef.current) {
-        const icon = L.divIcon({
-          html: '<div style="width:16px;height:16px;background:#ef4444;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4)"></div>',
-          className: '',
-          iconSize: [16, 16],
-          iconAnchor: [8, 8],
-        })
-        taskerMarkerRef.current = L.marker(taskerPos, { icon }).addTo(map).bindPopup('You')
+        taskerMarkerRef.current = L.marker(taskerPos, { icon: makeArrowIcon(bearingRef.current) })
+          .addTo(map)
+          .bindPopup('You are here')
       } else {
         taskerMarkerRef.current.setLatLng(taskerPos)
+        taskerMarkerRef.current.setIcon(makeArrowIcon(bearingRef.current))
       }
     }
-
     if (customerPos && !customerMarkerRef.current) {
-      const icon = L.divIcon({ html: '🏠', className: '', iconSize: [28, 28], iconAnchor: [14, 14] })
+      const icon = L.divIcon({
+        html: '<div style="font-size:28px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.4))">🏠</div>',
+        className: '', iconSize: [32, 32], iconAnchor: [16, 16],
+      })
       customerMarkerRef.current = L.marker(customerPos, { icon }).addTo(map).bindPopup('Customer')
     }
-
     if (taskerPos && customerPos) {
-      map.fitBounds([taskerPos, customerPos], { padding: [50, 50] })
+      map.fitBounds([taskerPos, customerPos], { padding: [80, 80] })
     } else if (taskerPos) {
-      map.setView(taskerPos, 15)
-    } else if (customerPos) {
-      map.setView(customerPos, 15)
+      map.setView(taskerPos, 16)
     }
   }, [taskerPos, customerPos])
 
-  // Fetch OSRM once when both positions first become available
+  // Fetch OSRM once when both positions are known
   useEffect(() => {
     if (!taskerPos || !customerPos || fetchedRef.current) return
     fetchedRef.current = true
-
-    const [taskerLat, taskerLng] = taskerPos
-    const [customerLat, customerLng] = customerPos
-
+    const [tLat, tLng] = taskerPos
+    const [cLat, cLng] = customerPos
     fetch(
-      `https://router.project-osrm.org/route/v1/driving/${taskerLng},${taskerLat};${customerLng},${customerLat}?overview=full&geometries=geojson&steps=true&annotations=false`,
+      `https://router.project-osrm.org/route/v1/driving/${tLng},${tLat};${cLng},${cLat}?overview=full&geometries=geojson&steps=true&annotations=false`,
       { headers: { 'User-Agent': 'HanapPH/1.0' } }
     )
       .then(r => r.json())
       .then(data => {
-        if (data?.code !== 'Ok') throw new Error('bad response')
-        const points = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
+        if (data?.code !== 'Ok') throw new Error()
+        const route  = data.routes[0]
+        totalDistRef.current = route.distance
+        totalDurRef.current  = route.duration
+        const points = route.geometry.coordinates.map(([lng, lat]) => [lat, lng])
         routePointsRef.current = points
 
-        // Full route — grey background
         if (!fullPolyRef.current) {
-          fullPolyRef.current = L.polyline(points, { color: '#9ca3af', weight: 6, opacity: 0.35 }).addTo(map)
+          fullPolyRef.current = L.polyline(points, { color: '#9ca3af', weight: 8, opacity: 0.25 }).addTo(map)
         } else {
           fullPolyRef.current.setLatLngs(points)
         }
 
-        // Initial remaining route — orange
         const remaining = getRemainingPoints(taskerPos, points)
         if (!remainPolyRef.current) {
-          remainPolyRef.current = L.polyline(remaining, { color: '#f97316', weight: 5 }).addTo(map)
+          remainPolyRef.current = L.polyline(remaining, { color: '#f97316', weight: 6 }).addTo(map)
         } else {
           remainPolyRef.current.setLatLngs(remaining)
         }
+
+        const remainDist = calcPathDist(remaining)
+        const remainSec  = route.duration > 0 ? (remainDist / route.distance) * route.duration : 0
+        onRouteUpdate(remainDist, remainSec)
       })
       .catch(() => {
-        if (!remainPolyRef.current) {
-          remainPolyRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
+        // Fallback — straight dashed line, straight-line distance
+        if (taskerPos && customerPos) {
+          if (!remainPolyRef.current)
+            remainPolyRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 4, dashArray: '8,8' }).addTo(map)
+          onRouteUpdate(haversineDist(taskerPos, customerPos), null)
         }
       })
   }, [taskerPos, customerPos])
 
-  // Trim remaining route as tasker moves — no re-fetch
+  // Trim remaining route on every GPS tick — no re-fetch
   useEffect(() => {
     if (!taskerPos || !routePointsRef.current.length || !remainPolyRef.current) return
-    remainPolyRef.current.setLatLngs(getRemainingPoints(taskerPos, routePointsRef.current))
+    const remaining  = getRemainingPoints(taskerPos, routePointsRef.current)
+    remainPolyRef.current.setLatLngs(remaining)
+    const remainDist = calcPathDist(remaining)
+    const remainSec  = totalDistRef.current > 0
+      ? (remainDist / totalDistRef.current) * totalDurRef.current
+      : null
+    onRouteUpdate(remainDist, remainSec)
   }, [taskerPos])
 
   return null
@@ -441,12 +491,15 @@ function TaskerLiveMapContent({ taskerPos, customerPos }) {
 let _geocodeSlot = 0  // shared slot counter — staggers Nominatim requests 1.2 s apart
 const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
 
-function TaskerLiveMap({ address }) {
-  const [taskerPos, setTaskerPos] = useState(null)
+// Full-screen navigation overlay — Angkas / MoveIt style
+function NavigationOverlay({ address, onClose, onStartJob, actionLoading }) {
+  const [taskerPos,  setTaskerPos]  = useState(null)
   const [customerPos, setCustomerPos] = useState(null)
+  const [remainDist, setRemainDist] = useState(null)   // metres
+  const [remainSec,  setRemainSec]  = useState(null)   // seconds
   const watchIdRef = useRef(null)
 
-  // Own GPS — read-only watch, does not broadcast
+  // Own GPS — read-only, does NOT touch the broadcast channel
   useEffect(() => {
     if (!navigator.geolocation) return
     const id = navigator.geolocation.watchPosition(
@@ -458,7 +511,7 @@ function TaskerLiveMap({ address }) {
     return () => navigator.geolocation.clearWatch(id)
   }, [])
 
-  // Customer geocoding — full address, slotted to avoid rate-limit
+  // Customer geocoding — full address, slotted to avoid Nominatim rate-limit
   useEffect(() => {
     if (!address) return
     const slot  = _geocodeSlot++
@@ -474,24 +527,103 @@ function TaskerLiveMap({ address }) {
     return () => clearTimeout(timer)
   }, [address])
 
-  const center = taskerPos ?? customerPos ?? [14.5995, 120.9842]
+  const handleRouteUpdate = useCallback((dist, sec) => {
+    setRemainDist(dist)
+    setRemainSec(sec)
+  }, [])
 
-  if (!taskerPos && !customerPos) {
-    return (
-      <div className="w-full h-48 bg-gray-100 rounded-xl flex items-center justify-center border border-gray-200">
-        <p className="text-sm text-gray-400">Locating…</p>
-      </div>
-    )
-  }
+  const center   = taskerPos ?? customerPos ?? [14.5995, 120.9842]
+  const distKm   = remainDist != null ? (remainDist / 1000).toFixed(1) : '—'
+  const etaLabel = remainSec  != null ? formatETA(remainSec) : '—'
 
   return (
-    <MapContainer center={center} zoom={14} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
-      <TileLayer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    <>
+      {/* Backdrop */}
+      <div
+        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000 }}
+        onClick={onClose}
       />
-      <TaskerLiveMapContent taskerPos={taskerPos} customerPos={customerPos} />
-    </MapContainer>
+
+      {/* Modal */}
+      <div style={{ position: 'fixed', inset: 0, zIndex: 1001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
+        <div
+          style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%', maxWidth: '520px', overflow: 'hidden' }}
+          onClick={e => e.stopPropagation()}
+        >
+          {/* Header */}
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid #f3f4f6' }}>
+            <p style={{ fontWeight: 700, fontSize: '16px', color: '#1f2937' }}>
+              🔵 Navigating to customer
+            </p>
+            <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '2px' }}>
+              Live route updates as you move
+            </p>
+          </div>
+
+          {/* Map */}
+          <div style={{ height: '340px', position: 'relative' }}>
+            {!taskerPos && !customerPos ? (
+              <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ width: '32px', height: '32px', border: '4px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                <p style={{ fontSize: '13px', color: '#9ca3af' }}>Getting your location…</p>
+              </div>
+            ) : (
+              <MapContainer
+                center={center}
+                zoom={14}
+                style={{ height: '100%', width: '100%', zIndex: 1 }}
+                zoomControl={true}
+              >
+                <TileLayer
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                />
+                <NavigationMapContent
+                  taskerPos={taskerPos}
+                  customerPos={customerPos}
+                  onRouteUpdate={handleRouteUpdate}
+                />
+              </MapContainer>
+            )}
+          </div>
+
+          {/* Stats row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '12px 20px', borderTop: '1px solid #f3f4f6', borderBottom: '1px solid #f3f4f6' }}>
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontSize: '26px', fontWeight: 900, color: '#111827', lineHeight: 1 }}>{distKm}</p>
+              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>km away</p>
+            </div>
+            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
+            <div style={{ flex: 1, textAlign: 'center' }}>
+              <p style={{ fontSize: '26px', fontWeight: 900, color: '#f97316', lineHeight: 1 }}>{etaLabel}</p>
+              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>est. arrival</p>
+            </div>
+            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
+            <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <MapPin size={14} style={{ color: '#f97316', flexShrink: 0 }} />
+              <p style={{ fontSize: '12px', color: '#374151', lineHeight: '1.4', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{address}</p>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '12px 20px', display: 'flex', gap: '10px' }}>
+            <button
+              onClick={onStartJob}
+              disabled={actionLoading}
+              style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '14px', color: '#fff', cursor: actionLoading ? 'not-allowed' : 'pointer', opacity: actionLoading ? 0.6 : 1 }}
+            >
+              {actionLoading ? 'Updating…' : "I've Arrived — Start Job"}
+            </button>
+            <button
+              onClick={onClose}
+              style={{ padding: '10px 16px', background: '#f3f4f6', border: 'none', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   )
 }
 
@@ -504,6 +636,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [showRejectModal, setShowRejectModal] = useState(false)
   const [toast, setToast] = useState('')
   const [sharingLocation, setSharingLocation] = useState(false)
+  const [showNav, setShowNav] = useState(false)
   const watchIdRef = useRef(null)
   const locationChannelRef = useRef(null)
 
@@ -730,6 +863,15 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         />
       )}
 
+      {showNav && booking.address && (
+        <NavigationOverlay
+          address={booking.address}
+          onClose={() => setShowNav(false)}
+          onStartJob={() => { handleAction('in_progress'); setShowNav(false) }}
+          actionLoading={actionLoading === 'in_progress'}
+        />
+      )}
+
     <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
       {toast && (
         <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
@@ -830,7 +972,15 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
       {booking.address && (
         booking.status === 'on_the_way'
-          ? <TaskerLiveMap address={booking.address} />
+          ? (
+            <button
+              onClick={() => setShowNav(true)}
+              className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm"
+            >
+              <Car size={17} />
+              Open Navigation
+            </button>
+          )
           : <LocationMap address={booking.address} />
       )}
 
