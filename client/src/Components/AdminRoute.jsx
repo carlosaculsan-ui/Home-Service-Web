@@ -119,6 +119,7 @@ function AdminLoginForm({ onLoginSuccess }) {
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError('') }}
               required
+              placeholder=" "
               className="auth-input"
             />
             <label>Password</label>

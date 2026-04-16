@@ -17,6 +17,9 @@ function AuthForm() {
   const [showSignupPassword, setShowSignupPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
+  const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
 
   // OTP verification state (new Google sign-ups only)
   const [otpScreen, setOtpScreen] = useState(false)
@@ -116,6 +119,9 @@ function AuthForm() {
     if (error) {
       setError(error.message)
     } else {
+      if (!rememberMe) {
+        await supabase.auth.signOut()
+      }
       alert('Check your email for confirmation!')
       setIsLogin(true)
     }
@@ -256,6 +262,7 @@ function AuthForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                placeholder=" "
                 className="auth-input"
               />
               <label>Password</label>
@@ -324,6 +331,7 @@ function AuthForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 minLength={6}
+                placeholder=" "
                 className="auth-input"
               />
               <label>Password</label>
@@ -342,6 +350,7 @@ function AuthForm() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
+                placeholder=" "
                 className="auth-input"
               />
               <label>Confirm Password</label>
@@ -354,9 +363,40 @@ function AuthForm() {
                 {showConfirmPassword ? <FaLockOpen /> : <FaLock />}
               </button>
             </div>
+            {/* Remember Me */}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', margin: '8px 0 4px', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <span style={{ color: '#ccc', fontSize: '13px' }}>Remember Me</span>
+            </label>
+
+            {/* Terms and Conditions */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer', margin: '4px 0 8px', userSelect: 'none' }}>
+              <input
+                type="checkbox"
+                checked={agreedToTerms}
+                onChange={() => { if (!agreedToTerms) setShowTermsModal(true); else setAgreedToTerms(false) }}
+                style={{ width: '16px', height: '16px', accentColor: '#f97316', cursor: 'pointer', flexShrink: 0, marginTop: '2px' }}
+              />
+              <span style={{ color: '#ccc', fontSize: '13px' }}>
+                I agree to the{' '}
+                <button
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  style={{ color: '#f5c518', textDecoration: 'underline', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}
+                >
+                  Terms and Conditions
+                </button>
+              </span>
+            </label>
+
             {error && !isLogin && <p className="auth-error">{error}</p>}
             <div className="auth-input-box">
-              <button type="submit" disabled={loading} className="auth-btn">
+              <button type="submit" disabled={loading || !agreedToTerms} className="auth-btn">
                 {loading ? 'Creating Account...' : 'Sign Up'}
               </button>
             </div>
@@ -396,6 +436,114 @@ function AuthForm() {
           </p>
         </div>
       </div>
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'rgba(0,0,0,0.75)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', width: '100%', maxWidth: '520px', display: 'flex', flexDirection: 'column', maxHeight: '85vh' }}>
+
+            {/* Header */}
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
+              <h2 style={{ fontWeight: 800, fontSize: '18px', color: '#111827', margin: 0 }}>Terms and Conditions</h2>
+              <p style={{ fontSize: '12px', color: '#9ca3af', marginTop: '3px' }}>Hanap.ph — Effective Date: January 1, 2025</p>
+            </div>
+
+            {/* Scrollable content */}
+            <div style={{ overflowY: 'auto', padding: '20px', fontSize: '13px', color: '#374151', lineHeight: '1.6', flex: 1 }}>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>1. Acceptance of Terms</p>
+                <p>By creating an account or using the Hanap.ph platform (the "Platform"), you agree to be bound by these Terms and Conditions ("Terms") and all applicable laws and regulations of the Republic of the Philippines. If you do not agree to these Terms, you must not access or use the Platform. Hanap.ph reserves the right to modify these Terms at any time. Continued use of the Platform after changes are posted constitutes your acceptance of the revised Terms.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>2. Service Description</p>
+                <p>Hanap.ph is an online marketplace that connects customers ("Customers") with independent home service providers ("Taskers") for various household services including but not limited to cleaning, carpentry, plumbing, electrical work, aircon servicing, and other related services. Hanap.ph acts solely as an intermediary platform and is not a direct service provider. The actual services are rendered by independent Taskers who are not employees, agents, or contractors of Hanap.ph.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>3. Account Registration</p>
+                <p>You must be at least 18 years old to register an account. You agree to provide accurate, current, and complete information during registration and to update such information to keep it accurate. You are responsible for safeguarding your account credentials and for all activities that occur under your account. You must notify Hanap.ph immediately of any unauthorized use of your account. Hanap.ph reserves the right to suspend or terminate accounts that violate these Terms.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>4. Booking and Payment Policies</p>
+                <p>Bookings are confirmed upon receipt of full payment through the Platform's accepted payment methods. Service rates are set by individual Taskers and displayed on their profiles. Hanap.ph charges a platform fee of 30% of the total booking value, which is deducted from the Tasker's payout. Customers are required to pay the full service fee prior to service commencement. All transactions are processed in Philippine Peso (PHP). Hanap.ph uses third-party payment processors and does not store credit card information on its servers. Prices are inclusive of applicable taxes unless otherwise stated.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>5. Refund Policy</p>
+                <p>Customers may request a full refund if a booking is cancelled before the Tasker has been dispatched. Once a Tasker has been assigned and is on the way to the service location, cancellations may be subject to a cancellation fee equivalent to 20% of the total booking value. Refunds for unsatisfactory service must be raised within 24 hours of service completion and are subject to review by Hanap.ph. Approved refunds will be credited to the Customer's Hanap.ph e-wallet within 3–5 business days. Refunds to the original payment method may take 7–14 business days depending on the payment provider. Hanap.ph reserves the right to deny refund requests that do not meet the eligibility criteria.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>6. User Responsibilities</p>
+                <p>As a Customer, you agree to: (a) provide accurate service location and task descriptions; (b) ensure a safe and accessible environment for the Tasker; (c) not request services that are illegal, hazardous, or outside the scope of the Platform; (d) treat Taskers with respect and courtesy; (e) not attempt to circumvent the Platform by engaging Taskers directly for future services discovered through Hanap.ph; and (f) comply with all applicable Philippine laws and regulations in connection with your use of the Platform.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>7. Tasker Responsibilities</p>
+                <p>Taskers registered on the Platform agree to: (a) provide accurate professional information, credentials, and service capabilities; (b) fulfill accepted bookings promptly and with professional quality; (c) maintain appropriate licenses or permits required by Philippine law for their respective trade; (d) carry their own tools, materials, and equipment unless otherwise agreed with the Customer; (e) not solicit Customers outside of the Platform for services facilitated through Hanap.ph; and (f) comply with all applicable laws including but not limited to the Labor Code of the Philippines and relevant local ordinances.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>8. Privacy Policy Summary</p>
+                <p>Hanap.ph collects personal information including your name, email address, mobile number, and location data for the purposes of account management, service delivery, and platform improvement. Your information may be shared with Taskers solely for the purpose of completing your booked service. Hanap.ph does not sell your personal data to third parties. Location data is collected during active bookings to enable navigation and real-time tracking features. By using the Platform, you consent to the collection and processing of your personal data in accordance with Republic Act No. 10173, otherwise known as the Data Privacy Act of 2012.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>9. Prohibited Conduct</p>
+                <p>The following conduct is strictly prohibited on the Platform: (a) posting false, misleading, or fraudulent information; (b) harassing, threatening, or discriminating against other users or Taskers; (c) attempting to hack, disrupt, or interfere with the Platform's systems or infrastructure; (d) using the Platform for money laundering or any other illegal financial activity; (e) creating multiple accounts to circumvent suspensions or bans; (f) posting or transmitting offensive, obscene, or defamatory content in reviews or messages; and (g) engaging in any conduct that violates the rights of other users, Taskers, or third parties. Violations may result in immediate account suspension and referral to appropriate Philippine law enforcement authorities.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>10. Limitation of Liability</p>
+                <p>Hanap.ph provides the Platform on an "as is" and "as available" basis. To the maximum extent permitted by applicable Philippine law, Hanap.ph shall not be liable for: (a) any indirect, incidental, special, or consequential damages arising from your use of the Platform; (b) the quality, safety, legality, or fitness for purpose of any service performed by a Tasker; (c) property damage or personal injury occurring during or after a service engagement; (d) any technical failures, service interruptions, or data loss; or (e) losses resulting from unauthorized access to your account. Hanap.ph's total liability to you for any claim shall not exceed the total fees paid by you for the specific booking giving rise to the claim.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>11. Intellectual Property</p>
+                <p>All content on the Hanap.ph Platform, including but not limited to logos, trademarks, design, text, graphics, and software, is the exclusive property of Hanap.ph and is protected under applicable intellectual property laws of the Philippines. You may not reproduce, distribute, modify, or create derivative works from any Platform content without prior written consent from Hanap.ph.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>12. Dispute Resolution</p>
+                <p>In the event of a dispute between a Customer and a Tasker, Hanap.ph may, at its discretion, facilitate mediation between the parties. However, Hanap.ph is not obligated to resolve disputes and its decision in any mediation is non-binding. Any unresolved disputes arising from the use of the Platform shall be submitted to the appropriate courts or alternative dispute resolution bodies in Caloocan City, Metro Manila, Philippines.</p>
+              </div>
+
+              <div style={{ marginBottom: '16px' }}>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>13. Governing Law</p>
+                <p>These Terms and Conditions shall be governed by and construed in accordance with the laws of the Republic of the Philippines, including but not limited to the Civil Code of the Philippines, the Electronic Commerce Act (Republic Act No. 8792), the Consumer Act of the Philippines (Republic Act No. 7394), and the Data Privacy Act of 2012 (Republic Act No. 10173). Any legal action or proceeding relating to your access to, or use of, the Platform shall be instituted in a court of competent jurisdiction in Caloocan City, Metro Manila.</p>
+              </div>
+
+              <div>
+                <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>14. Contact Information</p>
+                <p>If you have questions or concerns about these Terms and Conditions, please contact us at: Hanap.ph Support, St. Clare College of Caloocan, Zabarte Road, Camarin, Caloocan City, Metro Manila, Philippines. Email: support@hanap.ph. Operating Hours: Monday to Sunday, 7:00 AM – 5:00 PM.</p>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #e5e7eb', flexShrink: 0, display: 'flex', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setShowTermsModal(false)}
+                style={{ flex: 1, padding: '10px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => { setAgreedToTerms(true); setShowTermsModal(false) }}
+                style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '14px', color: '#fff', cursor: 'pointer' }}
+              >
+                I Agree
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

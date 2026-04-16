@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import { supabase } from '../supabase'
+import { Briefcase } from 'lucide-react'
+import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
 import backgroundImg from '../Assets/Background.jpg'
-import '../Pages/AuthForm.css'
+import './AuthForm.css'
 
 function TaskerLogin() {
   const [email, setEmail] = useState('')
@@ -15,8 +16,8 @@ function TaskerLogin() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    const timer = setTimeout(() => setShow(true), 100)
-    return () => clearTimeout(timer)
+    const t = setTimeout(() => setShow(true), 100)
+    return () => clearTimeout(t)
   }, [])
 
   const handleSubmit = async (e) => {
@@ -29,6 +30,7 @@ function TaskerLogin() {
       setError('Invalid email or password. Please try again.')
       setLoading(false)
       return
+      
     }
 
     const { data: profile } = await supabase
@@ -51,12 +53,8 @@ function TaskerLogin() {
 
   return (
     <div
+      className="auth-page"
       style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1rem',
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
@@ -68,26 +66,34 @@ function TaskerLogin() {
         className={`auth-box-enter ${show ? 'auth-box-visible' : ''}`}
         style={{
           position: 'relative',
-          zIndex: 1,
+          zIndex: 10,
           width: '100%',
           maxWidth: '420px',
           background: '#2a323f',
           border: '2px solid #fdf84c',
-          boxShadow: '0 0 30px rgba(253, 248, 76, 0.3)',
+          boxShadow: '0 0 30px rgba(253,248,76,0.3)',
           borderRadius: '20px',
-          padding: '40px 45px',
+          padding: '2.5rem',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(253,248,76,0.1)', border: '1px solid rgba(253,248,76,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <FaLock style={{ fontSize: '1.2rem', color: '#fdf84c' }} />
+        {/* Header */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
+          <div style={{
+            width: 56, height: 56, borderRadius: '50%',
+            background: 'rgba(249,115,22,0.15)',
+            border: '1px solid rgba(249,115,22,0.35)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 0.75rem',
+          }}>
+            <Briefcase size={24} style={{ color: '#f97316' }} />
           </div>
+          <h1 className="auth-title" style={{ marginBottom: '0.25rem' }}>Tasker Login</h1>
+          <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.85rem' }}>
+            Sign in to your tasker dashboard.
+          </p>
         </div>
-        <h2 className="auth-title">Tasker Login</h2>
-        <p style={{ textAlign: 'center', fontSize: '0.85rem', color: 'rgba(255,255,255,0.6)', marginTop: '-0.6rem', marginBottom: '1.4rem' }}>
-          Sign in to your tasker dashboard.
-        </p>
 
+        {/* Form */}
         <form onSubmit={handleSubmit}>
           <div
             className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
@@ -97,8 +103,8 @@ function TaskerLogin() {
               type="email"
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError('') }}
-              required
               placeholder=" "
+              required
               className="auth-input"
             />
             <label>Email</label>
@@ -113,6 +119,7 @@ function TaskerLogin() {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError('') }}
+              placeholder=" "
               required
               className="auth-input"
             />
@@ -127,25 +134,29 @@ function TaskerLogin() {
             </button>
           </div>
 
+          <div
+            className={`auth-field ${show ? 'auth-field-visible' : ''}`}
+            style={{ '--i': 3, textAlign: 'right', marginBottom: '1rem' }}
+          >
+            <Link to="/forgot-password" className="auth-link" style={{ fontSize: '0.82rem' }}>
+              Forgot Password?
+            </Link>
+          </div>
+
           {error && <p className="auth-error">{error}</p>}
 
           <div
             className={`auth-input-box auth-field ${show ? 'auth-field-visible' : ''}`}
-            style={{ '--i': 3 }}
+            style={{ '--i': 4 }}
           >
             <button type="submit" disabled={loading} className="auth-btn">
-              {loading ? 'Signing In...' : 'Login'}
+              {loading ? 'Logging in...' : 'Login'}
             </button>
           </div>
         </form>
 
-        <div className="auth-regi-link">
-          <p>
-            <a href="/forgot-password" className="auth-link">Forgot Password?</a>
-          </p>
-          <p style={{ marginTop: '0.3rem' }}>
-            <Link to="/" className="auth-link">← Back to homepage</Link>
-          </p>
+        <div className="auth-regi-link" style={{ marginTop: '1.2rem' }}>
+          <Link to="/" className="auth-link">← Back to homepage</Link>
         </div>
       </div>
     </div>

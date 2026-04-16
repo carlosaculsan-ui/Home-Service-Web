@@ -426,10 +426,10 @@ export default function BookingConfirmation() {
 
             <div className="flex flex-col gap-2 mt-2">
               <button
-                onClick={() => navigate('/')}
+                onClick={() => navigate('/dashboard')}
                 className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
               >
-                Back to Home
+                My Bookings
               </button>
               <button
                 onClick={handleDownloadReceipt}
