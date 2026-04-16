@@ -113,12 +113,7 @@ function buildPriceBreakdown(taskOptions) {
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   } else if (service === 'Aircon Maintenance') {
     const u = taskOptions.units || 1
-    if (taskOptions.aircon_type === 'Install') {
-      lines.push({ label: `Install (${taskOptions.hp_tier}) × ${u} unit${u > 1 ? 's' : ''}`, price: taskOptions.base_price })
-    } else {
-      const hpLabel = taskOptions.hp_tier ? `, ${taskOptions.hp_tier}` : ''
-      lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type}${hpLabel})`, price: taskOptions.base_price })
-    }
+    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
   } else if (service === 'Painting') {
     lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: taskOptions.base_price })
     if (taskOptions.paint_cost > 0) {
@@ -539,14 +534,7 @@ function getTaskOptionsSummary(taskOptions) {
   if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
   else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}${taskOptions.sub_option ? ` (${taskOptions.sub_option})` : ''}`
   else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
-  else if (service === 'Aircon Maintenance') {
-    if (taskOptions.aircon_type === 'Install') {
-      label = `Install · ${taskOptions.hp_tier || ''}`
-    } else {
-      const hpPart = taskOptions.hp_tier ? ` · ${taskOptions.hp_tier}` : ''
-      label = `${taskOptions.aircon_type} · ${taskOptions.service_type}${hpPart}`
-    }
-  }
+  else if (service === 'Aircon Maintenance') label = `${taskOptions.aircon_type} · ${taskOptions.service_type}`
   else if (service === 'Painting')     label = `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
   else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.urgency}`
   return { label, extras: taskOptions.extras ?? [] }
@@ -991,8 +979,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
           <>
             <DetailRow label="Aircon Type" value={taskOptions.aircon_type} />
             <DetailRow label="Number of Units" value={String(taskOptions.units)} />
-            {taskOptions.aircon_type !== 'Install' && <DetailRow label="Service Type" value={taskOptions.service_type} />}
-            {taskOptions.hp_tier && <DetailRow label="HP Tier" value={taskOptions.hp_tier} />}
+            <DetailRow label="Service Type" value={taskOptions.service_type} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1320,7 +1307,6 @@ function Step1({ service, onContinue }) {
   const [airconType, setAirconType] = useState('')
   const [airconUnits, setAirconUnits] = useState(1)
   const [airconServiceType, setAirconServiceType] = useState('')
-  const [airconHpTier, setAirconHpTier] = useState('')
   const [airconExtras, setAirconExtras] = useState([])
   const [paintingWhat, setPaintingWhat] = useState('')
   const [paintingArea, setPaintingArea] = useState('')
@@ -1438,17 +1424,6 @@ function Step1({ service, onContinue }) {
     },
   }
 
-  const AIRCON_HP_MODIFIERS = {
-    'Small (0.5–1.0 HP)':  0,
-    'Medium (1.5–2.5 HP)': 200,
-    'Large (3–4 HP)':       400,
-  }
-  const AIRCON_INSTALL_PRICES = {
-    'Small (0.5–1.0 HP)':  1500,
-    'Medium (1.5–2.5 HP)': 2000,
-    'Large (3–4 HP)':       2800,
-  }
-
   const PLUMBING_PROBLEMS = [
     { value: 'Leaking Faucet', price: tp('Plumbing Repair', 'Leaking Faucet') },
     { value: 'Clogged Drain',  price: tp('Plumbing Repair', 'Clogged Drain') },
@@ -1498,11 +1473,7 @@ function Step1({ service, onContinue }) {
   const electricalFinalPrice = electricalBasePrice + electricalUrgencySurcharge + electricalExtrasTotal
 
   // Aircon pricing
-  const airconIsInstall = airconType === 'Install'
-  const airconHpModifier = (!airconIsInstall && airconServiceType === 'Cleaning' && airconHpTier) ? (AIRCON_HP_MODIFIERS[airconHpTier] ?? 0) : 0
-  const airconPricePerUnit = airconIsInstall
-    ? (airconHpTier ? (AIRCON_INSTALL_PRICES[airconHpTier] ?? 0) : 0)
-    : (airconType && airconServiceType ? ((AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) + airconHpModifier) : 0)
+  const airconPricePerUnit = airconType && airconServiceType ? (AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) : 0
   const airconBasePrice = airconPricePerUnit * airconUnits
   const airconFreonTotal = airconExtras.includes('Freon Recharge') ? 500 * airconUnits : 0
   const airconSameDayTotal = airconExtras.includes('Same Day Service') ? 300 : 0
@@ -1756,15 +1727,9 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'aircon cleaning') {
-      if (!airconType || (!airconIsInstall && !airconServiceType) || ((airconIsInstall || airconServiceType === 'Cleaning') && !airconHpTier)) {
-        setError('Please complete all required task options before continuing.')
-        return
-      }
-      if (!imagePreview) {
-        setError('Please upload a photo of the aircon unit before continuing.')
-        return
-      }
+    if (service?.toLowerCase() === 'aircon cleaning' && (!airconType || !airconServiceType)) {
+      setError('Please complete all required task options before continuing.')
+      return
     }
     if (service?.toLowerCase() === 'painting' && (!paintingWhat || !paintingArea || paintingPaintProvided === '')) {
       setError('Please complete all required task options before continuing.')
@@ -1873,13 +1838,12 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: electricalFinalPrice + helperFee,
       } : {}),
-      ...(isAircon && airconType && (airconIsInstall ? airconHpTier : airconServiceType) ? {
+      ...(isAircon && airconType && airconServiceType ? {
         taskOptions: {
           service: 'Aircon Maintenance',
           aircon_type: airconType,
           units: airconUnits,
-          ...(airconIsInstall ? {} : { service_type: airconServiceType }),
-          ...(airconHpTier ? { hp_tier: airconHpTier } : {}),
+          service_type: airconServiceType,
           extras: airconExtras,
           price_per_unit: airconPricePerUnit,
           base_price: airconBasePrice,
@@ -2404,14 +2368,14 @@ function Step1({ service, onContinue }) {
           <div>
             <p className="font-semibold text-gray-700 text-sm mb-2">Aircon Type <span className="text-red-400">*</span></p>
             <div className="space-y-2">
-              {['Window Type', 'Split Type', 'Install'].map((type) => (
+              {['Window Type', 'Split Type'].map((type) => (
                 <label key={type} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconType === type ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
                     name="airconType"
                     value={type}
                     checked={airconType === type}
-                    onChange={() => { setAirconType(type); setAirconUnits(1); setAirconServiceType(''); setAirconHpTier(''); setAirconExtras([]) }}
+                    onChange={() => { setAirconType(type); setAirconUnits(1); setAirconServiceType(''); setAirconExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{type}</span>
@@ -2443,8 +2407,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 3: Service Type — appears only for Window/Split types */}
-          <div style={{ overflow: 'hidden', maxHeight: (airconType && !airconIsInstall) ? '250px' : '0', opacity: (airconType && !airconIsInstall) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 3: Service Type — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconType ? '250px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Service Type <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {Object.entries(AIRCON_PRICES[airconType] ?? {}).map(([svc, price]) => (
@@ -2455,7 +2419,7 @@ function Step1({ service, onContinue }) {
                       name="airconServiceType"
                       value={svc}
                       checked={airconServiceType === svc}
-                      onChange={() => { setAirconServiceType(svc); setAirconHpTier(''); setAirconExtras([]) }}
+                      onChange={() => { setAirconServiceType(svc); setAirconExtras([]) }}
                       className="accent-orange-500 w-4 h-4"
                     />
                     <span className="text-sm font-medium text-gray-700">{svc}</span>
@@ -2466,139 +2430,76 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 4: HP Tier — for Install (always) or Window/Split when Cleaning selected */}
-          <div style={{ overflow: 'hidden', maxHeight: (airconIsInstall ? airconType : airconServiceType === 'Cleaning') ? '300px' : '0', opacity: (airconIsInstall ? airconType : airconServiceType === 'Cleaning') ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">HP Tier <span className="text-red-400">*</span></p>
+          {/* Section 4: Extras — appears after service type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '300px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
-              {airconIsInstall ? (
-                [
-                  { value: 'Small (0.5–1.0 HP)',  price: '₱1,500/unit' },
-                  { value: 'Medium (1.5–2.5 HP)', price: '₱2,000/unit' },
-                  { value: 'Large (3–4 HP)',        price: '₱2,800/unit' },
-                ].map((opt) => (
-                  <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconHpTier === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="airconHpTier"
-                        value={opt.value}
-                        checked={airconHpTier === opt.value}
-                        onChange={() => setAirconHpTier(opt.value)}
-                        className="accent-orange-500 w-4 h-4"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
-                    </div>
-                    <span className="text-sm text-gray-500">{opt.price}</span>
-                  </label>
-                ))
-              ) : (
-                [
-                  { value: 'Small (0.5–1.0 HP)',  modifier: '+₱0' },
-                  { value: 'Medium (1.5–2.5 HP)', modifier: '+₱200/unit' },
-                  { value: 'Large (3–4 HP)',        modifier: '+₱400/unit' },
-                ].map((opt) => (
-                  <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconHpTier === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="radio"
-                        name="airconHpTier"
-                        value={opt.value}
-                        checked={airconHpTier === opt.value}
-                        onChange={() => setAirconHpTier(opt.value)}
-                        className="accent-orange-500 w-4 h-4"
-                      />
-                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
-                    </div>
-                    <span className="text-sm text-gray-500">{opt.modifier}</span>
-                  </label>
-                ))
-              )}
+              {[
+                { value: 'Freon Recharge', label: 'Freon Recharge', price: `+₱${(500 * airconUnits).toLocaleString()} (₱500 × ${airconUnits})` },
+                { value: 'Same Day Service', label: 'Same Day Service', price: '+₱300' },
+              ].map((opt) => (
+                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={airconExtras.includes(opt.value)}
+                      onChange={(e) => {
+                        setAirconExtras(prev =>
+                          e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
+                        )
+                      }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{opt.label}</span>
+                  </div>
+                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                </label>
+              ))}
             </div>
           </div>
 
-          {/* Section 5: Extras — appears after all required selections are made */}
-          {(() => {
-            const extrasVisible = airconIsInstall ? !!airconHpTier : (airconServiceType === 'Cleaning' ? !!airconHpTier : !!airconServiceType)
-            return (
-              <div style={{ overflow: 'hidden', maxHeight: extrasVisible ? '300px' : '0', opacity: extrasVisible ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-                <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
-                <div className="space-y-2">
-                  {[
-                    { value: 'Freon Recharge', label: 'Freon Recharge', price: `+₱${(500 * airconUnits).toLocaleString()} (₱500 × ${airconUnits})` },
-                    { value: 'Same Day Service', label: 'Same Day Service', price: '+₱300' },
-                  ].map((opt) => (
-                    <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={airconExtras.includes(opt.value)}
-                          onChange={(e) => {
-                            setAirconExtras(prev =>
-                              e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
-                            )
-                          }}
-                          className="accent-orange-500 w-4 h-4"
-                        />
-                        <span className="text-sm font-medium text-gray-700">{opt.label}</span>
-                      </div>
-                      <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
-                    </label>
-                  ))}
-                </div>
+          {/* Price Breakdown — appears after service type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '350px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
+              <div className="flex justify-between text-gray-700">
+                <span>{airconType} — {airconServiceType}</span>
+                <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{airconBasePrice.toLocaleString()}</span>
               </div>
-            )
-          })()}
-
-          {/* Price Breakdown — appears after all required selections are made */}
-          {(() => {
-            const breakdownVisible = airconIsInstall ? !!airconHpTier : (airconServiceType === 'Cleaning' ? !!airconHpTier : !!airconServiceType)
-            const breakdownLabel = airconIsInstall
-              ? `Install (${airconHpTier}) × ${airconUnits}`
-              : `${airconType} — ${airconServiceType}${airconHpTier ? ` (${airconHpTier})` : ''}`
-            return (
-              <div style={{ overflow: 'hidden', maxHeight: breakdownVisible ? '350px' : '0', opacity: breakdownVisible ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-                <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
-                  <div className="flex justify-between text-gray-700">
-                    <span>{breakdownLabel}</span>
-                    <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{airconBasePrice.toLocaleString()}</span>
-                  </div>
-                  {airconExtras.includes('Freon Recharge') && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>Freon Recharge</span>
-                      <span>₱500 × {airconUnits} = ₱{airconFreonTotal.toLocaleString()}</span>
-                    </div>
-                  )}
-                  {airconExtras.includes('Same Day Service') && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>Same Day Service</span>
-                      <span>+₱300</span>
-                    </div>
-                  )}
-                  {taskersNeeded > 1 && (
-                    <div className="flex justify-between text-gray-600">
-                      <span>{helperLabel}</span>
-                      <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
-                    <span>Estimated Total</span>
-                    <span className="text-orange-500">
-                      {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(airconFinalPrice + helperFee).toLocaleString()}`}
-                    </span>
-                  </div>
+              {airconExtras.includes('Freon Recharge') && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Freon Recharge</span>
+                  <span>₱500 × {airconUnits} = ₱{airconFreonTotal.toLocaleString()}</span>
                 </div>
-                {taskersNeeded >= 2 && (
-                  <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
-                    <Info size={16} className="mt-0.5 flex-shrink-0" />
-                    <p>{taskersNeeded - 1 === 1
-                      ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
-                      : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
-                    }</p>
-                  </div>
-                )}
+              )}
+              {airconExtras.includes('Same Day Service') && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Same Day Service</span>
+                  <span>+₱300</span>
+                </div>
+              )}
+              {taskersNeeded > 1 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>{helperLabel}</span>
+                  <span className="text-orange-500 font-medium">+₱{helperFee.toLocaleString()}</span>
+                </div>
+              )}
+              <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between font-bold text-gray-800">
+                <span>Estimated Total</span>
+                <span className="text-orange-500">
+                  {pricesFetchError ? 'Price unavailable' : taskPrices === null ? 'Loading…' : `₱${(airconFinalPrice + helperFee).toLocaleString()}`}
+                </span>
               </div>
-            )
-          })()}
+            </div>
+            {taskersNeeded >= 2 && (
+              <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm text-blue-700 mt-3">
+                <Info size={16} className="mt-0.5 flex-shrink-0" />
+                <p>{taskersNeeded - 1 === 1
+                  ? 'This task requires additional help. A Hanap.ph helper will be assigned to assist your tasker.'
+                  : 'This task requires additional help. 2 Hanap.ph helpers will be assigned to assist your tasker.'
+                }</p>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -2959,12 +2860,7 @@ function Step1({ service, onContinue }) {
         </div>
 
         <div className="mt-4">
-          <p className="text-sm font-medium text-gray-600 mb-2">
-            {service?.toLowerCase() === 'aircon cleaning'
-              ? <span>Upload a photo of the aircon unit <span className="text-red-400">*</span></span>
-              : 'Optional: Upload a photo of the damage'
-            }
-          </p>
+          <p className="text-sm font-medium text-gray-600 mb-2">Optional: Upload a photo of the damage</p>
           <p className="text-sm italic text-gray-400 mt-1 mb-3">Let Hanap AI detect and analyze your home issue automatically!</p>
           <input
             key={fileInputKey}
