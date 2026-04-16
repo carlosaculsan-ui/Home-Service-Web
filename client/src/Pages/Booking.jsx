@@ -536,7 +536,9 @@ function getTaskOptionsSummary(taskOptions) {
   if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
   else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}${taskOptions.sub_option ? ` (${taskOptions.sub_option})` : ''}`
   else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
-  else if (service === 'Aircon Maintenance') label = `${taskOptions.aircon_type} · ${taskOptions.service_type}`
+  else if (service === 'Aircon Maintenance') label = taskOptions.aircon_type === 'Install'
+    ? `Install · ${taskOptions.hp_tier}`
+    : `${taskOptions.aircon_type} · ${taskOptions.service_type}`
   else if (service === 'Painting')     label = `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
   else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.urgency}`
   return { label, extras: taskOptions.extras ?? [] }
@@ -980,8 +982,9 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
         {taskOptions && taskOptions.service === 'Aircon Maintenance' && (
           <>
             <DetailRow label="Aircon Type" value={taskOptions.aircon_type} />
+            <DetailRow label="HP Tier" value={taskOptions.hp_tier} />
             <DetailRow label="Number of Units" value={String(taskOptions.units)} />
-            <DetailRow label="Service Type" value={taskOptions.service_type} />
+            {taskOptions.aircon_type !== 'Install' && <DetailRow label="Service Type" value={taskOptions.service_type} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1388,6 +1391,8 @@ function Step1({ service, onContinue }) {
   const [airconUnits, setAirconUnits] = useState(1)
   const [airconServiceType, setAirconServiceType] = useState('')
   const [airconExtras, setAirconExtras] = useState([])
+  const [airconHpTier, setAirconHpTier] = useState('')
+  const [airconServiceCategory, setAirconServiceCategory] = useState('')
   const [paintingWhat, setPaintingWhat] = useState('')
   const [paintingArea, setPaintingArea] = useState('')
   const [paintingPaintProvided, setPaintingPaintProvided] = useState('')
@@ -1504,6 +1509,18 @@ function Step1({ service, onContinue }) {
     },
   }
 
+  const AIRCON_HP_MODIFIERS = {
+    'Small (0.5–1.0 HP)':  0,
+    'Medium (1.5–2.5 HP)': 200,
+    'Large (3–4 HP)':      400,
+  }
+
+  const AIRCON_INSTALL_PRICES = {
+    'Small (0.5–1.0 HP)':  1500,
+    'Medium (1.5–2.5 HP)': 2000,
+    'Large (3–4 HP)':      2800,
+  }
+
   const PLUMBING_PROBLEMS = [
     { value: 'Leaking Faucet', price: tp('Plumbing Repair', 'Leaking Faucet') },
     { value: 'Clogged Drain',  price: tp('Plumbing Repair', 'Clogged Drain') },
@@ -1553,8 +1570,11 @@ function Step1({ service, onContinue }) {
   const electricalFinalPrice = electricalBasePrice + electricalUrgencySurcharge + electricalExtrasTotal
 
   // Aircon pricing
-  const airconPricePerUnit = airconType && airconServiceType ? (AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) : 0
-  const airconBasePrice = airconPricePerUnit * airconUnits
+  const airconHpModifier = (airconType && airconType !== 'Install') ? (AIRCON_HP_MODIFIERS[airconHpTier] ?? 0) : 0
+  const airconPricePerUnit = airconType === 'Install'
+    ? (airconHpTier ? (AIRCON_INSTALL_PRICES[airconHpTier] ?? 0) : 0)
+    : (airconType && airconServiceType ? (AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) : 0)
+  const airconBasePrice = (airconPricePerUnit + airconHpModifier) * airconUnits
   const airconFreonTotal = airconExtras.includes('Freon Recharge') ? 500 * airconUnits : 0
   const airconSameDayTotal = airconExtras.includes('Same Day Service') ? 300 : 0
   const airconExtrasTotal = airconFreonTotal + airconSameDayTotal
@@ -1807,9 +1827,15 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'aircon cleaning' && (!airconType || !airconServiceType)) {
-      setError('Please complete all required task options before continuing.')
-      return
+    if (service?.toLowerCase() === 'aircon cleaning') {
+      if (!airconServiceCategory || !airconType || !airconHpTier || (airconServiceCategory === 'maintenance' && !airconServiceType)) {
+        setError('Please complete all required task options before continuing.')
+        return
+      }
+      if (!imagePreview) {
+        setError('A photo of the service area is required for Aircon bookings. Please upload an image before continuing.')
+        return
+      }
     }
     if (service?.toLowerCase() === 'painting' && (!paintingWhat || !paintingArea || paintingPaintProvided === '')) {
       setError('Please complete all required task options before continuing.')
@@ -1918,14 +1944,16 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: electricalFinalPrice + helperFee,
       } : {}),
-      ...(isAircon && airconType && airconServiceType ? {
+      ...(isAircon && airconType && airconHpTier && (airconType === 'Install' || airconServiceType) ? {
         taskOptions: {
           service: 'Aircon Maintenance',
           aircon_type: airconType,
           units: airconUnits,
-          service_type: airconServiceType,
+          service_type: airconType !== 'Install' ? airconServiceType : 'Install',
+          hp_tier: airconHpTier,
           extras: airconExtras,
           price_per_unit: airconPricePerUnit,
+          hp_modifier: airconHpModifier,
           base_price: airconBasePrice,
           extras_total: airconExtrasTotal,
           final_price: airconFinalPrice,
@@ -2444,8 +2472,49 @@ function Step1({ service, onContinue }) {
         <div className="border border-gray-200 rounded-xl p-5 space-y-5">
           <p className="font-bold text-gray-800 text-base">Task Options</p>
 
-          {/* Section 1: Aircon Type — always visible */}
+          {/* Section 1: What do you need? — always visible */}
           <div>
+            <p className="font-semibold text-gray-700 text-sm mb-2">What do you need? <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {[
+                { value: 'maintenance', label: 'Cleaning / Maintenance', desc: 'Clean or check your existing aircon unit' },
+                { value: 'installation', label: 'Installation', desc: 'Install a new aircon unit' },
+              ].map(({ value, label, desc }) => (
+                <label key={value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconServiceCategory === value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="airconServiceCategory"
+                    value={value}
+                    checked={airconServiceCategory === value}
+                    onChange={() => {
+                      setAirconServiceCategory(value)
+                      setAirconType(value === 'installation' ? 'Install' : '')
+                      setAirconUnits(1)
+                      setAirconHpTier('')
+                      setAirconServiceType('')
+                      setAirconExtras([])
+                    }}
+                    className="accent-orange-500 w-4 h-4 flex-shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Installation disclaimer */}
+          {airconServiceCategory === 'installation' && (
+            <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+              <Info size={16} className="mt-0.5 flex-shrink-0" />
+              <p>A photo of the installation area is required for Installation bookings. Please upload a clear image showing where the aircon unit will be installed.</p>
+            </div>
+          )}
+
+          {/* Section 2: Aircon Type — Cleaning/Maintenance only */}
+          <div style={{ overflow: 'hidden', maxHeight: airconServiceCategory === 'maintenance' ? '200px' : '0', opacity: airconServiceCategory === 'maintenance' ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Aircon Type <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {['Window Type', 'Split Type'].map((type) => (
@@ -2455,7 +2524,7 @@ function Step1({ service, onContinue }) {
                     name="airconType"
                     value={type}
                     checked={airconType === type}
-                    onChange={() => { setAirconType(type); setAirconUnits(1); setAirconServiceType(''); setAirconExtras([]) }}
+                    onChange={() => { setAirconType(type); setAirconHpTier(''); setAirconServiceType(''); setAirconExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{type}</span>
@@ -2464,7 +2533,7 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Number of Units — appears after type selected */}
+          {/* Section 3: Number of Units — appears once airconType is set */}
           <div style={{ overflow: 'hidden', maxHeight: airconType ? '150px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-3">Number of Units</p>
             <div className="flex items-center gap-3">
@@ -2487,8 +2556,35 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 3: Service Type — appears after type selected */}
-          <div style={{ overflow: 'hidden', maxHeight: airconType ? '250px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 4: HP Tier — content differs by category */}
+          <div style={{ overflow: 'hidden', maxHeight: airconType ? '300px' : '0', opacity: airconType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">HP Tier <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {airconServiceCategory === 'installation'
+                ? Object.entries(AIRCON_INSTALL_PRICES).map(([tier, price]) => (
+                    <label key={tier} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconHpTier === tier ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <input type="radio" name="airconHpTier" value={tier} checked={airconHpTier === tier} onChange={() => setAirconHpTier(tier)} className="accent-orange-500 w-4 h-4" />
+                        <span className="text-sm font-medium text-gray-700">{tier}</span>
+                      </div>
+                      <span className="text-sm text-gray-500">₱{price.toLocaleString()}/unit</span>
+                    </label>
+                  ))
+                : Object.entries(AIRCON_HP_MODIFIERS).map(([tier, mod]) => (
+                    <label key={tier} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconHpTier === tier ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                      <div className="flex items-center gap-3">
+                        <input type="radio" name="airconHpTier" value={tier} checked={airconHpTier === tier} onChange={() => setAirconHpTier(tier)} className="accent-orange-500 w-4 h-4" />
+                        <span className="text-sm font-medium text-gray-700">{tier}</span>
+                      </div>
+                      <span className="text-sm text-gray-500">{mod === 0 ? '+₱0' : `+₱${mod.toLocaleString()}/unit`}</span>
+                    </label>
+                  ))
+              }
+            </div>
+          </div>
+
+          {/* Section 5: Service Type — Cleaning/Maintenance only */}
+          <div style={{ overflow: 'hidden', maxHeight: (airconType && airconType !== 'Install') ? '250px' : '0', opacity: (airconType && airconType !== 'Install') ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Service Type <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {Object.entries(AIRCON_PRICES[airconType] ?? {}).map(([svc, price]) => (
@@ -2510,7 +2606,7 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 4: Extras — appears after service type selected */}
+          {/* Section 6: Extras — Cleaning/Maintenance only, after service type selected */}
           <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '300px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
@@ -2538,13 +2634,28 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after service type selected */}
-          <div style={{ overflow: 'hidden', maxHeight: airconServiceType ? '350px' : '0', opacity: airconServiceType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears when enough is selected */}
+          <div style={{ overflow: 'hidden', maxHeight: (airconServiceType || (airconServiceCategory === 'installation' && airconHpTier)) ? '400px' : '0', opacity: (airconServiceType || (airconServiceCategory === 'installation' && airconHpTier)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
-              <div className="flex justify-between text-gray-700">
-                <span>{airconType} — {airconServiceType}</span>
-                <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{airconBasePrice.toLocaleString()}</span>
-              </div>
+              {airconServiceCategory === 'installation' ? (
+                <div className="flex justify-between text-gray-700">
+                  <span>Installation — {airconHpTier}</span>
+                  <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{airconBasePrice.toLocaleString()}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between text-gray-700">
+                    <span>{airconType} — {airconServiceType}</span>
+                    <span>₱{airconPricePerUnit.toLocaleString()} × {airconUnits} = ₱{(airconPricePerUnit * airconUnits).toLocaleString()}</span>
+                  </div>
+                  {airconHpModifier > 0 && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>HP Tier ({airconHpTier})</span>
+                      <span>+₱{airconHpModifier.toLocaleString()} × {airconUnits} = +₱{(airconHpModifier * airconUnits).toLocaleString()}</span>
+                    </div>
+                  )}
+                </>
+              )}
               {airconExtras.includes('Freon Recharge') && (
                 <div className="flex justify-between text-gray-600">
                   <span>Freon Recharge</span>
@@ -2940,8 +3051,15 @@ function Step1({ service, onContinue }) {
         </div>
 
         <div className="mt-4">
-          <p className="text-sm font-medium text-gray-600 mb-2">Optional: Upload a photo of the damage</p>
-          <p className="text-sm italic text-gray-400 mt-1 mb-3">Let Hanap AI detect and analyze your home issue automatically!</p>
+          <p className="text-sm font-medium text-gray-600 mb-2">
+            {service?.toLowerCase() === 'aircon cleaning'
+              ? <><span className="text-red-500">*</span> Required: Upload a photo of your aircon unit / area</>
+              : 'Optional: Upload a photo of the damage'
+            }
+          </p>
+          {service?.toLowerCase() !== 'aircon cleaning' && (
+            <p className="text-sm italic text-gray-400 mt-1 mb-3">Let Hanap AI detect and analyze your home issue automatically!</p>
+          )}
           <input
             key={fileInputKey}
             type="file"
