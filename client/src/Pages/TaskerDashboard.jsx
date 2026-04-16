@@ -331,11 +331,33 @@ function RejectModal({ onClose, onConfirm, loading }) {
 
 // ─── Tasker Live Map (on_the_way) ────────────────────────────────────────────
 
+function haversineDist([lat1, lng1], [lat2, lng2]) {
+  const R = 6371000
+  const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180
+  const Δφ = (lat2 - lat1) * Math.PI / 180
+  const Δλ = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function getRemainingPoints(pos, points) {
+  if (!points.length) return [pos]
+  let idx = 0, best = Infinity
+  for (let i = 0; i < points.length; i++) {
+    const d = haversineDist(pos, points[i])
+    if (d < best) { best = d; idx = i }
+  }
+  return [pos, ...points.slice(idx)]
+}
+
 function TaskerLiveMapContent({ taskerPos, customerPos }) {
   const map = useMap()
   const taskerMarkerRef = useRef(null)
   const customerMarkerRef = useRef(null)
-  const polylineRef = useRef(null)
+  const fullPolyRef = useRef(null)       // grey full route (background)
+  const remainPolyRef = useRef(null)     // orange remaining route
+  const routePointsRef = useRef([])
+  const fetchedRef = useRef(false)
 
   // Markers + bounds
   useEffect(() => {
@@ -367,36 +389,51 @@ function TaskerLiveMapContent({ taskerPos, customerPos }) {
     }
   }, [taskerPos, customerPos])
 
-  // OSRM road routing — re-fetches whenever taskerPos changes
+  // Fetch OSRM once when both positions first become available
   useEffect(() => {
-    if (!taskerPos || !customerPos) return
+    if (!taskerPos || !customerPos || fetchedRef.current) return
+    fetchedRef.current = true
+
     const [taskerLat, taskerLng] = taskerPos
     const [customerLat, customerLng] = customerPos
+
     fetch(
-      `https://router.project-osrm.org/route/v1/driving/${taskerLng},${taskerLat};${customerLng},${customerLat}?overview=full&geometries=geojson`
+      `https://router.project-osrm.org/route/v1/driving/${taskerLng},${taskerLat};${customerLng},${customerLat}?overview=full&geometries=geojson&steps=true&annotations=false`,
+      { headers: { 'User-Agent': 'HanapPH/1.0' } }
     )
       .then(r => r.json())
       .then(data => {
-        const coords = data?.routes?.[0]?.geometry?.coordinates
-        if (!coords?.length) throw new Error('no route')
-        const latLngs = coords.map(([lng, lat]) => [lat, lng])
-        if (!polylineRef.current) {
-          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 4 }).addTo(map)
+        if (data?.code !== 'Ok') throw new Error('bad response')
+        const points = data.routes[0].geometry.coordinates.map(([lng, lat]) => [lat, lng])
+        routePointsRef.current = points
+
+        // Full route — grey background
+        if (!fullPolyRef.current) {
+          fullPolyRef.current = L.polyline(points, { color: '#9ca3af', weight: 6, opacity: 0.35 }).addTo(map)
         } else {
-          polylineRef.current.setLatLngs(latLngs)
-          polylineRef.current.setStyle({ dashArray: null, weight: 4 })
+          fullPolyRef.current.setLatLngs(points)
+        }
+
+        // Initial remaining route — orange
+        const remaining = getRemainingPoints(taskerPos, points)
+        if (!remainPolyRef.current) {
+          remainPolyRef.current = L.polyline(remaining, { color: '#f97316', weight: 5 }).addTo(map)
+        } else {
+          remainPolyRef.current.setLatLngs(remaining)
         }
       })
       .catch(() => {
-        const latLngs = [taskerPos, customerPos]
-        if (!polylineRef.current) {
-          polylineRef.current = L.polyline(latLngs, { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
-        } else {
-          polylineRef.current.setLatLngs(latLngs)
-          polylineRef.current.setStyle({ dashArray: '6,6', weight: 3 })
+        if (!remainPolyRef.current) {
+          remainPolyRef.current = L.polyline([taskerPos, customerPos], { color: '#f97316', weight: 3, dashArray: '6,6' }).addTo(map)
         }
       })
   }, [taskerPos, customerPos])
+
+  // Trim remaining route as tasker moves — no re-fetch
+  useEffect(() => {
+    if (!taskerPos || !routePointsRef.current.length || !remainPolyRef.current) return
+    remainPolyRef.current.setLatLngs(getRemainingPoints(taskerPos, routePointsRef.current))
+  }, [taskerPos])
 
   return null
 }
