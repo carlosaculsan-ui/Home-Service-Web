@@ -109,7 +109,6 @@ function buildPriceBreakdown(taskOptions) {
     lines.push({ label: `${taskOptions.type} — ${taskOptions.category ?? taskOptions.item ?? ''}`, price: taskOptions.base_price })
   } else if (service === 'Electrical') {
     lines.push({ label: taskOptions.type, price: taskOptions.base_price })
-    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   } else if (service === 'Aircon Maintenance') {
     const u = taskOptions.units || 1
     lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
@@ -534,14 +533,14 @@ function getTaskOptionsSummary(taskOptions) {
   let label = ''
   if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
   else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.category ?? taskOptions.item ?? ''}`
-  else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
+  else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.sub_option ?? ''}`
   else if (service === 'Aircon Maintenance') label = taskOptions.aircon_type === 'Install'
     ? `Install · ${taskOptions.hp_tier}`
     : `${taskOptions.aircon_type} · ${taskOptions.service_type}`
   else if (service === 'Painting')     label = taskOptions.what_to_paint === 'Furniture'
     ? `Furniture Painting · ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
     : `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
-  else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.urgency}`
+  else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.sub_option ?? ''}`
   return { label, extras: taskOptions.extras ?? [] }
 }
 
@@ -751,16 +750,6 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {['Date: Within A Week', 'Time: I\'m Flexible', '₱150 - ₱500/hr'].map((label) => (
-          <button
-            key={label}
-            className="px-4 py-2 border border-gray-300 rounded-full text-sm text-gray-700 hover:border-orange-400 hover:text-orange-500 transition-colors"
-          >
-            {label}
-          </button>
-        ))}
-      </div>
 
       <div className="flex items-center gap-2 text-sm text-gray-600">
         <span className="font-medium">Sorted by:</span>
@@ -975,7 +964,6 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
             {taskOptions.sub_option && <DetailRow label="Specify Work" value={taskOptions.sub_option} />}
-            {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1605,9 +1593,9 @@ function Step1({ service, onContinue, initialState }) {
 
   // Electrical pricing
   const electricalBasePrice = ELECTRICAL_TYPES.find(t => t.value === electricalType)?.price ?? 0
-  const electricalUrgencySurcharge = electricalUrgency === 'Urgent' ? Math.round(electricalBasePrice * 0.5) : 0
+  const electricalUrgencySurcharge = 0
   const electricalExtrasTotal = electricalExtras.reduce((sum, e) => sum + (ELECTRICAL_EXTRAS_PRICES[e] ?? 0), 0)
-  const electricalFinalPrice = electricalBasePrice + electricalUrgencySurcharge + electricalExtrasTotal
+  const electricalFinalPrice = electricalBasePrice + electricalExtrasTotal
 
   // Aircon pricing
   const airconHpModifier = (airconType && airconType !== 'Install') ? (AIRCON_HP_MODIFIERS[airconHpTier] ?? 0) : 0
@@ -1622,9 +1610,9 @@ function Step1({ service, onContinue, initialState }) {
 
   // Plumbing pricing
   const plumbingBasePrice = PLUMBING_PROBLEMS.find(p => p.value === plumbingProblem)?.price ?? 0
-  const plumbingUrgencySurcharge = plumbingUrgency === 'Urgent' ? 200 : 0
+  const plumbingUrgencySurcharge = 0
   const plumbingExtrasTotal = plumbingExtras.reduce((sum, e) => sum + (PLUMBING_EXTRAS_PRICES[e] ?? 0), 0)
-  const plumbingFinalPrice = plumbingBasePrice + plumbingUrgencySurcharge + plumbingExtrasTotal
+  const plumbingFinalPrice = plumbingBasePrice + plumbingExtrasTotal
 
   // Painting pricing
   const paintingIsFurniture = paintingWhat === 'Furniture'
@@ -1869,7 +1857,7 @@ function Step1({ service, onContinue, initialState }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'electrical' && (!electricalType || !electricalSubOption || !electricalUrgency)) {
+    if (service?.toLowerCase() === 'electrical' && (!electricalType || !electricalSubOption)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1976,15 +1964,13 @@ function Step1({ service, onContinue, initialState }) {
         taskersNeeded,
         estimatedTotal: carpentryFinalPrice + helperFee,
       } : {}),
-      ...(isElectrical && electricalType && electricalSubOption && electricalUrgency ? {
+      ...(isElectrical && electricalType && electricalSubOption ? {
         taskOptions: {
           service: 'Electrical',
           type: electricalType,
           sub_option: electricalSubOption,
-          urgency: electricalUrgency,
           extras: electricalExtras,
           base_price: electricalBasePrice,
-          urgency_surcharge: electricalUrgencySurcharge,
           extras_total: electricalExtrasTotal,
           final_price: electricalFinalPrice,
           helper_fee: helperFee,
@@ -2436,36 +2422,8 @@ function Step1({ service, onContinue, initialState }) {
             </div>
           </div>
 
-          {/* Section 2: Urgency — appears after sub-option selected */}
-          <div style={{ overflow: 'hidden', maxHeight: electricalSubOption ? '300px' : '0', opacity: electricalSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
-            <div className="space-y-2">
-              {[
-                { value: 'Normal', label: 'Normal', sub: 'No extra charge' },
-                { value: 'Urgent', label: 'Urgent', sub: `+₱${Math.round(electricalBasePrice * 0.5).toLocaleString()} (50% surcharge)` },
-              ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalUrgency === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="electricalUrgency"
-                      value={opt.value}
-                      checked={electricalUrgency === opt.value}
-                      onChange={() => { setElectricalUrgency(opt.value); setElectricalExtras([]) }}
-                      className="accent-orange-500 w-4 h-4"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
-                      <p className="text-xs text-gray-400">{opt.sub}</p>
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Section 3: Extras — appears after urgency selected */}
-          <div style={{ overflow: 'hidden', maxHeight: electricalUrgency ? '350px' : '0', opacity: electricalUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 2: Extras — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalSubOption ? '350px' : '0', opacity: electricalSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2492,19 +2450,13 @@ function Step1({ service, onContinue, initialState }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after urgency selected */}
-          <div style={{ overflow: 'hidden', maxHeight: electricalUrgency ? '350px' : '0', opacity: electricalUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalSubOption ? '350px' : '0', opacity: electricalSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{electricalType}</span>
                 <span>₱{electricalBasePrice.toLocaleString()}</span>
               </div>
-              {electricalUrgencySurcharge > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Urgent surcharge</span>
-                  <span>+₱{electricalUrgencySurcharge.toLocaleString()}</span>
-                </div>
-              )}
               {electricalExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
                   <span>{e}</span>
@@ -3584,6 +3536,10 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
       {pollingError && (
         <p className="text-sm text-red-500 text-center">{pollingError}</p>
       )}
+      <div className="flex items-start gap-3 bg-orange-50 border border-orange-300 rounded-xl px-4 py-3.5">
+        <Info size={20} className="flex-shrink-0 mt-0.5 text-orange-500" />
+        <span className="text-sm font-bold text-orange-700">Your tasker may contact you before the job to confirm details. Please keep your phone available.</span>
+      </div>
       <div className="flex flex-col-reverse md:flex-row md:items-center md:justify-between gap-3 pt-1">
         <button
           onClick={onBack}
