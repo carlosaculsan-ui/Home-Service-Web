@@ -91,10 +91,10 @@ function ForgotPassword() {
         .select('role')
         .eq('id', user.id)
         .single()
-      navigate(
-        profile?.role === 'tasker' ? '/tasker' : '/login',
-        { state: { notice: 'Password reset successfully! Please log in.' } }
-      )
+      const target = profile?.role === 'tasker' ? '/tasker' : '/login'
+      const noticeState = { state: { notice: 'Password reset successfully! Please log in.' } }
+      window.close()
+      setTimeout(() => navigate(target, noticeState), 300)
     }
   }
 
