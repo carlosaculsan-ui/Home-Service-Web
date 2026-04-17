@@ -281,12 +281,12 @@ function Signup() {
               <img src="https://www.google.com/favicon.ico" className="w-5 h-5" />
               Continue with Google
             </button>
-          </div>
 
-          <p className="text-center text-gray-300 text-sm mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-orange-300 font-semibold hover:text-orange-200">Log In</Link>
-          </p>
+            <p className="text-center text-gray-300 text-sm mt-2">
+              Already have an account?{' '}
+              <Link to="/login" className="text-orange-300 font-semibold hover:text-orange-200">Login</Link>
+            </p>
+          </div>
         </div>
 
         {/* Right - Image */}
