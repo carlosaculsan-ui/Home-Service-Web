@@ -62,7 +62,7 @@ function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
   if (service === 'Cleaning') {
     lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: combinedBase })
   } else if (service === 'Carpentry') {
-    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: combinedBase })
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.category ?? taskOptions.item ?? ''}`, price: combinedBase })
   } else if (service === 'Electrical') {
     lines.push({ label: taskOptions.sub_option ? `${taskOptions.type} — ${taskOptions.sub_option}` : taskOptions.type, price: combinedBase })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })

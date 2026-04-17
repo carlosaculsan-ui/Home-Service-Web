@@ -894,6 +894,9 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
             : '—'],
           ['Task Size',   getTaskLabel(booking)],
+          ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
+            ? [['Furniture Category', booking.task_options.category]]
+            : []),
           ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
             ? [['Specify Problem', booking.task_options.sub_option]]
             : []),

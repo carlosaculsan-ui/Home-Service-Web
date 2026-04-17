@@ -106,10 +106,7 @@ function buildPriceBreakdown(taskOptions) {
   if (service === 'Cleaning') {
     lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: taskOptions.base_price })
   } else if (service === 'Carpentry') {
-    lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: taskOptions.base_price })
-    if (taskOptions.sub_option) {
-      lines.push({ label: taskOptions.sub_option, price: taskOptions.sub_option_price ?? 0, isExtra: taskOptions.sub_option_price !== 0 })
-    }
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.category ?? taskOptions.item ?? ''}`, price: taskOptions.base_price })
   } else if (service === 'Electrical') {
     lines.push({ label: taskOptions.type, price: taskOptions.base_price })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
@@ -534,7 +531,7 @@ function getTaskOptionsSummary(taskOptions) {
   const { service } = taskOptions
   let label = ''
   if (service === 'Cleaning')          label = `${taskOptions.type} · ${taskOptions.area}`
-  else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.item}${taskOptions.sub_option ? ` (${taskOptions.sub_option})` : ''}`
+  else if (service === 'Carpentry')    label = `${taskOptions.type} · ${taskOptions.category ?? taskOptions.item ?? ''}`
   else if (service === 'Electrical')   label = `${taskOptions.type} · ${taskOptions.urgency}`
   else if (service === 'Aircon Maintenance') label = taskOptions.aircon_type === 'Install'
     ? `Install · ${taskOptions.hp_tier}`
@@ -963,8 +960,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
         {taskOptions && taskOptions.service === 'Carpentry' && (
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
-            <DetailRow label="Item" value={taskOptions.item} />
-            {taskOptions.sub_option && <DetailRow label="Specific Item" value={taskOptions.sub_option} />}
+            <DetailRow label="Furniture Category" value={taskOptions.category ?? taskOptions.item} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1383,8 +1379,7 @@ function Step1({ service, onContinue }) {
   const [cleaningArea, setCleaningArea] = useState('')
   const [cleaningExtras, setCleaningExtras] = useState([])
   const [carpentryType, setCarpentryType] = useState('')
-  const [carpentryItem, setCarpentryItem] = useState('')
-  const [carpentrySubOption, setCarpentrySubOption] = useState('')
+  const [carpentryCategory, setCarpentryCategory] = useState('')
   const [carpentryExtras, setCarpentryExtras] = useState([])
   const [electricalType, setElectricalType] = useState('')
   const [electricalSubOption, setElectricalSubOption] = useState('')
@@ -1438,52 +1433,16 @@ function Step1({ service, onContinue }) {
     'With Appliances': tp('Cleaning', 'Extra - With Appliances'),
   }
 
-  const CARPENTRY_ITEMS = {
-    'Repair': [
-      { value: 'Door / Window',        price: tp('Carpentry', 'Repair - Door / Window') },
-      { value: 'Cabinet / Drawer',     price: tp('Carpentry', 'Repair - Cabinet / Drawer') },
-      { value: 'Table / Chair',        price: tp('Carpentry', 'Repair - Table / Chair') },
-      { value: 'Bed Frame',            price: tp('Carpentry', 'Repair - Bed Frame') },
-      { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Repair - Ceiling / Wall Panel') },
-    ],
-    'Install': [
-      { value: 'Door / Window',        price: tp('Carpentry', 'Install - Door / Window') },
-      { value: 'Cabinet',              price: tp('Carpentry', 'Install - Cabinet') },
-      { value: 'Shelves',              price: tp('Carpentry', 'Install - Shelves') },
-      { value: 'Bed Frame',            price: tp('Carpentry', 'Install - Bed Frame') },
-      { value: 'Ceiling / Wall Panel', price: tp('Carpentry', 'Install - Ceiling / Wall Panel') },
-    ],
-  }
-  const CARPENTRY_SUB_OPTIONS = {
-    'Door / Window':        [
-      { value: 'Wooden Door',          price: 0 },
-      { value: 'Window Frame',         price: 200 },
-      { value: 'Cabinet Door',         price: -100 },
-      { value: 'Sliding Door Panel',   price: 400 },
-    ],
-    'Cabinet / Drawer':     [
-      { value: 'Kitchen Cabinet',      price: 500 },
-      { value: 'Wooden Cabinet',       price: 0 },
-      { value: 'PVC Cabinet',          price: 200 },
-      { value: 'Dresser / Drawer Unit', price: 150 },
-    ],
-    'Table / Chair':        [
-      { value: 'Wooden Dining Table',  price: 300 },
-      { value: 'Study/Office Table',   price: 150 },
-      { value: 'Wooden Chair',         price: 0 },
-      { value: 'Bench',                price: 100 },
-    ],
-    'Bed Frame':            [
-      { value: 'Single Bed Frame',           price: 0 },
-      { value: 'Double / Queen Bed Frame',   price: 300 },
-      { value: 'Double Deck Frame',          price: 500 },
-    ],
-    'Ceiling / Wall Panel': [
-      { value: 'Wooden Ceiling Panel',       price: 0 },
-      { value: 'Wall Cladding / Paneling',   price: 250 },
-      { value: 'Partition Wall',             price: 400 },
-    ],
-  }
+  const CARPENTRY_CATEGORIES = [
+    { value: 'Single Seat',        example: 'e.g. Chair, Stool, Rocking Chair, Bar Stool, Accent Chair',          prices: { Repair: 450,  Install: 600 } },
+    { value: 'Multiple Seats',     example: 'e.g. Bench, Sofa, Loveseat, Sectional Sofa, Church Pew',             prices: { Repair: 650,  Install: 850 } },
+    { value: 'Sleeping / Lying',   example: 'e.g. Bed Frame, Bunk Bed, Daybed, Cot, Trundle Bed',                 prices: { Repair: 700,  Install: 900 } },
+    { value: 'Tables',             example: 'e.g. Dining Table, Coffee Table, Study Desk, Side Table, Console Table', prices: { Repair: 550, Install: 700 } },
+    { value: 'Storage',            example: 'e.g. Cabinet, Drawer, Bookshelf, Wardrobe, Shoe Rack',               prices: { Repair: 600,  Install: 800 } },
+    { value: 'Religious',          example: 'e.g. Altar, Prayer Table, Oratory',                                  prices: { Repair: 500,  Install: 650 } },
+    { value: 'Entertainment',      example: 'e.g. TV Stand, Display Cabinet, Bar Counter',                        prices: { Repair: 550,  Install: 700 } },
+    { value: 'Campaign / Outdoor', example: 'e.g. Folding Table, Folding Chair, Picnic Bench',                    prices: { Repair: 400,  Install: 550 } },
+  ]
 
   const CARPENTRY_EXTRAS_PRICES = {
     'Materials Included':       tp('Carpentry', 'Extra - Materials Included'),
@@ -1568,14 +1527,11 @@ function Step1({ service, onContinue }) {
   const finalPrice = basePrice + extrasTotal
 
   // Carpentry pricing
-  const carpentryItemPrice = carpentryType && carpentryItem
-    ? (CARPENTRY_ITEMS[carpentryType]?.find(i => i.value === carpentryItem)?.price ?? 0)
-    : 0
-  const carpentrySubOptionPrice = carpentryItem && carpentrySubOption
-    ? (CARPENTRY_SUB_OPTIONS[carpentryItem]?.find(s => s.value === carpentrySubOption)?.price ?? 0)
+  const carpentryBasePrice = (carpentryType && carpentryCategory)
+    ? (CARPENTRY_CATEGORIES.find(c => c.value === carpentryCategory)?.prices?.[carpentryType] ?? 0)
     : 0
   const carpentryExtrasTotal = carpentryExtras.reduce((sum, e) => sum + (CARPENTRY_EXTRAS_PRICES[e] ?? 0), 0)
-  const carpentryFinalPrice = carpentryItemPrice + carpentrySubOptionPrice + carpentryExtrasTotal
+  const carpentryFinalPrice = carpentryBasePrice + carpentryExtrasTotal
 
   // Electrical pricing
   const electricalBasePrice = ELECTRICAL_TYPES.find(t => t.value === electricalType)?.price ?? 0
@@ -1619,10 +1575,9 @@ function Step1({ service, onContinue }) {
       return 1
     }
     if (isCarpentry) {
-      if (!carpentryType || !carpentryItem) return 1
-      let n = 1
-      if (carpentryExtras.includes('Materials Included')) n += 1
-      return n
+      if (!carpentryType || !carpentryCategory) return 1
+      const twoTaskerCategories = ['Multiple Seats', 'Storage', 'Sleeping / Lying']
+      return twoTaskerCategories.includes(carpentryCategory) ? 2 : 1
     }
     if (isElectrical) {
       return electricalType === 'Repair Wiring' ? 2 : 1
@@ -1649,8 +1604,8 @@ function Step1({ service, onContinue }) {
   const currentPartialOptions = (() => {
     if (service?.toLowerCase() === 'cleaning' && cleaningType && cleaningArea)
       return { service: 'Cleaning', type: cleaningType, area: cleaningArea }
-    if (service?.toLowerCase() === 'carpentry' && carpentryType && carpentryItem) {
-      return { service: 'Carpentry', type: carpentryType, item: carpentryItem }
+    if (service?.toLowerCase() === 'carpentry' && carpentryType && carpentryCategory) {
+      return { service: 'Carpentry', type: carpentryType }
     }
     if (service?.toLowerCase() === 'electrical' && electricalType)
       return { service: 'Electrical', type: electricalType }
@@ -1833,7 +1788,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryItem || (CARPENTRY_SUB_OPTIONS[carpentryItem]?.length > 0 && !carpentrySubOption))) {
+    if (service?.toLowerCase() === 'carpentry' && (!carpentryType || !carpentryCategory)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1923,15 +1878,13 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: finalPrice + helperFee,
       } : {}),
-      ...(isCarpentry && carpentryType && carpentryItem && (!CARPENTRY_SUB_OPTIONS[carpentryItem]?.length || carpentrySubOption) ? {
+      ...(isCarpentry && carpentryType && carpentryCategory ? {
         taskOptions: {
           service: 'Carpentry',
           type: carpentryType,
-          item: carpentryItem,
-          sub_option: carpentrySubOption,
-          sub_option_price: carpentrySubOptionPrice,
+          category: carpentryCategory,
           extras: carpentryExtras,
-          base_price: carpentryItemPrice,
+          base_price: carpentryBasePrice,
           extras_total: carpentryExtrasTotal,
           final_price: carpentryFinalPrice,
           helper_fee: helperFee,
@@ -2226,7 +2179,7 @@ function Step1({ service, onContinue }) {
                     name="carpentryType"
                     value={type}
                     checked={carpentryType === type}
-                    onChange={() => { setCarpentryType(type); setCarpentryItem(''); setCarpentryExtras([]) }}
+                    onChange={() => { setCarpentryType(type); setCarpentryCategory(''); setCarpentryExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{type}</span>
@@ -2235,48 +2188,34 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Item Selection — appears after type selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentryType ? '500px' : '0', opacity: carpentryType ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Item <span className="text-red-400">*</span></p>
+          {/* Section 2: Furniture Category — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryType ? '700px' : '0', opacity: carpentryType ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Furniture Category <span className="text-red-400">*</span></p>
             <div className="space-y-2">
-              {(CARPENTRY_ITEMS[carpentryType] || []).map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryItem === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
+              {CARPENTRY_CATEGORIES.map((opt) => (
+                <label key={opt.value} className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryCategory === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-start gap-3">
                     <input
                       type="radio"
-                      name="carpentryItem"
+                      name="carpentryCategory"
                       value={opt.value}
-                      checked={carpentryItem === opt.value}
-                      onChange={() => { setCarpentryItem(opt.value); setCarpentrySubOption(''); setCarpentryExtras([]) }}
-                      className="accent-orange-500 w-4 h-4"
+                      checked={carpentryCategory === opt.value}
+                      onChange={() => { setCarpentryCategory(opt.value); setCarpentryExtras([]) }}
+                      className="accent-orange-500 w-4 h-4 mt-0.5 flex-shrink-0"
                     />
-                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{opt.example}</p>
+                    </div>
                   </div>
-                  {opt.price != null && <span className="text-sm text-gray-500">₱{opt.price.toLocaleString()}</span>}
+                  <span className="text-sm text-gray-500 flex-shrink-0">₱{opt.prices[carpentryType]?.toLocaleString()}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          {/* Section 3: Sub-option dropdown — appears after item selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentryItem && CARPENTRY_SUB_OPTIONS[carpentryItem] ? '160px' : '0', opacity: carpentryItem && CARPENTRY_SUB_OPTIONS[carpentryItem] ? 1 : 0, transition: 'max-height 0.35s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Specific Item <span className="text-red-400">*</span></p>
-            <select
-              value={carpentrySubOption}
-              onChange={(e) => setCarpentrySubOption(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
-            >
-              <option value="">— Select specific item —</option>
-              {(CARPENTRY_SUB_OPTIONS[carpentryItem] || []).map((sub) => (
-                <option key={sub.value} value={sub.value}>
-                  {sub.value}{sub.price > 0 ? ` (+₱${sub.price.toLocaleString()})` : sub.price < 0 ? ` (-₱${Math.abs(sub.price).toLocaleString()})` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Section 4: Extras — appears after sub-option selected, or immediately if item has no sub-options */}
-          <div style={{ overflow: 'hidden', maxHeight: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? '350px' : '0', opacity: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 3: Extras — appears after category selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryCategory ? '350px' : '0', opacity: carpentryCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2303,25 +2242,13 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after sub-option selected, or immediately if item has no sub-options */}
-          <div style={{ overflow: 'hidden', maxHeight: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? '350px' : '0', opacity: (carpentrySubOption || (carpentryItem && !CARPENTRY_SUB_OPTIONS[carpentryItem]?.length)) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after category selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryCategory ? '350px' : '0', opacity: carpentryCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
-                <span>{carpentryType}</span>
-                <span></span>
+                <span>{carpentryType} — {carpentryCategory}</span>
+                <span>₱{carpentryBasePrice.toLocaleString()}</span>
               </div>
-              <div className="flex justify-between text-gray-700">
-                <span>{carpentryItem}</span>
-                <span>₱{carpentryItemPrice.toLocaleString()}</span>
-              </div>
-              {carpentrySubOption && (
-                <div className="flex justify-between text-gray-600">
-                  <span>{carpentrySubOption}</span>
-                  <span className={carpentrySubOptionPrice === 0 ? 'text-gray-400' : carpentrySubOptionPrice > 0 ? '' : 'text-green-600'}>
-                    {carpentrySubOptionPrice === 0 ? 'Included' : carpentrySubOptionPrice > 0 ? `+₱${carpentrySubOptionPrice.toLocaleString()}` : `-₱${Math.abs(carpentrySubOptionPrice).toLocaleString()}`}
-                  </span>
-                </div>
-              )}
               {carpentryExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
                   <span>{e}</span>

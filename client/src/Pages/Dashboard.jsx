@@ -993,6 +993,9 @@ function BookingCard({ booking, userId, onCancel }) {
               return `${datePart} at ${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
             })()],
             ['Task Size',  booking.task_size ?? '—'],
+            ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
+              ? [['Furniture Category', booking.task_options.category]]
+              : []),
             ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
               ? [['Specify Problem', booking.task_options.sub_option]]
               : []),

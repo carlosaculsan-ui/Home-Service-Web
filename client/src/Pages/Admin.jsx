@@ -1787,6 +1787,9 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ['Date',      formatBookingDate(b.scheduled_date, b.scheduled_time)],
                   ['Booked on', b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ['Task',      getTaskLabel(b)],
+                  ...(b.task_options?.service === 'Carpentry' && b.task_options?.category
+                    ? [['Furniture Category', b.task_options.category]]
+                    : []),
                   ...(b.task_options?.service === 'Plumbing Repair' && b.task_options?.sub_option
                     ? [['Specify Problem', b.task_options.sub_option]]
                     : []),
