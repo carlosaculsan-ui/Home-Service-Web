@@ -1447,6 +1447,7 @@ function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, o
 // ─── Profile Settings Tab ─────────────────────────────────────────────────────
 
 function CustomerProfile({ userId, userEmail }) {
+  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [profLoading, setProfLoading] = useState(true)
   const [fullName, setFullName] = useState('')
@@ -1455,7 +1456,10 @@ function CustomerProfile({ userId, userEmail }) {
   const [avatarUrl, setAvatarUrl] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState(null) // { type: 'success'|'error', msg: string }
+  const [toast, setToast] = useState(null)
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
+  const [deactivating, setDeactivating] = useState(false)
+  const [deactivateError, setDeactivateError] = useState('')
 
   useEffect(() => {
     if (!userId) return
@@ -1523,6 +1527,25 @@ function CustomerProfile({ userId, userEmail }) {
     } else {
       showToast('success', 'Profile updated successfully!')
     }
+  }
+
+  async function handleDeactivate() {
+    setDeactivateError('')
+    setDeactivating(true)
+    const { data: active } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('client_id', userId)
+      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+      .limit(1)
+    if (active && active.length > 0) {
+      setDeactivateError('You have active bookings. Please complete or cancel them before deactivating your account.')
+      setDeactivating(false)
+      return
+    }
+    await supabase.from('profiles').update({ is_archived: true }).eq('id', userId)
+    await supabase.auth.signOut()
+    navigate('/')
   }
 
   if (profLoading) {
@@ -1672,6 +1695,47 @@ function CustomerProfile({ userId, userEmail }) {
       >
         {saving ? 'Saving…' : 'Save Changes'}
       </button>
+
+      {/* Section 4 — Deactivate */}
+      <div className="border border-gray-200 rounded-2xl p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-1">Deactivate Account</p>
+        <p className="text-xs text-gray-400 mb-4">Once deactivated, you will be logged out and your account will be disabled.</p>
+        <button
+          onClick={() => { setDeactivateError(''); setShowDeactivateModal(true) }}
+          className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          Deactivate Account
+        </button>
+      </div>
+
+      {/* Deactivate Confirmation Modal */}
+      {showDeactivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-base font-bold text-gray-800">Deactivate Account?</h3>
+            <p className="text-sm text-gray-500">Your account will be deactivated and you will be logged out immediately. This action cannot be undone from the app.</p>
+            {deactivateError && (
+              <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deactivateError}</p>
+            )}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => { setShowDeactivateModal(false); setDeactivateError('') }}
+                disabled={deactivating}
+                className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivate}
+                disabled={deactivating}
+                className="flex-1 text-sm px-4 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-semibold transition-colors disabled:opacity-50"
+              >
+                {deactivating ? 'Deactivating…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

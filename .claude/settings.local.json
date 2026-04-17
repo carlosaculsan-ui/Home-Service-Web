@@ -5,7 +5,10 @@
       "Bash(curl -s http://localhost:5000/)",
       "Bash(curl -s -X POST http://localhost:5000/api/chat -H \"Content-Type: application/json\" -d \"{\"\"message\"\":\"\"Hello\"\",\"\"history\"\":[]}\")",
       "Bash(node -e ':*)",
-      "Bash(xargs wc *)"
+      "Bash(xargs wc *)",
+      "Bash(xargs ls *)",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(awk '{print $3}')"
     ]
   }
 }

@@ -2295,6 +2295,7 @@ function InfoField({ label, value, wide = false }) {
 }
 
 function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
+  const navigate = useNavigate()
   const [profile, setProfile] = useState(null)
   const [profileLoading, setProfileLoading] = useState(true)
   const [avgRating, setAvgRating] = useState(null)
@@ -2307,6 +2308,9 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [saving, setSaving] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [toast, setToast] = useState(null)
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false)
+  const [deactivating, setDeactivating] = useState(false)
+  const [deactivateError, setDeactivateError] = useState('')
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -2419,6 +2423,25 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
     await supabase.from('taskers').update({ profile_photo: null }).eq('id', taskerId)
     setProfile(prev => ({ ...prev, profile_photo: null }))
     showToast('Profile photo removed')
+  }
+
+  async function handleDeactivate() {
+    setDeactivateError('')
+    setDeactivating(true)
+    const { data: active } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('tasker_id', taskerId)
+      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
+      .limit(1)
+    if (active && active.length > 0) {
+      setDeactivateError('You have active bookings. Please complete or cancel them before deactivating your account.')
+      setDeactivating(false)
+      return
+    }
+    await supabase.from('profiles').update({ is_archived: true }).eq('id', taskerUserId)
+    await supabase.auth.signOut()
+    navigate('/')
   }
 
   if (profileLoading) {
@@ -2693,6 +2716,47 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
           </div>
         )}
       </div>
+
+      {/* Deactivate Account */}
+      <div className="border border-gray-200 rounded-2xl p-5">
+        <p className="text-sm font-semibold text-gray-700 mb-1">Deactivate Account</p>
+        <p className="text-xs text-gray-400 mb-4">Once deactivated, you will be logged out and your account will be disabled.</p>
+        <button
+          onClick={() => { setDeactivateError(''); setShowDeactivateModal(true) }}
+          className="text-sm font-medium px-4 py-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50 transition-colors"
+        >
+          Deactivate Account
+        </button>
+      </div>
+
+      {/* Deactivate Confirmation Modal */}
+      {showDeactivateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm space-y-4">
+            <h3 className="text-base font-bold text-gray-800">Deactivate Account?</h3>
+            <p className="text-sm text-gray-500">Your account will be deactivated and you will be logged out immediately. This action cannot be undone from the app.</p>
+            {deactivateError && (
+              <p className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{deactivateError}</p>
+            )}
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => { setShowDeactivateModal(false); setDeactivateError('') }}
+                disabled={deactivating}
+                className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeactivate}
+                disabled={deactivating}
+                className="flex-1 text-sm px-4 py-2.5 rounded-xl bg-gray-700 hover:bg-gray-800 text-white font-semibold transition-colors disabled:opacity-50"
+              >
+                {deactivating ? 'Deactivating…' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )

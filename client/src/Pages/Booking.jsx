@@ -1349,11 +1349,11 @@ function InteractiveAddressMap({ address, onLandmarkFound }) {
   )
 }
 
-function Step1({ service, onContinue }) {
-  const [address, setAddress] = useState('')
-  const [landmark, setLandmark] = useState('')
+function Step1({ service, onContinue, initialState }) {
+  const [address, setAddress] = useState(initialState?.address ?? '')
+  const [landmark, setLandmark] = useState(initialState?.landmark ?? '')
   const [size] = useState('Medium')
-  const [details, setDetails] = useState('')
+  const [details, setDetails] = useState(initialState?.details ?? '')
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
@@ -1402,12 +1402,12 @@ function Step1({ service, onContinue }) {
   }
 
   const [error, setError] = useState('')
-  const [imagePreview, setImagePreview] = useState(null)
+  const [imagePreview, setImagePreview] = useState(initialState?.imagePreview ?? null)
   const [analyzing, setAnalyzing] = useState(false)
   const [validating, setValidating] = useState(false)
   const [validatingDescription, setValidatingDescription] = useState(false)
   const [imageError, setImageError] = useState('')
-  const [aiResult, setAiResult] = useState('')
+  const [aiResult, setAiResult] = useState(initialState?.aiResult ?? '')
   const [fileInputKey, setFileInputKey] = useState(0)
   const [detectingLocation, setDetectingLocation] = useState(false)
   const [locationError, setLocationError] = useState('')
@@ -1423,33 +1423,33 @@ function Step1({ service, onContinue }) {
     if (!keywords.test(v)) return 'Please include a street, barangay, or city name (e.g., 123 Rizal St, Brgy Poblacion, Quezon City)'
     return ''
   }
-  const [cleaningType, setCleaningType] = useState('')
-  const [cleaningArea, setCleaningArea] = useState('')
-  const [cleaningExtras, setCleaningExtras] = useState([])
-  const [carpentryType, setCarpentryType] = useState('')
-  const [carpentryCategory, setCarpentryCategory] = useState('')
-  const [carpentryDimensions, setCarpentryDimensions] = useState('')
-  const [carpentryExtras, setCarpentryExtras] = useState([])
-  const [electricalType, setElectricalType] = useState('')
-  const [electricalSubOption, setElectricalSubOption] = useState('')
-  const [electricalUrgency, setElectricalUrgency] = useState('')
-  const [electricalExtras, setElectricalExtras] = useState([])
-  const [airconType, setAirconType] = useState('')
-  const [airconUnits, setAirconUnits] = useState(1)
-  const [airconServiceType, setAirconServiceType] = useState('')
-  const [airconExtras, setAirconExtras] = useState([])
-  const [airconHpTier, setAirconHpTier] = useState('')
-  const [airconServiceCategory, setAirconServiceCategory] = useState('')
-  const [paintingWhat, setPaintingWhat] = useState('')
-  const [paintingArea, setPaintingArea] = useState('')
-  const [paintingFurnitureCategory, setPaintingFurnitureCategory] = useState('')
-  const [paintingFurniturePieces, setPaintingFurniturePieces] = useState(1)
+  const [cleaningType, setCleaningType] = useState(initialState?.cleaningType ?? '')
+  const [cleaningArea, setCleaningArea] = useState(initialState?.cleaningArea ?? '')
+  const [cleaningExtras, setCleaningExtras] = useState(initialState?.cleaningExtras ?? [])
+  const [carpentryType, setCarpentryType] = useState(initialState?.carpentryType ?? '')
+  const [carpentryCategory, setCarpentryCategory] = useState(initialState?.carpentryCategory ?? '')
+  const [carpentryDimensions, setCarpentryDimensions] = useState(initialState?.carpentryDimensions ?? '')
+  const [carpentryExtras, setCarpentryExtras] = useState(initialState?.carpentryExtras ?? [])
+  const [electricalType, setElectricalType] = useState(initialState?.electricalType ?? '')
+  const [electricalSubOption, setElectricalSubOption] = useState(initialState?.electricalSubOption ?? '')
+  const [electricalUrgency, setElectricalUrgency] = useState(initialState?.electricalUrgency ?? '')
+  const [electricalExtras, setElectricalExtras] = useState(initialState?.electricalExtras ?? [])
+  const [airconType, setAirconType] = useState(initialState?.airconType ?? '')
+  const [airconUnits, setAirconUnits] = useState(initialState?.airconUnits ?? 1)
+  const [airconServiceType, setAirconServiceType] = useState(initialState?.airconServiceType ?? '')
+  const [airconExtras, setAirconExtras] = useState(initialState?.airconExtras ?? [])
+  const [airconHpTier, setAirconHpTier] = useState(initialState?.airconHpTier ?? '')
+  const [airconServiceCategory, setAirconServiceCategory] = useState(initialState?.airconServiceCategory ?? '')
+  const [paintingWhat, setPaintingWhat] = useState(initialState?.paintingWhat ?? '')
+  const [paintingArea, setPaintingArea] = useState(initialState?.paintingArea ?? '')
+  const [paintingFurnitureCategory, setPaintingFurnitureCategory] = useState(initialState?.paintingFurnitureCategory ?? '')
+  const [paintingFurniturePieces, setPaintingFurniturePieces] = useState(initialState?.paintingFurniturePieces ?? 1)
   const [paintingPaintProvided, setPaintingPaintProvided] = useState('')
-  const [paintingExtras, setPaintingExtras] = useState([])
-  const [plumbingProblem, setPlumbingProblem] = useState('')
-  const [plumbingSubOption, setPlumbingSubOption] = useState('')
+  const [paintingExtras, setPaintingExtras] = useState(initialState?.paintingExtras ?? [])
+  const [plumbingProblem, setPlumbingProblem] = useState(initialState?.plumbingProblem ?? '')
+  const [plumbingSubOption, setPlumbingSubOption] = useState(initialState?.plumbingSubOption ?? '')
   const [plumbingUrgency, setPlumbingUrgency] = useState('')
-  const [plumbingExtras, setPlumbingExtras] = useState([])
+  const [plumbingExtras, setPlumbingExtras] = useState(initialState?.plumbingExtras ?? [])
 
   const [taskPrices, setTaskPrices] = useState(null)
   const [pricesFetchError, setPricesFetchError] = useState(false)
@@ -2048,6 +2048,15 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: plumbingFinalPrice + helperFee,
       } : {}),
+      _draft: {
+        address, landmark, details, imagePreview, aiResult,
+        cleaningType, cleaningArea, cleaningExtras,
+        carpentryType, carpentryCategory, carpentryDimensions, carpentryExtras,
+        electricalType, electricalSubOption, electricalUrgency, electricalExtras,
+        airconType, airconUnits, airconServiceType, airconExtras, airconHpTier, airconServiceCategory,
+        paintingWhat, paintingArea, paintingFurnitureCategory, paintingFurniturePieces, paintingExtras,
+        plumbingProblem, plumbingSubOption, plumbingExtras,
+      },
     })
   }
 
@@ -3944,6 +3953,7 @@ function Booking() {
   }, [])
 
   // Step 1 data
+  const [step1Draft, setStep1Draft] = useState(null)
   const [taskAddress, setTaskAddress] = useState('')
   const [taskLandmark, setTaskLandmark] = useState('')
   const [taskSize, setTaskSize] = useState('')
@@ -4061,6 +4071,7 @@ function Booking() {
     if (data.taskOptions) setTaskOptions(data.taskOptions)
     if (data.taskersNeeded) setTaskersNeeded(data.taskersNeeded)
     if (data.estimatedTotal) setEstimatedTotal(data.estimatedTotal)
+    if (data._draft) setStep1Draft(data._draft)
     setStep(1)
   }
 
@@ -4114,7 +4125,7 @@ function Booking() {
           </div>
         )}
 
-        {step === 0 && <Step1 service={service} onContinue={handleStep1Continue} />}
+        {step === 0 && <Step1 service={service} onContinue={handleStep1Continue} initialState={step1Draft} />}
 
         {step === 1 && (
           (() => {

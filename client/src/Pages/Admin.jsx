@@ -1591,7 +1591,51 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     setLoading(false)
   }
 
-  useEffect(() => { fetchBookings() }, [])
+  async function sendStaleReminders() {
+    const REMINDER_MSG = "Reminder: You have a pending booking that requires your response. Please accept or reject it as soon as possible."
+    const cutoff12h = new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString()
+
+    const { data: stale } = await supabase
+      .from('bookings')
+      .select('id, tasker_id')
+      .eq('status', 'confirmed')
+      .lt('created_at', cutoff12h)
+
+    if (!stale?.length) return
+
+    const taskerIds = [...new Set(stale.map(b => b.tasker_id).filter(Boolean))]
+    const { data: taskers } = await supabase
+      .from('taskers')
+      .select('id, user_id')
+      .in('id', taskerIds)
+
+    const taskerUserMap = {}
+    taskers?.forEach(t => { taskerUserMap[t.id] = t.user_id })
+
+    for (const booking of stale) {
+      const taskerUserId = taskerUserMap[booking.tasker_id]
+      if (!taskerUserId) continue
+
+      const { data: existing } = await supabase
+        .from('notifications')
+        .select('id')
+        .eq('user_id', taskerUserId)
+        .eq('message', REMINDER_MSG)
+        .gte('created_at', cutoff12h)
+        .limit(1)
+
+      if (existing?.length > 0) continue
+
+      await supabase.from('notifications').insert({
+        user_id: taskerUserId,
+        title: 'Booking Reminder',
+        message: REMINDER_MSG,
+        is_read: false,
+      })
+    }
+  }
+
+  useEffect(() => { fetchBookings().then(() => sendStaleReminders()) }, [])
 
   useEffect(() => {
     const channel = supabase
@@ -1772,12 +1816,19 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
             : `${filteredBookings.length} found`}
         </span>
       </div>
-      {filteredBookings.map((b) => (
-        <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+      {filteredBookings.map((b) => {
+        const isOverdue24h = b.status === 'confirmed' && new Date(b.created_at) < new Date(Date.now() - 24 * 60 * 60 * 1000)
+        return (
+        <div key={b.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${isOverdue24h ? 'border-red-300' : 'border-gray-100'}`}>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3">
                 <p className="font-bold text-orange-500 text-sm tracking-wide">{b.reference_number ?? '—'}</p>
+                {isOverdue24h && (
+                  <span className="text-xs font-semibold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">
+                    No response · 24h+
+                  </span>
+                )}
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm">
                 {[
@@ -1879,7 +1930,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
             </div>
           )}
         </div>
-      ))}
+      )})}
     </div>
 
     {/* Cancel Booking Modal */}
@@ -3485,16 +3536,22 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         .from('taskers')
         .select('id, name, role, profile_photo')
         .eq('status', 'approved')
-      const { data: allCompletedBookings } = await supabase
-        .from('bookings')
-        .select('tasker_id')
-        .eq('status', 'completed')
-      const { data: allReviews } = await supabase
-        .from('reviews')
-        .select('tasker_id, rating')
+      const [
+        { data: allCompletedBookings },
+        { data: allRejectedBookings },
+        { data: allReviews },
+      ] = await Promise.all([
+        supabase.from('bookings').select('tasker_id').eq('status', 'completed'),
+        supabase.from('bookings').select('tasker_id').eq('status', 'rejected'),
+        supabase.from('reviews').select('tasker_id, rating'),
+      ])
       const jobCounts = {}
       allCompletedBookings?.forEach((b) => {
         if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+      })
+      const rejectedCounts = {}
+      allRejectedBookings?.forEach((b) => {
+        if (b.tasker_id) rejectedCounts[b.tasker_id] = (rejectedCounts[b.tasker_id] || 0) + 1
       })
       const ratingMap = {}
       allReviews?.forEach((r) => {
@@ -3504,7 +3561,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       const leaderboard = (approvedTaskers ?? []).map((t) => {
         const ratings = ratingMap[t.id] ?? []
         const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
-        return { ...t, jobs: jobCounts[t.id] || 0, avgRating }
+        return { ...t, jobs: jobCounts[t.id] || 0, rejected: rejectedCounts[t.id] || 0, avgRating }
       }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
       setTopTaskers(leaderboard)
 
@@ -3558,13 +3615,22 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
             const { data: approvedTaskers } = await supabase
               .from('taskers').select('id, name, role, profile_photo').eq('status', 'approved')
-            const { data: allCompletedBookings } = await supabase
-              .from('bookings').select('tasker_id').eq('status', 'completed')
-            const { data: allReviews } = await supabase
-              .from('reviews').select('tasker_id, rating')
+            const [
+              { data: allCompletedBookings },
+              { data: allRejectedBookings },
+              { data: allReviews },
+            ] = await Promise.all([
+              supabase.from('bookings').select('tasker_id').eq('status', 'completed'),
+              supabase.from('bookings').select('tasker_id').eq('status', 'rejected'),
+              supabase.from('reviews').select('tasker_id, rating'),
+            ])
             const jobCounts = {}
             allCompletedBookings?.forEach((b) => {
               if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+            })
+            const rejectedCounts = {}
+            allRejectedBookings?.forEach((b) => {
+              if (b.tasker_id) rejectedCounts[b.tasker_id] = (rejectedCounts[b.tasker_id] || 0) + 1
             })
             const ratingMap = {}
             allReviews?.forEach((r) => {
@@ -3574,7 +3640,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             const leaderboard = (approvedTaskers ?? []).map((t) => {
               const ratings = ratingMap[t.id] ?? []
               const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
-              return { ...t, jobs: jobCounts[t.id] || 0, avgRating }
+              return { ...t, jobs: jobCounts[t.id] || 0, rejected: rejectedCounts[t.id] || 0, avgRating }
             }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
             setTopTaskers(leaderboard)
           }
@@ -3893,6 +3959,10 @@ function DashboardPanel({ setTab, setBookingFilter }) {
                         <span className="text-xs text-gray-500">⭐ {t.avgRating > 0 ? t.avgRating.toFixed(1) : '—'}</span>
                         <span className="text-xs text-gray-400">•</span>
                         <span className="text-xs text-gray-500">✅ {t.jobs} jobs</span>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className={`text-xs font-medium ${t.rejected > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                          ❌ {t.rejected} rejected
+                        </span>
                       </div>
                       <div className="mt-1.5 h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
                         <div className="h-full bg-orange-400 rounded-full transition-all" style={{ width: `${barPct}%` }} />
