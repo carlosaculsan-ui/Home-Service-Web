@@ -30,6 +30,13 @@ function ForgotPassword() {
   }, [])
 
   useEffect(() => {
+    // Fallback: PASSWORD_RECOVERY may have already fired before this component mounted
+    if (window.location.pathname === '/reset-password') {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) setStep('reset')
+      })
+    }
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'PASSWORD_RECOVERY') {
         setStep('reset')

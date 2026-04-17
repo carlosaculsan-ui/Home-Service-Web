@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Routes, Route } from 'react-router-dom'
+import { Routes, Route, useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import Navbar from './Components/Navbar'
 import Hero from './Components/Hero'
@@ -52,6 +52,15 @@ function Home() {
 function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const navigate = useNavigate()
+
+  // If Supabase redirects recovery token to homepage instead of /reset-password, catch it here
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=recovery')) {
+      navigate('/reset-password' + hash, { replace: true })
+    }
+  }, [])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
