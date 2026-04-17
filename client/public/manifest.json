@@ -1,0 +1,17 @@
+{
+  "name": "Hanap.ph",
+  "short_name": "Hanap.ph",
+  "description": "Home services at your fingertips",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a2332",
+  "theme_color": "#1a2332",
+  "icons": [
+    {
+      "src": "/LOGO.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
