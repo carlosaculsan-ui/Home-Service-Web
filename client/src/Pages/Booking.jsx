@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
@@ -123,7 +123,6 @@ function buildPriceBreakdown(taskOptions) {
     }
   } else if (service === 'Plumbing Repair') {
     lines.push({ label: taskOptions.problem, price: taskOptions.base_price })
-    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   }
 
   const extrasMap = EXTRAS_LOOKUP[service] || {}
@@ -1004,7 +1003,6 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
             ) : (
               <DetailRow label="Area Size" value={taskOptions.area} />
             )}
-            <DetailRow label="Paint Provided" value={taskOptions.paint_provided ? 'Yes' : 'No'} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1014,7 +1012,6 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
           <>
             <DetailRow label="Problem" value={taskOptions.problem} />
             {taskOptions.sub_option && <DetailRow label="Specify Problem" value={taskOptions.sub_option} />}
-            {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -1238,15 +1235,20 @@ function ProgressTracker({ step }) {
 
 const NOMINATIM_BASE_BOOKING = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
 
-function MapClickHandler({ onMapClick }) {
-  useMapEvents({ click: (e) => onMapClick(e.latlng) })
+function MapFlyTo({ coords }) {
+  const map = useMap()
+  useEffect(() => { if (coords) map.flyTo(coords, 17) }, [coords])
   return null
 }
 
 function InteractiveAddressMap({ address, onLandmarkFound }) {
   const [coords, setCoords] = useState(null)
-  const [clickedPin, setClickedPin] = useState(null)
-  const [geocoding, setGeocoding] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [selectedPin, setSelectedPin] = useState(null)
+  const [flyTarget, setFlyTarget] = useState(null)
+  const searchDebounce = useRef(null)
 
   useEffect(() => {
     if (!address) return
@@ -1258,20 +1260,29 @@ function InteractiveAddressMap({ address, onLandmarkFound }) {
       .catch(() => {})
   }, [address])
 
-  function handleMapClick(latlng) {
-    setClickedPin([latlng.lat, latlng.lng])
-    setGeocoding(true)
-    fetch(`${NOMINATIM_BASE_BOOKING}/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lng}`)
-      .then(r => r.json())
-      .then(data => {
-        if (data) {
-          const a = data.address || {}
-          const label = data.name || a.amenity || a.building || a.shop || a.tourism || a.road || data.display_name.split(',')[0]
-          onLandmarkFound(label)
-        }
-      })
-      .catch(() => {})
-      .finally(() => setGeocoding(false))
+  function handleSearchInput(val) {
+    setSearchQuery(val)
+    setSearchResults([])
+    clearTimeout(searchDebounce.current)
+    if (!val.trim()) return
+    searchDebounce.current = setTimeout(() => {
+      setSearching(true)
+      fetch(`${NOMINATIM_BASE_BOOKING}/search?format=json&q=${encodeURIComponent(val)}&countrycodes=ph&limit=5`)
+        .then(r => r.json())
+        .then(data => setSearchResults(data || []))
+        .catch(() => {})
+        .finally(() => setSearching(false))
+    }, 400)
+  }
+
+  function handleSelectResult(result) {
+    const pos = [parseFloat(result.lat), parseFloat(result.lon)]
+    const name = result.name || result.display_name.split(',')[0]
+    setSelectedPin(pos)
+    setFlyTarget(pos)
+    setSearchQuery(name)
+    setSearchResults([])
+    onLandmarkFound(name)
   }
 
   const pinIcon = L.divIcon({
@@ -1279,37 +1290,61 @@ function InteractiveAddressMap({ address, onLandmarkFound }) {
     className: '', iconSize: [14, 14], iconAnchor: [7, 7],
   })
 
-  if (!coords) {
-    return (
-      <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200">
-        <div className="text-center">
-          <MapPin size={32} className="text-gray-400" />
-          <p className="text-sm text-gray-400">Locating address...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="relative">
-      <MapContainer center={coords} zoom={15} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    <div className="flex flex-col gap-2">
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => handleSearchInput(e.target.value)}
+          placeholder="Search for a landmark or place..."
+          className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+          autoComplete="off"
         />
-        <Marker position={coords}>
-          <Popup>{address}</Popup>
-        </Marker>
-        {clickedPin && (
-          <Marker position={clickedPin} icon={pinIcon}>
-            <Popup>Selected location</Popup>
-          </Marker>
+        {searching && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Searching…</span>
         )}
-        <MapClickHandler onMapClick={handleMapClick} />
-      </MapContainer>
-      <div className="absolute bottom-2 left-2 z-10 bg-white/85 rounded-lg px-2.5 py-1 text-xs text-gray-500 shadow pointer-events-none">
-        {geocoding ? 'Finding landmark…' : 'Tap map to pin a landmark'}
+        {searchResults.length > 0 && (
+          <ul className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+            {searchResults.map((r, i) => (
+              <li
+                key={i}
+                onMouseDown={() => handleSelectResult(r)}
+                className="px-3 py-2 text-sm cursor-pointer hover:bg-orange-50 border-b border-gray-100 last:border-0"
+              >
+                <span className="font-medium text-gray-800">{r.name || r.display_name.split(',')[0]}</span>
+                <span className="block text-xs text-gray-400 truncate">{r.display_name}</span>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
+      {coords ? (
+        <div className="relative">
+          <MapContainer center={coords} zoom={15} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            <Marker position={coords}>
+              <Popup>{address}</Popup>
+            </Marker>
+            {selectedPin && (
+              <Marker position={selectedPin} icon={pinIcon}>
+                <Popup>{searchQuery}</Popup>
+              </Marker>
+            )}
+            {flyTarget && <MapFlyTo coords={flyTarget} />}
+          </MapContainer>
+        </div>
+      ) : (
+        <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200">
+          <div className="text-center">
+            <MapPin size={32} className="text-gray-400" />
+            <p className="text-sm text-gray-400">Locating address...</p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1596,7 +1631,7 @@ function Step1({ service, onContinue }) {
   const paintingBasePrice = paintingIsFurniture
     ? (paintingFurnitureCategory ? (PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0) * paintingFurniturePieces : 0)
     : (paintingWhat && paintingArea ? (PAINTING_BASE_PRICES[paintingWhat]?.[paintingArea] ?? 0) : 0)
-  const paintingPaintCost = paintingPaintProvided === 'No' ? (paintingIsFurniture ? 0 : (PAINTING_PAINT_COSTS[paintingArea] ?? 0)) : 0
+  const paintingPaintCost = 0
   const paintingExtrasTotal = paintingExtras.reduce((sum, e) => sum + (PAINTING_EXTRAS_PRICES[e] ?? 0), 0)
   const paintingFinalPrice = paintingBasePrice + paintingPaintCost + paintingExtrasTotal
 
@@ -1851,12 +1886,12 @@ function Step1({ service, onContinue }) {
     if (service?.toLowerCase() === 'painting') {
       const furnitureIncomplete = paintingWhat === 'Furniture' && !paintingFurnitureCategory
       const areaIncomplete = paintingWhat !== 'Furniture' && !paintingArea
-      if (!paintingWhat || furnitureIncomplete || areaIncomplete || paintingPaintProvided === '') {
+      if (!paintingWhat || furnitureIncomplete || areaIncomplete) {
         setError('Please complete all required task options before continuing.')
         return
       }
     }
-    if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingSubOption || !plumbingUrgency)) {
+    if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingSubOption)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1979,17 +2014,15 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: airconFinalPrice + helperFee,
       } : {}),
-      ...(isPainting && paintingWhat && (paintingWhat === 'Furniture' ? paintingFurnitureCategory : paintingArea) && paintingPaintProvided !== '' ? {
+      ...(isPainting && paintingWhat && (paintingWhat === 'Furniture' ? paintingFurnitureCategory : paintingArea) ? {
         taskOptions: {
           service: 'Painting',
           what_to_paint: paintingWhat,
           area: paintingWhat === 'Furniture' ? null : paintingArea,
           furniture_category: paintingWhat === 'Furniture' ? paintingFurnitureCategory : null,
           furniture_pieces: paintingWhat === 'Furniture' ? paintingFurniturePieces : null,
-          paint_provided: paintingPaintProvided === 'Yes',
           extras: paintingExtras,
           base_price: paintingBasePrice,
-          paint_cost: paintingPaintCost,
           extras_total: paintingExtrasTotal,
           final_price: paintingFinalPrice,
           helper_fee: helperFee,
@@ -1999,15 +2032,13 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: paintingFinalPrice + helperFee,
       } : {}),
-      ...(isPlumbing && plumbingProblem && plumbingSubOption && plumbingUrgency ? {
+      ...(isPlumbing && plumbingProblem && plumbingSubOption ? {
         taskOptions: {
           service: 'Plumbing Repair',
           problem: plumbingProblem,
           sub_option: plumbingSubOption,
-          urgency: plumbingUrgency,
           extras: plumbingExtras,
           base_price: plumbingBasePrice,
-          urgency_surcharge: plumbingUrgencySurcharge,
           extras_total: plumbingExtrasTotal,
           final_price: plumbingFinalPrice,
           helper_fee: helperFee,
@@ -2825,36 +2856,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 3: Paint Provided — appears after area or furniture category selected */}
+          {/* Section 3: Extras — appears after area or furniture category selected */}
           <div style={{ overflow: 'hidden', maxHeight: (paintingArea || paintingFurnitureCategory) ? '350px' : '0', opacity: (paintingArea || paintingFurnitureCategory) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Paint Provided? <span className="text-red-400">*</span></p>
-            <div className="space-y-2">
-              {[
-                { value: 'Yes', label: 'Yes (I will provide the paint)', sub: 'No extra charge' },
-                { value: 'No',  label: 'No (Hanap.ph provides paint)',   sub: `+₱${(PAINTING_PAINT_COSTS[paintingArea] ?? 0).toLocaleString()} extra` },
-              ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingPaintProvided === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="paintingPaintProvided"
-                      value={opt.value}
-                      checked={paintingPaintProvided === opt.value}
-                      onChange={() => { setPaintingPaintProvided(opt.value); setPaintingExtras([]) }}
-                      className="accent-orange-500 w-4 h-4"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
-                      <p className="text-xs text-gray-400">{opt.sub}</p>
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Section 4: Extras — appears after paint provided selected */}
-          <div style={{ overflow: 'hidden', maxHeight: paintingPaintProvided ? '350px' : '0', opacity: paintingPaintProvided ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -2882,8 +2885,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after paint provided selected */}
-          <div style={{ overflow: 'hidden', maxHeight: paintingPaintProvided ? '400px' : '0', opacity: paintingPaintProvided ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after area or furniture category selected */}
+          <div style={{ overflow: 'hidden', maxHeight: (paintingArea || paintingFurnitureCategory) ? '400px' : '0', opacity: (paintingArea || paintingFurnitureCategory) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>
@@ -2893,12 +2896,6 @@ function Step1({ service, onContinue }) {
                 </span>
                 <span>₱{paintingBasePrice.toLocaleString()}</span>
               </div>
-              {paintingPaintCost > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Paint (not provided)</span>
-                  <span>+₱{paintingPaintCost.toLocaleString()}</span>
-                </div>
-              )}
               {paintingExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
                   <span>{e}</span>
@@ -2978,36 +2975,8 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Urgency — appears after sub-option selected */}
-          <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '300px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
-            <div className="space-y-2">
-              {[
-                { value: 'Normal', label: 'Normal', sub: 'No extra charge' },
-                { value: 'Urgent', label: 'Urgent', sub: '+₱200 flat' },
-              ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingUrgency === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="radio"
-                      name="plumbingUrgency"
-                      value={opt.value}
-                      checked={plumbingUrgency === opt.value}
-                      onChange={() => { setPlumbingUrgency(opt.value); setPlumbingExtras([]) }}
-                      className="accent-orange-500 w-4 h-4"
-                    />
-                    <div>
-                      <span className="text-sm font-medium text-gray-700">{opt.label}</span>
-                      <p className="text-xs text-gray-400">{opt.sub}</p>
-                    </div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Section 3: Extras — appears after urgency selected */}
-          <div style={{ overflow: 'hidden', maxHeight: plumbingUrgency ? '350px' : '0', opacity: plumbingUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 2: Extras — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '350px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
@@ -3034,19 +3003,13 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Price Breakdown — appears after urgency selected */}
-          <div style={{ overflow: 'hidden', maxHeight: plumbingUrgency ? '350px' : '0', opacity: plumbingUrgency ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Price Breakdown — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '350px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
                 <span>{plumbingProblem}</span>
                 <span>₱{plumbingBasePrice.toLocaleString()}</span>
               </div>
-              {plumbingUrgencySurcharge > 0 && (
-                <div className="flex justify-between text-gray-600">
-                  <span>Urgent</span>
-                  <span>+₱{plumbingUrgencySurcharge.toLocaleString()}</span>
-                </div>
-              )}
               {plumbingExtras.map((e) => (
                 <div key={e} className="flex justify-between text-gray-600">
                   <span>{e}</span>
