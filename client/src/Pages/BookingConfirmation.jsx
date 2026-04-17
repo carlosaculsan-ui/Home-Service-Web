@@ -44,6 +44,14 @@ function fmtPaymentMethod(method) {
   return capitalize(method)
 }
 
+function maskPhone(phone) {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 6) return phone
+  const visible = digits.slice(0, 2) + '*'.repeat(digits.length - 5) + digits.slice(-3)
+  return phone.startsWith('+') ? '+' + visible : visible
+}
+
 const EXTRAS_LOOKUP = {
   'Cleaning':           { 'With Laundry': 200, 'With Appliances': 250 },
   'Carpentry':          { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 },
@@ -379,7 +387,7 @@ export default function BookingConfirmation() {
                             Hanap.ph E-Wallet + {fmtPaymentMethod(method)}
                           </span>
                           {['gcash', 'paymaya', 'maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
-                            <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
+                            <p className="text-gray-400 text-xs mt-0.5">{maskPhone(booking.customer_phone)}</p>
                           )}
                         </>
                       )

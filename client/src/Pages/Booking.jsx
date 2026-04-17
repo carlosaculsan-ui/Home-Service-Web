@@ -3522,7 +3522,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 <input
                   ref={cardNumberRef}
                   type="text"
-                  placeholder="1234 1234 1234 1234"
+                  placeholder="4242 4242 4242 4242"
                   maxLength={19}
                   value={cardDetails.number}
                   onChange={e => { setCardDetails(p => ({ ...p, number: e.target.value.replace(/[^\d]/g, '').replace(/(.{4})/g, '$1 ').trim() })); setCardErrors(p => ({ ...p, number: '' })) }}
