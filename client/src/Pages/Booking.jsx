@@ -973,6 +973,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
         {taskOptions && taskOptions.service === 'Electrical' && (
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
+            {taskOptions.sub_option && <DetailRow label="Specify Work" value={taskOptions.sub_option} />}
             {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
@@ -1003,6 +1004,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
         {taskOptions && taskOptions.service === 'Plumbing Repair' && (
           <>
             <DetailRow label="Problem" value={taskOptions.problem} />
+            {taskOptions.sub_option && <DetailRow label="Specify Problem" value={taskOptions.sub_option} />}
             {taskOptions.urgency === 'Urgent' && <DetailRow label="Urgency" value={taskOptions.urgency} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
@@ -1385,6 +1387,7 @@ function Step1({ service, onContinue }) {
   const [carpentrySubOption, setCarpentrySubOption] = useState('')
   const [carpentryExtras, setCarpentryExtras] = useState([])
   const [electricalType, setElectricalType] = useState('')
+  const [electricalSubOption, setElectricalSubOption] = useState('')
   const [electricalUrgency, setElectricalUrgency] = useState('')
   const [electricalExtras, setElectricalExtras] = useState([])
   const [airconType, setAirconType] = useState('')
@@ -1398,6 +1401,7 @@ function Step1({ service, onContinue }) {
   const [paintingPaintProvided, setPaintingPaintProvided] = useState('')
   const [paintingExtras, setPaintingExtras] = useState([])
   const [plumbingProblem, setPlumbingProblem] = useState('')
+  const [plumbingSubOption, setPlumbingSubOption] = useState('')
   const [plumbingUrgency, setPlumbingUrgency] = useState('')
   const [plumbingExtras, setPlumbingExtras] = useState([])
 
@@ -1492,6 +1496,11 @@ function Step1({ service, onContinue }) {
     { value: 'Repair Wiring',  price: tp('Electrical', 'Repair Wiring') },
     { value: 'Install Lights', price: tp('Electrical', 'Install Lights') },
   ]
+  const ELECTRICAL_SUB_OPTIONS = {
+    'Install Outlet': ['Standard Wall Outlet', 'USB Outlet', 'Outdoor/Weatherproof Outlet', 'Extension Box Installation'],
+    'Repair Wiring':  ['Tripping Breaker', 'Dead Outlet / Switch', 'Exposed / Damaged Wiring', 'Flickering Lights'],
+    'Install Lights': ['Ceiling Light / Downlight', 'Wall Sconce', 'LED Strip Lights', 'Outdoor / Security Light'],
+  }
   const ELECTRICAL_EXTRAS_PRICES = {
     'Materials Included':       tp('Electrical', 'Extra - Materials Included'),
     'Additional Outlet/Switch': tp('Electrical', 'Extra - Additional Outlet/Switch'),
@@ -1526,6 +1535,11 @@ function Step1({ service, onContinue }) {
     { value: 'Clogged Drain',  price: tp('Plumbing Repair', 'Clogged Drain') },
     { value: 'Pipe Repair',    price: tp('Plumbing Repair', 'Pipe Repair') },
   ]
+  const PLUMBING_SUB_OPTIONS = {
+    'Leaking Faucet': ['Kitchen Faucet', 'Bathroom Faucet', 'Shower Head', 'Outdoor Faucet'],
+    'Clogged Drain':  ['Kitchen Sink', 'Bathroom Sink', 'Floor Drain', 'Toilet Bowl'],
+    'Pipe Repair':    ['Minor Leak (visible drip)', 'Burst Pipe', 'Pipe Joint Repair', 'Water Pressure Issue'],
+  }
   const PLUMBING_EXTRAS_PRICES = {
     'Materials Included':                   tp('Plumbing Repair', 'Extra - Materials Included'),
     'Multiple Points (2+ faucets/drains)':  tp('Plumbing Repair', 'Extra - Multiple Points (2+ faucets/drains)'),
@@ -1534,7 +1548,7 @@ function Step1({ service, onContinue }) {
 
   const PAINTING_BASE_PRICES = {
     'Wall':      { 'Small': tp('Painting', 'Wall - Small'),      'Medium': tp('Painting', 'Wall - Medium'),      'Large': tp('Painting', 'Wall - Large') },
-    'Ceiling':   { 'Small': tp('Painting', 'Ceiling - Small'),   'Medium': tp('Painting', 'Ceiling - Medium'),   'Large': tp('Painting', 'Ceiling - Large') },
+    'Ceiling / Roof': { 'Small': tp('Painting', 'Ceiling - Small'),   'Medium': tp('Painting', 'Ceiling - Medium'),   'Large': tp('Painting', 'Ceiling - Large') },
     'Furniture': { 'Small': tp('Painting', 'Furniture - Small'), 'Medium': tp('Painting', 'Furniture - Medium'), 'Large': tp('Painting', 'Furniture - Large') },
   }
   const PAINTING_PAINT_COSTS = {
@@ -1823,7 +1837,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'electrical' && (!electricalType || !electricalUrgency)) {
+    if (service?.toLowerCase() === 'electrical' && (!electricalType || !electricalSubOption || !electricalUrgency)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1841,7 +1855,7 @@ function Step1({ service, onContinue }) {
       setError('Please complete all required task options before continuing.')
       return
     }
-    if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingUrgency)) {
+    if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingSubOption || !plumbingUrgency)) {
       setError('Please complete all required task options before continuing.')
       return
     }
@@ -1927,10 +1941,11 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: carpentryFinalPrice + helperFee,
       } : {}),
-      ...(isElectrical && electricalType && electricalUrgency ? {
+      ...(isElectrical && electricalType && electricalSubOption && electricalUrgency ? {
         taskOptions: {
           service: 'Electrical',
           type: electricalType,
+          sub_option: electricalSubOption,
           urgency: electricalUrgency,
           extras: electricalExtras,
           base_price: electricalBasePrice,
@@ -1982,10 +1997,11 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: paintingFinalPrice + helperFee,
       } : {}),
-      ...(isPlumbing && plumbingProblem && plumbingUrgency ? {
+      ...(isPlumbing && plumbingProblem && plumbingSubOption && plumbingUrgency ? {
         taskOptions: {
           service: 'Plumbing Repair',
           problem: plumbingProblem,
+          sub_option: plumbingSubOption,
           urgency: plumbingUrgency,
           extras: plumbingExtras,
           base_price: plumbingBasePrice,
@@ -2264,7 +2280,6 @@ function Step1({ service, onContinue }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Materials Included', price: '+₱500' },
                 { value: 'Varnishing / Finishing', price: '+₱350' },
                 { value: 'Hauling / Debris Removal', price: '+₱200' },
               ].map((opt) => (
@@ -2355,7 +2370,7 @@ function Step1({ service, onContinue }) {
                       name="electricalType"
                       value={opt.value}
                       checked={electricalType === opt.value}
-                      onChange={() => { setElectricalType(opt.value); setElectricalUrgency(''); setElectricalExtras([]) }}
+                      onChange={() => { setElectricalType(opt.value); setElectricalSubOption(''); setElectricalUrgency(''); setElectricalExtras([]) }}
                       className="accent-orange-500 w-4 h-4"
                     />
                     <span className="text-sm font-medium text-gray-700">{opt.value}</span>
@@ -2366,8 +2381,28 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Urgency — appears after type selected */}
-          <div style={{ overflow: 'hidden', maxHeight: electricalType ? '300px' : '0', opacity: electricalType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 1.5: Sub-option — appears after type selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalType ? '350px' : '0', opacity: electricalType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Specify Work <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {(ELECTRICAL_SUB_OPTIONS[electricalType] ?? []).map((sub) => (
+                <label key={sub} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalSubOption === sub ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="electricalSubOption"
+                    value={sub}
+                    checked={electricalSubOption === sub}
+                    onChange={() => { setElectricalSubOption(sub); setElectricalUrgency(''); setElectricalExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{sub}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Urgency — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: electricalSubOption ? '300px' : '0', opacity: electricalSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
@@ -2399,7 +2434,6 @@ function Step1({ service, onContinue }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Materials Included', price: '+₱400' },
                 { value: 'Additional Outlet/Switch', price: '+₱300' },
                 { value: 'Circuit Breaker Check', price: '+₱250' },
               ].map((opt) => (
@@ -2702,7 +2736,7 @@ function Step1({ service, onContinue }) {
           <div>
             <p className="font-semibold text-gray-700 text-sm mb-2">What to Paint <span className="text-red-400">*</span></p>
             <div className="space-y-2">
-              {['Wall', 'Ceiling', 'Furniture'].map((opt) => (
+              {['Wall', 'Ceiling / Roof', 'Furniture'].map((opt) => (
                 <label key={opt} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingWhat === opt ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
@@ -2723,9 +2757,9 @@ function Step1({ service, onContinue }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Small',  label: 'Small' },
-                { value: 'Medium', label: 'Medium' },
-                { value: 'Large',  label: 'Large' },
+                { value: 'Small',  label: paintingWhat === 'Furniture' ? 'Small (1–2 pieces)' : 'Small (up to 10 sqm)' },
+                { value: 'Medium', label: paintingWhat === 'Furniture' ? 'Medium (3–5 pieces)' : 'Medium (11–25 sqm)' },
+                { value: 'Large',  label: paintingWhat === 'Furniture' ? 'Large (6+ pieces)' : 'Large (26 sqm and above)' },
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingArea === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
@@ -2865,7 +2899,7 @@ function Step1({ service, onContinue }) {
                       name="plumbingProblem"
                       value={opt.value}
                       checked={plumbingProblem === opt.value}
-                      onChange={() => { setPlumbingProblem(opt.value); setPlumbingUrgency(''); setPlumbingExtras([]) }}
+                      onChange={() => { setPlumbingProblem(opt.value); setPlumbingSubOption(''); setPlumbingUrgency(''); setPlumbingExtras([]) }}
                       className="accent-orange-500 w-4 h-4"
                     />
                     <span className="text-sm font-medium text-gray-700">{opt.value}</span>
@@ -2876,8 +2910,28 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Urgency — appears after problem selected */}
-          <div style={{ overflow: 'hidden', maxHeight: plumbingProblem ? '300px' : '0', opacity: plumbingProblem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 1.5: Sub-option — appears after problem selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingProblem ? '350px' : '0', opacity: plumbingProblem ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Specify Problem <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {(PLUMBING_SUB_OPTIONS[plumbingProblem] ?? []).map((sub) => (
+                <label key={sub} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingSubOption === sub ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <input
+                    type="radio"
+                    name="plumbingSubOption"
+                    value={sub}
+                    checked={plumbingSubOption === sub}
+                    onChange={() => { setPlumbingSubOption(sub); setPlumbingUrgency(''); setPlumbingExtras([]) }}
+                    className="accent-orange-500 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium text-gray-700">{sub}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 2: Urgency — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '300px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Urgency <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
@@ -2909,7 +2963,6 @@ function Step1({ service, onContinue }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Materials Included',                  price: '+₱400' },
                 { value: 'Multiple Points (2+ faucets/drains)', price: '+₱300' },
                 { value: 'Waterproofing',                       price: '+₱500' },
               ].map((opt) => (

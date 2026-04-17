@@ -993,6 +993,12 @@ function BookingCard({ booking, userId, onCancel }) {
               return `${datePart} at ${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
             })()],
             ['Task Size',  booking.task_size ?? '—'],
+            ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
+              ? [['Specify Problem', booking.task_options.sub_option]]
+              : []),
+            ...(booking.task_options?.service === 'Electrical' && booking.task_options?.sub_option
+              ? [['Specify Work', booking.task_options.sub_option]]
+              : []),
             ['Address',    booking.address ?? '—'],
             ['Booked on',  booking.created_at
               ? new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +

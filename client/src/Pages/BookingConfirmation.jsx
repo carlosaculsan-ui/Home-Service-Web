@@ -64,7 +64,7 @@ function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
   } else if (service === 'Carpentry') {
     lines.push({ label: `${taskOptions.type} — ${taskOptions.item}`, price: combinedBase })
   } else if (service === 'Electrical') {
-    lines.push({ label: taskOptions.type, price: combinedBase })
+    lines.push({ label: taskOptions.sub_option ? `${taskOptions.type} — ${taskOptions.sub_option}` : taskOptions.type, price: combinedBase })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   } else if (service === 'Aircon Maintenance') {
     const u = taskOptions.units || 1
@@ -75,7 +75,7 @@ function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
       lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
     }
   } else if (service === 'Plumbing Repair') {
-    lines.push({ label: taskOptions.problem, price: combinedBase })
+    lines.push({ label: taskOptions.sub_option ? `${taskOptions.problem} — ${taskOptions.sub_option}` : taskOptions.problem, price: combinedBase })
     lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   }
 
