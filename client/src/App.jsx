@@ -14,7 +14,6 @@ import Footer from './Components/Footer'
 import Chatbot from './Components/Chatbot'
 import AuthForm from './Pages/AuthForm'
 import ForgotPassword from './Pages/ForgotPassword'
-import ResetPassword from './Pages/ResetPassword'
 import BecomeATasker from './Pages/BecomeATasker'
 import BecomeATaskerLanding from './Pages/BecomeATaskerLanding'
 import Booking from './Pages/Booking'
@@ -155,7 +154,7 @@ function App() {
       <Route path="/signup" element={<AuthForm />} />
       <Route path="/auth" element={<AuthForm />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
+      <Route path="/reset-password" element={<ForgotPassword />} />
       <Route path="/become-a-tasker" element={<BecomeATaskerLanding />} />
       <Route path="/become-a-tasker/apply" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
       <Route path="/booking/:service" element={<Booking />} />
