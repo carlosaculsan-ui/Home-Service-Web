@@ -11,6 +11,7 @@ function ResetPassword() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
   const [sessionError, setSessionError] = useState(false)
   const [show, setShow] = useState(false)
@@ -59,7 +60,10 @@ function ResetPassword() {
         .select('role')
         .eq('id', user.id)
         .single()
-      navigate(profile?.role === 'tasker' ? '/tasker' : '/login')
+      navigate(
+        profile?.role === 'tasker' ? '/tasker' : '/login',
+        { state: { notice: 'Password reset successfully! Please log in.' } }
+      )
     }
     setLoading(false)
   }
@@ -145,7 +149,7 @@ function ResetPassword() {
                 style={{ '--i': 2 }}
               >
                 <input
-                  type="password"
+                  type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -153,7 +157,14 @@ function ResetPassword() {
                   className="auth-input"
                 />
                 <label>Confirm Password</label>
-                <FaLock className="auth-icon" />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="auth-icon"
+                  style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                >
+                  {showConfirmPassword ? <FaLockOpen /> : <FaLock />}
+                </button>
               </div>
 
               {error && <p className="auth-error">{error}</p>}

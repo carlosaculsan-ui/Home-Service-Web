@@ -28,8 +28,16 @@ function AuthForm() {
   const [otpLoading, setOtpLoading] = useState(false)
   const [otpError, setOtpError] = useState('')
   const [otpSending, setOtpSending] = useState(false)
+  const [otpTimer, setOtpTimer] = useState(120)
 
   const navigate = useNavigate()
+
+  // OTP countdown
+  useEffect(() => {
+    if (!otpScreen || otpSending || otpTimer <= 0) return
+    const id = setTimeout(() => setOtpTimer(t => t - 1), 1000)
+    return () => clearTimeout(id)
+  }, [otpScreen, otpSending, otpTimer])
 
   // Trigger entrance animation after mount
   useEffect(() => {
@@ -161,6 +169,7 @@ function AuthForm() {
   const handleResendOtp = async () => {
     setOtpError('')
     setOtp('')
+    setOtpTimer(120)
     setOtpSending(true)
     await supabase.auth.signInWithOtp({ email: otpEmail })
     setOtpSending(false)
@@ -169,6 +178,9 @@ function AuthForm() {
   const toggleForm = () => {
     setIsLogin(!isLogin)
     setError('')
+    setEmail('')
+    setPassword('')
+    setConfirmPassword('')
   }
 
   return (
@@ -212,11 +224,22 @@ function AuthForm() {
                   onChange={(e) => { setOtp(e.target.value.replace(/\D/g, '')); setOtpError('') }}
                   placeholder="Enter 8-digit code"
                   className="auth-otp-input"
+                  disabled={otpTimer <= 0}
                 />
+                <p style={{
+                  fontSize: '0.82rem',
+                  textAlign: 'center',
+                  marginBottom: '0.75rem',
+                  color: otpTimer <= 0 ? '#ff6b6b' : otpTimer <= 30 ? '#f97316' : 'rgba(255,255,255,0.55)',
+                }}>
+                  {otpTimer > 0
+                    ? `Code expires in ${Math.floor(otpTimer / 60)}:${String(otpTimer % 60).padStart(2, '0')}`
+                    : 'OTP expired, please resend.'}
+                </p>
                 {otpError && <p className="auth-otp-error">{otpError}</p>}
                 <button
                   onClick={handleOtpVerify}
-                  disabled={otpLoading || otp.length < 8}
+                  disabled={otpLoading || otp.length < 8 || otpTimer <= 0}
                   className="auth-otp-btn"
                 >
                   {otpLoading ? 'Verifying...' : 'Verify & Continue'}
@@ -248,6 +271,7 @@ function AuthForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder=" "
+                autoComplete="off"
                 className="auth-input"
               />
               <label>Email</label>
@@ -263,6 +287,7 @@ function AuthForm() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder=" "
+                autoComplete="off"
                 className="auth-input"
               />
               <label>Password</label>
@@ -319,6 +344,7 @@ function AuthForm() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder=" "
+                autoComplete="off"
                 className="auth-input"
               />
               <label>Email</label>
@@ -332,6 +358,7 @@ function AuthForm() {
                 required
                 minLength={6}
                 placeholder=" "
+                autoComplete="off"
                 className="auth-input"
               />
               <label>Password</label>
@@ -351,6 +378,7 @@ function AuthForm() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 placeholder=" "
+                autoComplete="off"
                 className="auth-input"
               />
               <label>Confirm Password</label>

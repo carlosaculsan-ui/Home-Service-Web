@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 
@@ -19,6 +19,8 @@ function Login() {
   const [otpSending, setOtpSending] = useState(false)
 
   const navigate = useNavigate()
+  const location = useLocation()
+  const [notice, setNotice] = useState(location.state?.notice || '')
 
   function isNewGoogleUser(session) {
     const created = new Date(session.user.created_at).getTime()
@@ -240,6 +242,7 @@ function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Email"
+              autoComplete="off"
               className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
             />
@@ -251,6 +254,7 @@ function Login() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Password"
+              autoComplete="off"
               className="w-full px-4 py-3 rounded-lg text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={{ background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.25)' }}
             />
@@ -279,6 +283,11 @@ function Login() {
             {loading ? 'Logging in...' : 'Log In'}
           </button>
 
+          {notice && (
+            <p style={{ fontSize: '0.85rem', color: '#86efac', background: 'rgba(134,239,172,0.1)', border: '1px solid rgba(134,239,172,0.3)', borderRadius: '8px', padding: '0.5rem 0.75rem', textAlign: 'center' }}>
+              {notice}
+            </p>
+          )}
           {error && <p className="text-red-300 text-sm">{error}</p>}
 
           <div className="flex items-center gap-3 my-2">

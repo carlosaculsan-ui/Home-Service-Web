@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { FaEnvelope } from 'react-icons/fa'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
@@ -11,6 +11,7 @@ function ForgotPassword() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [show, setShow] = useState(false)
+  const navigate = useNavigate()
 
   useEffect(() => {
     const timer = setTimeout(() => setShow(true), 100)
@@ -25,10 +26,10 @@ function ForgotPassword() {
     const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo: 'https://home-service-web-five.vercel.app/reset-password' })
     if (error) {
       setError(error.message)
+      setLoading(false)
     } else {
-      setSuccess('Password reset email sent! Check your inbox.')
+      navigate('/login', { state: { notice: 'Password reset link sent! Check your email.' } })
     }
-    setLoading(false)
   }
 
   return (

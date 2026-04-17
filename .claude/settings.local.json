@@ -4,7 +4,8 @@
       "Bash(npm install:*)",
       "Bash(curl -s http://localhost:5000/)",
       "Bash(curl -s -X POST http://localhost:5000/api/chat -H \"Content-Type: application/json\" -d \"{\"\"message\"\":\"\"Hello\"\",\"\"history\"\":[]}\")",
-      "Bash(node -e ':*)"
+      "Bash(node -e ':*)",
+      "Bash(xargs wc *)"
     ]
   }
 }
