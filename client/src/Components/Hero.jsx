@@ -144,14 +144,20 @@ function Hero() {
                 </div>
 
                 {/* STATS */}
-                <div className="flex gap-6 pt-2 border-t border-white/20">
-                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1100ms]" : "opacity-0 translate-y-6"}`}>
+                <div className="flex flex-wrap gap-4 pt-2 border-t border-white/20 w-full">
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1000" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">500+</h3>
                     <p className="text-xs text-gray-400">Clients</p>
                   </div>
-                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[1300ms]" : "opacity-0 translate-y-6"}`}>
+
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1100" : "opacity-0 translate-y-6"}`}>
                     <h3 className="text-2xl font-bold text-orange-400">8+</h3>
                     <p className="text-xs text-gray-400">Taskers</p>
+                  </div>
+
+                  <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1200" : "opacity-0 translate-y-6"}`}>
+                    <h3 className="text-2xl font-bold text-orange-400">24/7</h3>
+                    <p className="text-xs text-gray-400">Support</p>
                   </div>
                 </div>
               </div>

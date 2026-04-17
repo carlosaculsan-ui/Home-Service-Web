@@ -547,7 +547,7 @@ function Navbar() {
                   lineHeight: 1,
                 }}
               >
-                anap<span style={{ color: "#fb923c" }}>.ph</span>
+                Hanap<span style={{ color: "#fb923c" }}>.ph</span>
               </div>
               <div
                 style={{
