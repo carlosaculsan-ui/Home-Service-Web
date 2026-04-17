@@ -12,8 +12,9 @@ function hasRecoveryToken() {
 }
 
 function ForgotPassword() {
-  // step: 'email' | 'sent' | 'loading' | 'reset' | 'invalid'
+  // step: 'email' | 'sent' | 'loading' | 'reset' | 'invalid' | 'success'
   const [step, setStep] = useState(hasRecoveryToken() ? 'loading' : 'email')
+  const [countdown, setCountdown] = useState(3)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -23,6 +24,17 @@ function ForgotPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [show, setShow] = useState(false)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (step !== 'success') return
+    if (countdown <= 0) {
+      window.close()
+      setTimeout(() => navigate('/login', { state: { notice: 'Password reset successfully! Please log in.' } }), 300)
+      return
+    }
+    const id = setTimeout(() => setCountdown(c => c - 1), 1000)
+    return () => clearTimeout(id)
+  }, [step, countdown])
 
   useEffect(() => {
     const timer = setTimeout(() => setShow(true), 100)
@@ -91,10 +103,8 @@ function ForgotPassword() {
         .select('role')
         .eq('id', user.id)
         .single()
-      const target = profile?.role === 'tasker' ? '/tasker' : '/login'
-      const noticeState = { state: { notice: 'Password reset successfully! Please log in.' } }
-      window.close()
-      setTimeout(() => navigate(target, noticeState), 300)
+      setStep('success')
+      setCountdown(3)
     }
   }
 
@@ -198,6 +208,20 @@ function ForgotPassword() {
           <div style={{ textAlign: 'center', padding: '2rem 0' }}>
             <p style={{ color: '#fca5a5', marginBottom: '1rem' }}>This reset link is invalid or has expired.</p>
             <Link to="/forgot-password" className="auth-link">Request a new reset link</Link>
+          </div>
+        )}
+
+        {/* Success — password changed */}
+        {step === 'success' && (
+          <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>✅</div>
+            <h2 className="auth-title">Password Changed!</h2>
+            <p style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.6, marginBottom: '1.5rem' }}>
+              Your password has been successfully updated. You can now log in with your new password.
+            </p>
+            <p style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.45)' }}>
+              This tab will close in {countdown}...
+            </p>
           </div>
         )}
 
