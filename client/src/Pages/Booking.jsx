@@ -114,7 +114,10 @@ function buildPriceBreakdown(taskOptions) {
     const u = taskOptions.units || 1
     lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: taskOptions.base_price })
   } else if (service === 'Painting') {
-    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: taskOptions.base_price })
+    const paintLabel = taskOptions.what_to_paint === 'Furniture'
+      ? `Furniture Painting — ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
+      : `${taskOptions.what_to_paint} Painting (${taskOptions.area})`
+    lines.push({ label: paintLabel, price: taskOptions.base_price })
     if (taskOptions.paint_cost > 0) {
       lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
     }
@@ -536,7 +539,9 @@ function getTaskOptionsSummary(taskOptions) {
   else if (service === 'Aircon Maintenance') label = taskOptions.aircon_type === 'Install'
     ? `Install · ${taskOptions.hp_tier}`
     : `${taskOptions.aircon_type} · ${taskOptions.service_type}`
-  else if (service === 'Painting')     label = `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
+  else if (service === 'Painting')     label = taskOptions.what_to_paint === 'Furniture'
+    ? `Furniture Painting · ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
+    : `${taskOptions.what_to_paint} Painting · ${taskOptions.area}`
   else if (service === 'Plumbing Repair') label = `${taskOptions.problem} · ${taskOptions.urgency}`
   return { label, extras: taskOptions.extras ?? [] }
 }
@@ -961,6 +966,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
           <>
             <DetailRow label="Type of Work" value={taskOptions.type} />
             <DetailRow label="Furniture Category" value={taskOptions.category ?? taskOptions.item} />
+            {taskOptions.furniture_dimensions && <DetailRow label="Dimensions" value={taskOptions.furniture_dimensions} />}
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
@@ -990,7 +996,14 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
         {taskOptions && taskOptions.service === 'Painting' && (
           <>
             <DetailRow label="What to Paint" value={taskOptions.what_to_paint} />
-            <DetailRow label="Area Size" value={taskOptions.area} />
+            {taskOptions.what_to_paint === 'Furniture' ? (
+              <>
+                <DetailRow label="Furniture Category" value={taskOptions.furniture_category} />
+                <DetailRow label="Number of Pieces" value={taskOptions.furniture_pieces} />
+              </>
+            ) : (
+              <DetailRow label="Area Size" value={taskOptions.area} />
+            )}
             <DetailRow label="Paint Provided" value={taskOptions.paint_provided ? 'Yes' : 'No'} />
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
@@ -1380,6 +1393,7 @@ function Step1({ service, onContinue }) {
   const [cleaningExtras, setCleaningExtras] = useState([])
   const [carpentryType, setCarpentryType] = useState('')
   const [carpentryCategory, setCarpentryCategory] = useState('')
+  const [carpentryDimensions, setCarpentryDimensions] = useState('')
   const [carpentryExtras, setCarpentryExtras] = useState([])
   const [electricalType, setElectricalType] = useState('')
   const [electricalSubOption, setElectricalSubOption] = useState('')
@@ -1393,6 +1407,8 @@ function Step1({ service, onContinue }) {
   const [airconServiceCategory, setAirconServiceCategory] = useState('')
   const [paintingWhat, setPaintingWhat] = useState('')
   const [paintingArea, setPaintingArea] = useState('')
+  const [paintingFurnitureCategory, setPaintingFurnitureCategory] = useState('')
+  const [paintingFurniturePieces, setPaintingFurniturePieces] = useState(1)
   const [paintingPaintProvided, setPaintingPaintProvided] = useState('')
   const [paintingExtras, setPaintingExtras] = useState([])
   const [plumbingProblem, setPlumbingProblem] = useState('')
@@ -1506,10 +1522,29 @@ function Step1({ service, onContinue }) {
   }
 
   const PAINTING_BASE_PRICES = {
-    'Wall':      { 'Small': tp('Painting', 'Wall - Small'),      'Medium': tp('Painting', 'Wall - Medium'),      'Large': tp('Painting', 'Wall - Large') },
-    'Ceiling / Roof': { 'Small': tp('Painting', 'Ceiling - Small'),   'Medium': tp('Painting', 'Ceiling - Medium'),   'Large': tp('Painting', 'Ceiling - Large') },
-    'Furniture': { 'Small': tp('Painting', 'Furniture - Small'), 'Medium': tp('Painting', 'Furniture - Medium'), 'Large': tp('Painting', 'Furniture - Large') },
+    'Wall':           { 'Small': tp('Painting', 'Wall - Small'),    'Medium': tp('Painting', 'Wall - Medium'),    'Large': tp('Painting', 'Wall - Large') },
+    'Ceiling / Roof': { 'Small': tp('Painting', 'Ceiling - Small'), 'Medium': tp('Painting', 'Ceiling - Medium'), 'Large': tp('Painting', 'Ceiling - Large') },
   }
+  const PAINTING_FURNITURE_PRICES = {
+    'Single Seat':        200,
+    'Multiple Seats':     350,
+    'Sleeping / Lying':   400,
+    'Tables':             300,
+    'Storage':            350,
+    'Religious':          250,
+    'Entertainment':      300,
+    'Campaign / Outdoor': 200,
+  }
+  const PAINTING_FURNITURE_CATEGORIES = [
+    { value: 'Single Seat',        example: 'e.g. Chair, Stool, Rocking Chair, Bar Stool, Accent Chair' },
+    { value: 'Multiple Seats',     example: 'e.g. Bench, Sofa, Loveseat, Sectional Sofa, Church Pew' },
+    { value: 'Sleeping / Lying',   example: 'e.g. Bed Frame, Bunk Bed, Daybed, Cot, Trundle Bed' },
+    { value: 'Tables',             example: 'e.g. Dining Table, Coffee Table, Study Desk, Side Table, Console Table' },
+    { value: 'Storage',            example: 'e.g. Cabinet, Drawer, Bookshelf, Wardrobe, Shoe Rack' },
+    { value: 'Religious',          example: 'e.g. Altar, Prayer Table, Oratory' },
+    { value: 'Entertainment',      example: 'e.g. TV Stand, Display Cabinet, Bar Counter' },
+    { value: 'Campaign / Outdoor', example: 'e.g. Folding Table, Folding Chair, Picnic Bench' },
+  ]
   const PAINTING_PAINT_COSTS = {
     'Small':  tp('Painting', 'Paint Cost - Small'),
     'Medium': tp('Painting', 'Paint Cost - Medium'),
@@ -1557,8 +1592,11 @@ function Step1({ service, onContinue }) {
   const plumbingFinalPrice = plumbingBasePrice + plumbingUrgencySurcharge + plumbingExtrasTotal
 
   // Painting pricing
-  const paintingBasePrice = paintingWhat && paintingArea ? (PAINTING_BASE_PRICES[paintingWhat]?.[paintingArea] ?? 0) : 0
-  const paintingPaintCost = paintingPaintProvided === 'No' ? (PAINTING_PAINT_COSTS[paintingArea] ?? 0) : 0
+  const paintingIsFurniture = paintingWhat === 'Furniture'
+  const paintingBasePrice = paintingIsFurniture
+    ? (paintingFurnitureCategory ? (PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0) * paintingFurniturePieces : 0)
+    : (paintingWhat && paintingArea ? (PAINTING_BASE_PRICES[paintingWhat]?.[paintingArea] ?? 0) : 0)
+  const paintingPaintCost = paintingPaintProvided === 'No' ? (paintingIsFurniture ? 0 : (PAINTING_PAINT_COSTS[paintingArea] ?? 0)) : 0
   const paintingExtrasTotal = paintingExtras.reduce((sum, e) => sum + (PAINTING_EXTRAS_PRICES[e] ?? 0), 0)
   const paintingFinalPrice = paintingBasePrice + paintingPaintCost + paintingExtrasTotal
 
@@ -1589,6 +1627,10 @@ function Step1({ service, onContinue }) {
     }
     const isPainting = service?.toLowerCase() === 'painting'
     if (isPainting) {
+      if (paintingIsFurniture) {
+        if (paintingFurniturePieces >= 3) return 2
+        return 1
+      }
       if (paintingArea === 'Large') return 3
       if (paintingArea === 'Medium') return 2
       return 1
@@ -1611,8 +1653,8 @@ function Step1({ service, onContinue }) {
       return { service: 'Electrical', type: electricalType }
     if (service?.toLowerCase() === 'aircon cleaning')
       return { service: 'Aircon Maintenance', units: airconUnits }
-    if (service?.toLowerCase() === 'painting' && paintingArea)
-      return { service: 'Painting', area: paintingArea }
+    if (service?.toLowerCase() === 'painting' && (paintingArea || paintingFurnitureCategory))
+      return { service: 'Painting', area: paintingIsFurniture ? (paintingFurniturePieces >= 3 ? 'Large' : 'Small') : paintingArea }
     if (service?.toLowerCase() === 'plumbing repair' && plumbingProblem)
       return { service: 'Plumbing Repair', problem: plumbingProblem }
     return null
@@ -1806,9 +1848,13 @@ function Step1({ service, onContinue }) {
         return
       }
     }
-    if (service?.toLowerCase() === 'painting' && (!paintingWhat || !paintingArea || paintingPaintProvided === '')) {
-      setError('Please complete all required task options before continuing.')
-      return
+    if (service?.toLowerCase() === 'painting') {
+      const furnitureIncomplete = paintingWhat === 'Furniture' && !paintingFurnitureCategory
+      const areaIncomplete = paintingWhat !== 'Furniture' && !paintingArea
+      if (!paintingWhat || furnitureIncomplete || areaIncomplete || paintingPaintProvided === '') {
+        setError('Please complete all required task options before continuing.')
+        return
+      }
     }
     if (service?.toLowerCase() === 'plumbing repair' && (!plumbingProblem || !plumbingSubOption || !plumbingUrgency)) {
       setError('Please complete all required task options before continuing.')
@@ -1883,6 +1929,7 @@ function Step1({ service, onContinue }) {
           service: 'Carpentry',
           type: carpentryType,
           category: carpentryCategory,
+          furniture_dimensions: carpentryDimensions.trim() || null,
           extras: carpentryExtras,
           base_price: carpentryBasePrice,
           extras_total: carpentryExtrasTotal,
@@ -1932,11 +1979,13 @@ function Step1({ service, onContinue }) {
         taskersNeeded,
         estimatedTotal: airconFinalPrice + helperFee,
       } : {}),
-      ...(isPainting && paintingWhat && paintingArea && paintingPaintProvided !== '' ? {
+      ...(isPainting && paintingWhat && (paintingWhat === 'Furniture' ? paintingFurnitureCategory : paintingArea) && paintingPaintProvided !== '' ? {
         taskOptions: {
           service: 'Painting',
           what_to_paint: paintingWhat,
-          area: paintingArea,
+          area: paintingWhat === 'Furniture' ? null : paintingArea,
+          furniture_category: paintingWhat === 'Furniture' ? paintingFurnitureCategory : null,
+          furniture_pieces: paintingWhat === 'Furniture' ? paintingFurniturePieces : null,
           paint_provided: paintingPaintProvided === 'Yes',
           extras: paintingExtras,
           base_price: paintingBasePrice,
@@ -2046,22 +2095,25 @@ function Step1({ service, onContinue }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Type of Cleaning <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Basic Cleaning', price: '₱750' },
-                { value: 'Deep Cleaning', price: '₱1,200' },
+                { value: 'Basic Cleaning', price: '₱750', sub: 'Sweeping, mopping, wiping surfaces, dusting, and trash removal' },
+                { value: 'Deep Cleaning', price: '₱1,200', sub: 'Everything in Basic plus scrubbing tiles, disinfecting bathrooms and kitchen, cleaning inside appliances, and hard-to-reach areas' },
               ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningType === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
+                <label key={opt.value} className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningType === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-start gap-3">
                     <input
                       type="radio"
                       name="cleaningType"
                       value={opt.value}
                       checked={cleaningType === opt.value}
                       onChange={() => { setCleaningType(opt.value); setCleaningArea(''); setCleaningExtras([]) }}
-                      className="accent-orange-500 w-4 h-4"
+                      className="accent-orange-500 w-4 h-4 mt-0.5"
                     />
-                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{opt.sub}</p>
+                    </div>
                   </div>
-                  <span className="text-sm text-gray-500">{opt.price}</span>
+                  <span className="text-sm text-gray-500 shrink-0">{opt.price}</span>
                 </label>
               ))}
             </div>
@@ -2071,17 +2123,21 @@ function Step1({ service, onContinue }) {
           <div style={{ overflow: 'hidden', maxHeight: cleaningType ? '400px' : '0', opacity: cleaningType ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
             <div className="space-y-2">
-              {['Small (1 room)', 'Medium (2-3 rooms)', 'Large (whole house)'].map((area) => (
-                <label key={area} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              {[
+                { value: 'Small (1 room)',      label: 'Small (1 room / up to 20 sqm)' },
+                { value: 'Medium (2-3 rooms)',   label: 'Medium (2–3 rooms / 21–50 sqm)' },
+                { value: 'Large (whole house)',  label: 'Large (whole house / 51 sqm and above)' },
+              ].map((area) => (
+                <label key={area.value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <input
                     type="radio"
                     name="cleaningArea"
-                    value={area}
-                    checked={cleaningArea === area}
-                    onChange={() => { setCleaningArea(area); setCleaningExtras([]) }}
+                    value={area.value}
+                    checked={cleaningArea === area.value}
+                    onChange={() => { setCleaningArea(area.value); setCleaningExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
-                  <span className="text-sm font-medium text-gray-700">{area}</span>
+                  <span className="text-sm font-medium text-gray-700">{area.label}</span>
                 </label>
               ))}
             </div>
@@ -2179,7 +2235,7 @@ function Step1({ service, onContinue }) {
                     name="carpentryType"
                     value={type}
                     checked={carpentryType === type}
-                    onChange={() => { setCarpentryType(type); setCarpentryCategory(''); setCarpentryExtras([]) }}
+                    onChange={() => { setCarpentryType(type); setCarpentryCategory(''); setCarpentryDimensions(''); setCarpentryExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{type}</span>
@@ -2200,7 +2256,7 @@ function Step1({ service, onContinue }) {
                       name="carpentryCategory"
                       value={opt.value}
                       checked={carpentryCategory === opt.value}
-                      onChange={() => { setCarpentryCategory(opt.value); setCarpentryExtras([]) }}
+                      onChange={() => { setCarpentryCategory(opt.value); setCarpentryDimensions(''); setCarpentryExtras([]) }}
                       className="accent-orange-500 w-4 h-4 mt-0.5 flex-shrink-0"
                     />
                     <div>
@@ -2212,6 +2268,18 @@ function Step1({ service, onContinue }) {
                 </label>
               ))}
             </div>
+          </div>
+
+          {/* Dimensions — optional free text, appears after category selected */}
+          <div style={{ overflow: 'hidden', maxHeight: carpentryCategory ? '120px' : '0', opacity: carpentryCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Dimensions <span className="text-gray-400 font-normal">(optional)</span></p>
+            <input
+              type="text"
+              value={carpentryDimensions}
+              onChange={(e) => setCarpentryDimensions(e.target.value)}
+              placeholder="e.g. 3x6 feet, 5x5 inches"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-300 focus:border-orange-400"
+            />
           </div>
 
           {/* Section 3: Extras — appears after category selected */}
@@ -2670,7 +2738,7 @@ function Step1({ service, onContinue }) {
                     name="paintingWhat"
                     value={opt}
                     checked={paintingWhat === opt}
-                    onChange={() => { setPaintingWhat(opt); setPaintingArea(''); setPaintingPaintProvided(''); setPaintingExtras([]) }}
+                    onChange={() => { setPaintingWhat(opt); setPaintingArea(''); setPaintingFurnitureCategory(''); setPaintingFurniturePieces(1); setPaintingPaintProvided(''); setPaintingExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{opt}</span>
@@ -2679,14 +2747,14 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 2: Area Size — appears after what selected */}
-          <div style={{ overflow: 'hidden', maxHeight: paintingWhat ? '350px' : '0', opacity: paintingWhat ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 2a: Area Size — for Wall / Ceiling / Roof */}
+          <div style={{ overflow: 'hidden', maxHeight: (paintingWhat && !paintingIsFurniture) ? '350px' : '0', opacity: (paintingWhat && !paintingIsFurniture) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Area Size <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Small',  label: paintingWhat === 'Furniture' ? 'Small (1–2 pieces)' : 'Small (up to 10 sqm)' },
-                { value: 'Medium', label: paintingWhat === 'Furniture' ? 'Medium (3–5 pieces)' : 'Medium (11–25 sqm)' },
-                { value: 'Large',  label: paintingWhat === 'Furniture' ? 'Large (6+ pieces)' : 'Large (26 sqm and above)' },
+                { value: 'Small',  label: 'Small (up to 10 sqm)' },
+                { value: 'Medium', label: 'Medium (11–25 sqm)' },
+                { value: 'Large',  label: 'Large (26 sqm and above)' },
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingArea === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
@@ -2708,8 +2776,57 @@ function Step1({ service, onContinue }) {
             </div>
           </div>
 
-          {/* Section 3: Paint Provided — appears after area selected */}
-          <div style={{ overflow: 'hidden', maxHeight: paintingArea ? '350px' : '0', opacity: paintingArea ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+          {/* Section 2b: Furniture Category + Piece Count — for Furniture */}
+          <div style={{ overflow: 'hidden', maxHeight: paintingIsFurniture ? '900px' : '0', opacity: paintingIsFurniture ? 1 : 0, transition: 'max-height 0.4s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Furniture Category <span className="text-red-400">*</span></p>
+            <div className="space-y-2">
+              {PAINTING_FURNITURE_CATEGORIES.map((opt) => (
+                <label key={opt.value} className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingFurnitureCategory === opt.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="radio"
+                      name="paintingFurnitureCategory"
+                      value={opt.value}
+                      checked={paintingFurnitureCategory === opt.value}
+                      onChange={() => { setPaintingFurnitureCategory(opt.value); setPaintingPaintProvided(''); setPaintingExtras([]) }}
+                      className="accent-orange-500 w-4 h-4 mt-0.5"
+                    />
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{opt.example}</p>
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-500 shrink-0">₱{(PAINTING_FURNITURE_PRICES[opt.value] ?? 0).toLocaleString()}/pc</span>
+                </label>
+              ))}
+            </div>
+
+            {/* Piece Count — appears after category selected */}
+            <div style={{ overflow: 'hidden', maxHeight: paintingFurnitureCategory ? '180px' : '0', opacity: paintingFurnitureCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }} className="mt-4">
+              <p className="font-semibold text-gray-700 text-sm mb-2">Number of Pieces <span className="text-red-400">*</span></p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaintingFurniturePieces(p => Math.max(1, p - 1))}
+                  className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:border-orange-400 hover:text-orange-500 transition-colors font-bold text-lg"
+                >−</button>
+                <span className="w-8 text-center font-semibold text-gray-800 text-base">{paintingFurniturePieces}</span>
+                <button
+                  type="button"
+                  onClick={() => setPaintingFurniturePieces(p => Math.min(8, p + 1))}
+                  className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:border-orange-400 hover:text-orange-500 transition-colors font-bold text-lg"
+                >+</button>
+                <span className="text-sm text-gray-500 ml-1">
+                  {paintingFurnitureCategory
+                    ? `× ₱${(PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0).toLocaleString()} = ₱${((PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0) * paintingFurniturePieces).toLocaleString()}`
+                    : ''}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Paint Provided — appears after area or furniture category selected */}
+          <div style={{ overflow: 'hidden', maxHeight: (paintingArea || paintingFurnitureCategory) ? '350px' : '0', opacity: (paintingArea || paintingFurnitureCategory) ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Paint Provided? <span className="text-red-400">*</span></p>
             <div className="space-y-2">
               {[
@@ -2769,7 +2886,11 @@ function Step1({ service, onContinue }) {
           <div style={{ overflow: 'hidden', maxHeight: paintingPaintProvided ? '400px' : '0', opacity: paintingPaintProvided ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
               <div className="flex justify-between text-gray-700">
-                <span>{paintingWhat} Painting ({paintingArea})</span>
+                <span>
+                  {paintingIsFurniture
+                    ? `Furniture Painting — ${paintingFurnitureCategory} × ${paintingFurniturePieces}`
+                    : `${paintingWhat} Painting (${paintingArea})`}
+                </span>
                 <span>₱{paintingBasePrice.toLocaleString()}</span>
               </div>
               {paintingPaintCost > 0 && (
@@ -3596,7 +3717,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 tasker_id: tasker?.id,
                 service,
                 task_size: taskOptions
-                  ? (taskOptions.area || taskOptions.type || taskOptions.problem || taskOptions.what_to_paint || taskOptions.aircon_type || taskOptions.service_type || 'N/A')
+                  ? (taskOptions.furniture_category
+                      ? `${taskOptions.what_to_paint} — ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
+                      : (taskOptions.area || taskOptions.type || taskOptions.problem || taskOptions.what_to_paint || taskOptions.aircon_type || taskOptions.service_type || 'N/A'))
                   : taskSize,
                 task_description: taskDetails,
                 address: taskAddress,

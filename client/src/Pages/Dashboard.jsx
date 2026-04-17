@@ -996,6 +996,12 @@ function BookingCard({ booking, userId, onCancel }) {
             ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
               ? [['Furniture Category', booking.task_options.category]]
               : []),
+            ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.furniture_dimensions
+              ? [['Dimensions', booking.task_options.furniture_dimensions]]
+              : []),
+            ...(booking.task_options?.service === 'Painting' && booking.task_options?.what_to_paint === 'Furniture' && booking.task_options?.furniture_category
+              ? [['Furniture Category', booking.task_options.furniture_category], ['Number of Pieces', booking.task_options.furniture_pieces]]
+              : []),
             ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
               ? [['Specify Problem', booking.task_options.sub_option]]
               : []),

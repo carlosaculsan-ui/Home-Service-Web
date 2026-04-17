@@ -1790,6 +1790,12 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ...(b.task_options?.service === 'Carpentry' && b.task_options?.category
                     ? [['Furniture Category', b.task_options.category]]
                     : []),
+                  ...(b.task_options?.service === 'Carpentry' && b.task_options?.furniture_dimensions
+                    ? [['Dimensions', b.task_options.furniture_dimensions]]
+                    : []),
+                  ...(b.task_options?.service === 'Painting' && b.task_options?.what_to_paint === 'Furniture' && b.task_options?.furniture_category
+                    ? [['Furniture Category', b.task_options.furniture_category], ['No. of Pieces', b.task_options.furniture_pieces]]
+                    : []),
                   ...(b.task_options?.service === 'Plumbing Repair' && b.task_options?.sub_option
                     ? [['Specify Problem', b.task_options.sub_option]]
                     : []),
