@@ -141,21 +141,28 @@ function Reviews() {
             modules={[Autoplay, Pagination, Grid]}
             grid={{ rows: 2, fill: 'row' }}
             grabCursor={true}
-            slidesPerView="auto"
-            spaceBetween={20}
+            spaceBetween={16}
             autoplay={{ delay: 3000, disableOnInteraction: false, pauseOnMouseEnter: true }}
             pagination={{ clickable: true, dynamicBullets: true }}
-            style={{ paddingLeft: '2rem', paddingRight: '2rem', paddingBottom: '3rem' }}
+            breakpoints={{
+              0:   { slidesPerView: 1.2 },
+              480: { slidesPerView: 1.8 },
+              640: { slidesPerView: 2.3 },
+              1024: { slidesPerView: 3.3 },
+              1280: { slidesPerView: 4.2 },
+            }}
+            style={{ height: '504px', paddingLeft: '1.5rem', paddingRight: '1.5rem', paddingBottom: '3rem' }}
           >
             {reviews.map((review) => {
               const name = review.reviewer_name || 'Anonymous'
               const initial = name[0]?.toUpperCase() ?? 'A'
               const hasImages = review.images?.length > 0
               return (
-                <SwiperSlide key={review.id} style={{ width: '280px', height: '220px' }}>
+                <SwiperSlide key={review.id}>
                   <div
                     onClick={() => hasImages && setSelectedReview(review)}
-                    className={`bg-white rounded-xl shadow-md p-5 hover:shadow-xl transition-shadow relative flex flex-col h-full overflow-hidden ${hasImages ? 'cursor-pointer' : ''}`}
+                    className={`bg-white rounded-xl shadow-md p-5 hover:shadow-xl transition-shadow relative flex flex-col overflow-hidden ${hasImages ? 'cursor-pointer' : ''}`}
+                    style={{ height: '220px' }}
                   >
                     {/* Stars */}
                     <div className="flex gap-0.5 mb-2 flex-shrink-0">
