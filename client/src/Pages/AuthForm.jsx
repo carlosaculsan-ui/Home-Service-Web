@@ -549,23 +549,27 @@ function AuthForm() {
                 <p>If you have questions or concerns about these Terms and Conditions, please contact us at: Hanap.ph Support, St. Clare College of Caloocan, Zabarte Road, Camarin, Caloocan City, Metro Manila, Philippines. Email: support@hanap.ph. Operating Hours: Monday to Sunday, 7:00 AM – 5:00 PM.</p>
               </div>
 
+              {/* Agreement radio — must scroll here to reach */}
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '24px', padding: '14px 16px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '10px', cursor: 'pointer' }}>
+                <input
+                  type="radio"
+                  name="termsAgree"
+                  onChange={() => { setAgreedToTerms(true); setShowTermsModal(false) }}
+                  style={{ accentColor: '#f97316', width: '18px', height: '18px', flexShrink: 0 }}
+                />
+                <span style={{ fontWeight: 700, fontSize: '14px', color: '#c2410c' }}>Yes, I agree to the Terms and Conditions.</span>
+              </label>
+
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '14px 20px', borderTop: '1px solid #e5e7eb', flexShrink: 0, display: 'flex', gap: '10px' }}>
+            <div style={{ padding: '14px 20px', borderTop: '1px solid #e5e7eb', flexShrink: 0 }}>
               <button
                 type="button"
                 onClick={() => setShowTermsModal(false)}
-                style={{ flex: 1, padding: '10px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
+                style={{ width: '100%', padding: '10px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
               >
                 Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => { setAgreedToTerms(true); setShowTermsModal(false) }}
-                style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '14px', color: '#fff', cursor: 'pointer' }}
-              >
-                I Agree
               </button>
             </div>
 

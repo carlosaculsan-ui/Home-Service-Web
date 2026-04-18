@@ -150,14 +150,14 @@ function TaskerShowcase() {
 
       const taskerIds = (data ?? []).map((t) => t.id)
 
-      const [{ data: completedBookings }, { data: allReviews }] = await Promise.all([
-        supabase.from('bookings').select('tasker_id').eq('status', 'completed').in('tasker_id', taskerIds),
+      const [{ data: completedCounts }, { data: allReviews }] = await Promise.all([
+        supabase.rpc('get_completed_job_counts'),
         supabase.from('reviews').select('tasker_id, rating').in('tasker_id', taskerIds),
       ])
 
       const jobCounts = {}
-      completedBookings?.forEach((b) => {
-        if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+      completedCounts?.forEach((r) => {
+        if (r.tasker_id) jobCounts[r.tasker_id] = r.job_count
       })
 
       const ratingMap = {}
