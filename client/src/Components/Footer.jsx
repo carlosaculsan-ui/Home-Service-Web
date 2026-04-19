@@ -155,7 +155,7 @@ function Footer() {
             </li>
             <li className="flex items-start gap-2">
               <MapPin size={16} className="mt-0.5 flex-shrink-0" />
-              <span>Unit 6, Bisakol Street, hanap.ph Bldg. Quezon City</span>
+              <span>St. Clare College of Caloocan, Zabarte Road, Barangay 172, Zone 15, Camarin, District 1, Caloocan, Northern Manila District, Metro Manila, 1422, Philippines</span>
             </li>
             <li className="flex items-center gap-3 mt-4">
               <a href="#" className="hover:text-white">

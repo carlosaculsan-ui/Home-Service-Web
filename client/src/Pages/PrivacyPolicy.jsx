@@ -356,7 +356,7 @@ export default function PrivacyPolicy() {
             <ul>
               <li><strong>Email:</strong> hanapph@gmail.com</li>
               <li><strong>Phone:</strong> 09500435479</li>
-              <li><strong>Address:</strong> Unit 6, Bisakol Street, hanap.ph Bldg. Quezon City, Metro Manila</li>
+              <li><strong>Address:</strong> St. Clare College of Caloocan, Zabarte Road, Barangay 172, Zone 15, Camarin, District 1, Caloocan, Northern Manila District, Metro Manila, 1422, Philippines</li>
             </ul>
             <p>
               You also have the right to contact the <strong>National Privacy Commission (NPC)</strong>{" "}

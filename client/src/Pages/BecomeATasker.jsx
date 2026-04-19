@@ -248,7 +248,20 @@ function BecomeATasker() {
       const { key, urlKey } = filesToUpload[i]
       setUploadProgress(`Uploading documents... (${i + 1}/${filesToUpload.length})`)
       const file = formData[key]
-      const ext = file.name.split('.').pop()
+      const ext = file.name.split('.').pop().toLowerCase()
+      const allowedTypes = ['pdf', 'jpg', 'jpeg', 'png']
+      if (!allowedTypes.includes(ext)) {
+        setSubmitError(`Invalid file type for ${key}. Only PDF, JPG, and PNG are allowed.`)
+        setSubmitting(false)
+        setUploadProgress('')
+        return
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        setSubmitError(`${key} exceeds the 5MB size limit.`)
+        setSubmitting(false)
+        setUploadProgress('')
+        return
+      }
       const path = `${user.id}/${key}-${Date.now()}.${ext}`
       const { error: uploadError } = await supabase.storage
         .from('tasker-files')

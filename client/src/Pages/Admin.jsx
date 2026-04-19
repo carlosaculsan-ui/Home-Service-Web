@@ -18,8 +18,9 @@ const TASKER_STATUS_STYLES = {
 }
 
 const BOOKING_STATUS_STYLES = {
-  pending:     'bg-yellow-100 text-yellow-700',
-  confirmed:   'bg-blue-100 text-blue-700',
+  pending:         'bg-yellow-100 text-yellow-700',
+  pending_payment: 'bg-pink-100 text-pink-700',
+  confirmed:       'bg-blue-100 text-blue-700',
   accepted:    'bg-yellow-100 text-yellow-700',
   on_the_way:  'bg-purple-100 text-purple-700',
   in_progress: 'bg-orange-100 text-orange-700',
@@ -63,8 +64,6 @@ function TaskerApplications() {
       .select('*')
       .not('status', 'eq', 'approved')
       .order('created_at', { ascending: false })
-    console.log('Applicants raw data:', applicantsData, applicantsError)
-    console.log('First applicant full data:', applicantsData?.[0])
     setTaskers(applicantsData ?? [])
     setLoading(false)
   }
@@ -362,7 +361,6 @@ function TaskerAccountsPanel() {
       .update({ profile_photo: photoUrl })
       .eq('user_id', tasker.user_id)
       .select()
-    console.log('Update result:', updateData, error)
     if (error) { alert('Failed to save photo: ' + error.message); return }
     if (!updateData || updateData.length === 0) {
       alert('Photo uploaded but could not save URL — tasker row not found. Check if tasker.user_id is correct.')
@@ -407,13 +405,8 @@ function TaskerAccountsPanel() {
       await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
 
       const { error: taskerError } = await supabase.from('taskers').delete().eq('id', tasker.id)
-      if (taskerError) {
-        console.error('Tasker delete error:', taskerError)
-      }
-
       const { error: profileError } = await supabase.from('profiles').delete().eq('id', tasker.user_id)
       if (profileError) {
-        console.error('Profile delete error:', profileError)
         throw profileError
       }
 
@@ -432,9 +425,6 @@ function TaskerAccountsPanel() {
   }
 
   const displayList = employeeSubTab === 'active' ? taskers : archivedTaskers
-
-  console.log('onlineTaskers:', onlineTaskers.map(o => o.user_id))
-  console.log('taskers user_ids:', displayList.map(t => t.user_id))
 
   const sortedTaskers = [...taskers].sort((a, b) => {
     const aOnline = onlineTaskers.some(o => o.user_id === a.user_id) ? 1 : 0
@@ -1023,10 +1013,7 @@ function CustomerAccountsPanel() {
   async function handleArchiveCustomer(customer) {
     if (!window.confirm('Archive this customer?')) return
 
-    console.log('Customer object:', customer)
-
     const profileId = customer.id || customer.user_id || customer.profile_id
-    console.log('Using profileId:', profileId)
 
     if (!profileId) {
       alert('Cannot archive: missing customer ID')
@@ -1038,8 +1025,6 @@ function CustomerAccountsPanel() {
       .update({ is_archived: true })
       .eq('id', profileId)
       .select()
-
-    console.log('Archive result:', data, error)
 
     if (error) {
       alert('Failed: ' + error.message)
@@ -1086,7 +1071,6 @@ function CustomerAccountsPanel() {
       await supabase.from('bookings').delete().eq('client_id', id)
       const { error } = await supabase.from('profiles').delete().eq('id', id)
       if (error) {
-        console.error('Delete error:', error)
         throw error
       }
       setArchivedCustomers((prev) => prev.filter((c) => c.id !== id))
@@ -1781,12 +1765,13 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {[
-          { value: 'confirmed',   label: 'Pending Booking' },
-          { value: 'accepted',    label: 'Accepted' },
-          { value: 'on_the_way',  label: 'On The Way' },
-          { value: 'in_progress', label: 'In Progress' },
-          { value: 'completed',   label: 'Completed' },
-          { value: 'cancelled',   label: 'Cancelled' },
+          { value: 'pending_payment', label: 'Pending Payment' },
+          { value: 'confirmed',       label: 'Pending Booking' },
+          { value: 'accepted',        label: 'Accepted' },
+          { value: 'on_the_way',      label: 'On The Way' },
+          { value: 'in_progress',     label: 'In Progress' },
+          { value: 'completed',       label: 'Completed' },
+          { value: 'cancelled',       label: 'Cancelled' },
         ].map(({ value, label }) => (
           <button
             key={value}
@@ -5005,7 +4990,6 @@ function TransactionsPanel() {
       .not('rejection_reason', 'is', null)
       .order('created_at', { ascending: false })
       .limit(50)
-    if (refundsError) console.error('fetchRefundedBookings error:', refundsError)
     setRefundedBookings(data ?? [])
     setRefundsLoading(false)
 
@@ -5071,8 +5055,6 @@ function TransactionsPanel() {
       .limit(1)
       .maybeSingle()
 
-    console.log('[handleConfirmRefund] booking lookup:', booking)
-
     if (!booking) {
       setRefundProcessing(false)
       setRefundModal(null)
@@ -5125,7 +5107,7 @@ function TransactionsPanel() {
     // Step 4 — Supabase writes (non-blocking on failure)
     try {
       await supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
-    } catch (err) { console.error('Refund: bookings update failed:', err) }
+    } catch (_) { }
 
     if (booking.client_id) {
       const refundAmt = Number(booking.estimated_total) || amountCentavos / 100
@@ -5135,7 +5117,6 @@ function TransactionsPanel() {
         message: `Your refund of ₱${refundAmt.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been processed back to your original payment method.`,
         is_read: false,
       })
-      console.log('[handleConfirmRefund] notifError:', notifError)
     }
 
     // Step 5 — UI updates
@@ -5970,11 +5951,9 @@ function Admin() {
       .select('leave_dates, status, taskers(name)')
       .eq('status', 'approved')
       .then(({ data: leavesData }) => {
-        console.log('Leaves raw data:', leavesData)
         const allLeaves = (leavesData || []).map(l => {
           try { return { ...l, leave_dates: JSON.parse(l.leave_dates) || [] } } catch { return { ...l, leave_dates: [] } }
         })
-        console.log('Approved leaves set:', allLeaves)
         setApprovedLeaves(allLeaves)
       })
   }, [tab])

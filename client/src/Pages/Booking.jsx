@@ -153,6 +153,7 @@ function formatReviews(n) {
 function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const isUrgentPlumbing = taskOptions?.is_urgent === true
   const taskDuration = getTaskDuration(taskOptions)
   const isFullDay = taskDuration >= 8
 
@@ -236,7 +237,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
-  const isPast = (d) => getDateObj(d) <= todayStart
+  const isPast = (d) => isUrgentPlumbing ? getDateObj(d) < todayStart : getDateObj(d) <= todayStart
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
 
   const isBlocked = (d) => {
@@ -273,7 +274,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const handleDayClick = (d) => {
-    if (!d || isPast(d) || isBlocked(d)) return
+    if (!d || isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isToday(d))) return
     setSelectedDate(getDateObj(d))
     setSelectedSlot(null)
   }
@@ -352,16 +353,20 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                   {d ? (
                     <button
                       onClick={() => handleDayClick(d)}
-                      disabled={isPast(d) || isBlocked(d)}
+                      disabled={isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isToday(d))}
                       className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
                         ${isSelected(d)
                           ? 'bg-orange-500 text-white font-bold'
+                          : isUrgentPlumbing && !isToday(d)
+                          ? 'text-gray-300 cursor-not-allowed'
                           : isBlocked(d) && !isPast(d)
                           ? 'bg-red-100 text-red-300 cursor-not-allowed'
                           : isPast(d)
                           ? 'text-gray-300 cursor-not-allowed'
                           : isToday(d)
-                          ? 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
+                          ? isUrgentPlumbing
+                            ? 'ring-2 ring-red-500 bg-red-50 text-red-600 font-bold hover:bg-red-100 cursor-pointer'
+                            : 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
                           : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
                         }`}
                     >
@@ -384,8 +389,10 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                     const blockedByAvail = avail === 'Part Time - AM' ? h >= 13
                       : avail === 'Part Time - PM' ? h <= 12
                       : false
+                    const selectedIsToday = selectedDate && selectedDate.getTime() === todayStart.getTime()
+                    const isPastSlotToday = isUrgentPlumbing && selectedIsToday && h <= now.getHours() + 1
                     const isPickedSlot = selectedSlot === slot
-                    const isDisabled = !available || blockedByAvail
+                    const isDisabled = !available || blockedByAvail || isPastSlotToday
                     return (
                       <button
                         key={slot}
@@ -1610,9 +1617,9 @@ function Step1({ service, onContinue, initialState }) {
 
   // Plumbing pricing
   const plumbingBasePrice = PLUMBING_PROBLEMS.find(p => p.value === plumbingProblem)?.price ?? 0
-  const plumbingUrgencySurcharge = 0
+  const plumbingUrgencySurcharge = plumbingUrgency === 'urgent' ? 500 : 0
   const plumbingExtrasTotal = plumbingExtras.reduce((sum, e) => sum + (PLUMBING_EXTRAS_PRICES[e] ?? 0), 0)
-  const plumbingFinalPrice = plumbingBasePrice + plumbingExtrasTotal
+  const plumbingFinalPrice = plumbingBasePrice + plumbingExtrasTotal + plumbingUrgencySurcharge
 
   // Painting pricing
   const paintingIsFurniture = paintingWhat === 'Furniture'
@@ -1733,7 +1740,7 @@ function Step1({ service, onContinue, initialState }) {
     }
 
     if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(onSuccess, onError)
+      navigator.geolocation.getCurrentPosition(onSuccess, onError, { timeout: 10000 })
     } else {
       onError()
     }
@@ -2026,10 +2033,12 @@ function Step1({ service, onContinue, initialState }) {
           extras: plumbingExtras,
           base_price: plumbingBasePrice,
           extras_total: plumbingExtrasTotal,
+          urgency_surcharge: plumbingUrgencySurcharge,
           final_price: plumbingFinalPrice,
           helper_fee: helperFee,
           total_price: plumbingFinalPrice + helperFee,
           is_heavy: isHeavy,
+          is_urgent: plumbingUrgency === 'urgent',
         },
         taskersNeeded,
         estimatedTotal: plumbingFinalPrice + helperFee,
@@ -2936,6 +2945,26 @@ function Step1({ service, onContinue, initialState }) {
             </div>
           </div>
 
+          {/* Section 1.8: Urgency — appears after sub-option selected */}
+          <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '200px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-2">Urgency</p>
+            <label className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingUrgency === 'urgent' ? 'border-red-400 bg-red-50' : 'border-gray-200 hover:border-gray-300'}`}>
+              <div className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={plumbingUrgency === 'urgent'}
+                  onChange={(e) => setPlumbingUrgency(e.target.checked ? 'urgent' : '')}
+                  className="accent-red-500 w-4 h-4 mt-0.5"
+                />
+                <div>
+                  <span className="text-sm font-semibold text-red-600">🚨 Urgent — Same-Day Emergency</span>
+                  <p className="text-xs text-gray-500 mt-0.5">Burst pipe? Flooding? Book for today. A tasker will be dispatched as soon as possible.</p>
+                </div>
+              </div>
+              <span className="text-sm text-red-500 font-semibold flex-shrink-0">+₱500</span>
+            </label>
+          </div>
+
           {/* Section 2: Extras — appears after sub-option selected */}
           <div style={{ overflow: 'hidden', maxHeight: plumbingSubOption ? '350px' : '0', opacity: plumbingSubOption ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
@@ -2977,6 +3006,12 @@ function Step1({ service, onContinue, initialState }) {
                   <span>+₱{PLUMBING_EXTRAS_PRICES[e].toLocaleString()}</span>
                 </div>
               ))}
+              {plumbingUrgency === 'urgent' && (
+                <div className="flex justify-between text-red-600 font-medium">
+                  <span>🚨 Urgent Same-Day</span>
+                  <span>+₱500</span>
+                </div>
+              )}
               {taskersNeeded > 1 && (
                 <div className="flex justify-between text-gray-600">
                   <span>{helperLabel}</span>
@@ -3679,16 +3714,15 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
               // Wallet deduction
               if (useWallet && walletDeduction > 0) {
-                const { data: profileData } = await supabase
-                  .from('profiles')
-                  .select('wallet_balance')
-                  .eq('id', client_id)
-                  .single()
-                const currentBalance = Number(profileData?.wallet_balance) || 0
-                await supabase
-                  .from('profiles')
-                  .update({ wallet_balance: currentBalance - walletDeduction })
-                  .eq('id', client_id)
+                const { error: deductError } = await supabase.rpc('deduct_wallet_balance', {
+                  target_user_id: client_id,
+                  deduct_amount: walletDeduction,
+                })
+                if (deductError) {
+                  setSaveError('Insufficient wallet balance. Please try again.')
+                  setSaving(false)
+                  return
+                }
                 await supabase.from('wallet_transactions').insert({
                   user_id: client_id,
                   booking_id: null,
