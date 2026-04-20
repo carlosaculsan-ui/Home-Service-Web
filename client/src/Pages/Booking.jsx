@@ -701,6 +701,10 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
             <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${tasker.availability === 'Part Time - AM' || tasker.availability === 'Part Time - PM' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
               {tasker.availability === 'Part Time - AM' ? 'PART TIME · AM' : tasker.availability === 'Part Time - PM' ? 'PART TIME · PM' : 'FULL TIME'}
             </span>
+            <span className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+              <MapPin size={11} className="text-orange-400 flex-shrink-0" />
+              {tasker.service_area || 'Area not set'}
+            </span>
           </div>
         </div>
 
@@ -749,7 +753,68 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
   )
 }
 
-function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions }) {
+const CITY_COORDS = {
+  'Manila':       { lat: 14.5995, lng: 120.9842 },
+  'Quezon City':  { lat: 14.6760, lng: 121.0437 },
+  'Caloocan':     { lat: 14.6499, lng: 120.9673 },
+  'Las Piñas':    { lat: 14.4453, lng: 120.9830 },
+  'Makati':       { lat: 14.5547, lng: 121.0244 },
+  'Malabon':      { lat: 14.6627, lng: 120.9570 },
+  'Mandaluyong':  { lat: 14.5794, lng: 121.0359 },
+  'Marikina':     { lat: 14.6507, lng: 121.1029 },
+  'Muntinlupa':   { lat: 14.4081, lng: 121.0415 },
+  'Navotas':      { lat: 14.6667, lng: 120.9417 },
+  'Parañaque':    { lat: 14.4793, lng: 121.0198 },
+  'Pasay':        { lat: 14.5378, lng: 121.0014 },
+  'Pasig':        { lat: 14.5764, lng: 121.0851 },
+  'Pateros':      { lat: 14.5442, lng: 121.0688 },
+  'San Juan':     { lat: 14.6019, lng: 121.0355 },
+  'Taguig':       { lat: 14.5243, lng: 121.0792 },
+  'Valenzuela':   { lat: 14.7011, lng: 120.9830 },
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLng = (lng2 - lng1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function detectCustomerCity(address) {
+  if (!address) return null
+  const cleaned = address.toLowerCase().replace(/metro\s+manila/gi, '')
+  const cities = Object.keys(CITY_COORDS).sort((a, b) => b.length - a.length)
+  return cities.find(city => cleaned.includes(city.toLowerCase())) ?? null
+}
+
+function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions, taskAddress }) {
+  const [nearestActive, setNearestActive] = useState(false)
+  const [travelWarningTasker, setTravelWarningTasker] = useState(null)
+
+  const customerCity = detectCustomerCity(taskAddress)
+
+  const handleTaskerSelect = (tasker) => {
+    if (customerCity && tasker.service_area && tasker.service_area !== customerCity) {
+      setTravelWarningTasker(tasker)
+    } else {
+      onSelect(tasker)
+    }
+  }
+
+  const displayedTaskers = nearestActive ? (() => {
+    const customerCity = detectCustomerCity(taskAddress)
+    const customerCoords = customerCity ? CITY_COORDS[customerCity] : null
+    if (!customerCoords) return taskers
+    return [...taskers].sort((a, b) => {
+      const coordsA = CITY_COORDS[a.service_area]
+      const coordsB = CITY_COORDS[b.service_area]
+      const distA = coordsA ? haversineKm(customerCoords.lat, customerCoords.lng, coordsA.lat, coordsA.lng) : Infinity
+      const distB = coordsB ? haversineKm(customerCoords.lat, customerCoords.lng, coordsB.lat, coordsB.lng) : Infinity
+      return distA - distB
+    })
+  })() : taskers
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
@@ -759,17 +824,57 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
         </p>
       </div>
 
-
-      <div className="flex items-center gap-2 text-sm text-gray-600">
-        <span className="font-medium">Sorted by:</span>
-        <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 outline-none">
-          <option>Recommended</option>
-          <option>Highest Rated</option>
-          <option>Most Reviews</option>
-          <option>Price: Low to High</option>
-          <option>Price: High to Low</option>
-        </select>
+      <div className="flex items-center gap-2">
+        {!nearestActive ? (
+          <button
+            onClick={() => setNearestActive(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            <MapPin size={15} />
+            Detect Nearest Tasker
+          </button>
+        ) : (
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 text-orange-700 text-sm font-medium rounded-lg">
+              <MapPin size={13} />
+              Sorted: Nearest to your location
+            </span>
+            <button
+              onClick={() => setNearestActive(false)}
+              className="text-xs text-gray-400 hover:text-gray-600 underline"
+            >
+              Reset
+            </button>
+          </div>
+        )}
       </div>
+
+      {travelWarningTasker && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'rgba(0,0,0,0.6)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', width: '100%', maxWidth: '380px', padding: '28px 24px' }}>
+            <h3 style={{ fontWeight: 800, fontSize: '17px', color: '#111827', margin: '0 0 10px' }}>Travel Fee Notice</h3>
+            <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', margin: '0 0 20px' }}>
+              <strong style={{ color: '#111827' }}>{travelWarningTasker.name}</strong> is based in{' '}
+              <strong style={{ color: '#f97316' }}>{travelWarningTasker.service_area}</strong>, which is outside your area.
+              A <strong style={{ color: '#111827' }}>₱500 travel fee</strong> will be added to your total.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={() => setTravelWarningTasker(null)}
+                style={{ flex: 1, padding: '10px', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: '10px', fontWeight: 600, fontSize: '14px', color: '#374151', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { onSelect(travelWarningTasker); setTravelWarningTasker(null) }}
+                style={{ flex: 1, padding: '10px', background: '#f97316', border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '14px', color: '#fff', cursor: 'pointer' }}
+              >
+                Continue Anyway
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-4 max-h-[520px] overflow-y-auto pr-1">
         {loadingTaskers && (
@@ -778,11 +883,11 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
         {taskersError && (
           <p className="text-sm text-red-400 text-center py-8">Failed to load taskers. Please try again.</p>
         )}
-        {!loadingTaskers && !taskersError && taskers.map((tasker) => (
+        {!loadingTaskers && !taskersError && displayedTaskers.map((tasker) => (
           <TaskerCard
             key={tasker.name}
             tasker={tasker}
-            onSelect={onSelect}
+            onSelect={handleTaskerSelect}
             taskersNeeded={taskersNeeded}
             estimatedTotal={estimatedTotal}
             taskOptions={taskOptions}
@@ -809,7 +914,7 @@ function DetailRow({ label, value, valueClass = '' }) {
   )
 }
 
-function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, taskOptions, taskersNeeded, taskDuration, onBack, onContinue }) {
+function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, taskOptions, taskersNeeded, taskDuration, travelFee = 0, onBack, onContinue }) {
   const navigate = useNavigate()
 
   const [userProfile, setUserProfile] = useState(null)
@@ -1012,6 +1117,12 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
             {taskOptions.extras?.length > 0 && <DetailRow label="Extras" value={taskOptions.extras.join(', ')} />}
             <DetailRow label="Helpers Assigned" value={taskersNeeded - 1 === 0 ? 'None' : taskersNeeded - 1 === 1 ? '1 Helper' : '2 Helpers'} />
             <DetailRow label="Total Price" value={`₱${taskOptions.total_price?.toLocaleString()}`} />
+          </>
+        )}
+        {travelFee > 0 && (
+          <>
+            <DetailRow label="Travel Fee" value="₱500" />
+            <DetailRow label="Grand Total" value={`₱${((taskOptions?.total_price ?? 0) + travelFee).toLocaleString()}`} />
           </>
         )}
       </div>
@@ -3209,7 +3320,7 @@ function Step1({ service, onContinue, initialState }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, isRebook, rebookOriginalId, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, travelFee = 0, isRebook, rebookOriginalId, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
   const [cardErrors, setCardErrors] = useState({})
@@ -3259,7 +3370,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
   const priceBreakdown = buildPriceBreakdown(taskOptions)
 
-  const rawFinalAmount = taskOptions?.total_price ?? estimatedTotal
+  const rawFinalAmount = (taskOptions?.total_price ?? estimatedTotal) + travelFee
   const walletDeduction = useWallet ? Math.min(walletBalance, rawFinalAmount) : 0
   const remainingAmount = rawFinalAmount - walletDeduction
 
@@ -3359,9 +3470,15 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               <span>{line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}</span>
             </div>
           ))}
+          {travelFee > 0 && (
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-500">Travel Fee</span>
+              <span>₱500</span>
+            </div>
+          )}
           <div className={`flex justify-between font-bold text-gray-800 text-base ${priceBreakdown.length > 0 ? 'border-t border-orange-200 mt-1 pt-2' : 'pt-1'}`}>
-            <span>Estimated Total</span>
-            <span className="text-orange-500">₱{(taskOptions?.total_price ?? estimatedTotal).toLocaleString()}</span>
+            <span>{travelFee > 0 ? 'Grand Total' : 'Estimated Total'}</span>
+            <span className="text-orange-500">₱{rawFinalAmount.toLocaleString()}</span>
           </div>
         </div>
         <p className="text-xs text-gray-400">Price is fixed based on your selected options.</p>
@@ -3950,6 +4067,7 @@ function Booking() {
   const [taskDetails, setTaskDetails] = useState('')
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
   const [taskOptions, setTaskOptions] = useState(null)
+  const [travelFee, setTravelFee] = useState(0)
   const [taskersNeeded, setTaskersNeeded] = useState(1)
   const [estimatedTotal, setEstimatedTotal] = useState(0)
 
@@ -4035,6 +4153,7 @@ function Booking() {
           bio: t.bio,
           profile_photo: t.profile_photo ?? null,
           availability: t.availability?.trim() ?? null,
+          service_area: t.service_area ?? null,
         })))
       }
       setLoadingTaskers(false)
@@ -4074,6 +4193,8 @@ function Booking() {
     setSelectedTime(time)
     setTaskDuration(durationHours ?? 8)
     setModalTasker(null)
+    const customerCity = detectCustomerCity(taskAddress)
+    setTravelFee(customerCity && tasker.service_area && tasker.service_area !== customerCity ? 500 : 0)
     setStep(2)
   }
 
@@ -4134,6 +4255,7 @@ function Booking() {
                 taskersNeeded={taskersNeeded}
                 estimatedTotal={estimatedTotal}
                 taskOptions={taskOptions}
+                taskAddress={taskAddress}
               />
             )
           })()
@@ -4152,6 +4274,7 @@ function Booking() {
             taskOptions={taskOptions}
             taskersNeeded={taskersNeeded}
             taskDuration={taskDuration}
+            travelFee={travelFee}
             onBack={() => setStep(1)}
             onContinue={() => setStep(3)}
           />
@@ -4172,6 +4295,7 @@ function Booking() {
             taskersNeeded={taskersNeeded}
             taskDuration={taskDuration}
             estimatedTotal={estimatedTotal}
+            travelFee={travelFee}
             isRebook={isRebook}
             rebookOriginalId={rebookOriginalId}
             onBack={() => setStep(2)}

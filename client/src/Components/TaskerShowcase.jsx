@@ -205,8 +205,8 @@ function TaskerShowcase() {
         style={{ background: 'linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)' }}
       >
         <h2 style={{ fontSize: '2.5rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', color: 'white', marginBottom: '2rem' }}>
-          OUR TOP PERFORMING{' '}
-          <span style={{ color: '#f97316' }}>TASKER</span>
+          MEET OUR{' '}
+          <span style={{ color: '#f97316' }}>TASKERS</span>
         </h2>
         <p className="text-gray-400 mb-8">No taskers available at the moment.</p>
         <Link to="/become-a-tasker">
@@ -241,8 +241,8 @@ function TaskerShowcase() {
     >
       {/* Section heading */}
       <h2 style={{ fontSize: '2.5rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', color: 'white', marginBottom: '2rem' }}>
-        OUR TOP PERFORMING{' '}
-        <span style={{ color: '#f97316' }}>TASKER</span>
+        MEET OUR{' '}
+        <span style={{ color: '#f97316' }}>TASKERS</span>
       </h2>
 
 

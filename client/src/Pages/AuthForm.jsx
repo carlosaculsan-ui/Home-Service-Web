@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
@@ -20,6 +20,7 @@ function AuthForm() {
   const [rememberMe, setRememberMe] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
+  const [successMsg, setSuccessMsg] = useState('')
 
   // OTP verification state (new Google sign-ups only)
   const [otpScreen, setOtpScreen] = useState(false)
@@ -31,6 +32,7 @@ function AuthForm() {
   const [otpTimer, setOtpTimer] = useState(120)
 
   const navigate = useNavigate()
+  const signingUpRef = useRef(false)
 
   // OTP countdown
   useEffect(() => {
@@ -82,7 +84,7 @@ function AuthForm() {
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
+      if (event === 'SIGNED_IN' && session && !signingUpRef.current) {
         const googleInitiated = sessionStorage.getItem('google_oauth_initiated')
         const ageMs = Date.now() - new Date(session.user.created_at).getTime()
 
@@ -123,16 +125,18 @@ function AuthForm() {
     if (password !== confirmPassword) return setError('Passwords do not match')
     setLoading(true)
     setError('')
+    signingUpRef.current = true
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) {
       setError(error.message)
     } else {
-      if (!rememberMe) {
-        await supabase.auth.signOut()
-      }
-      alert('Check your email for confirmation!')
-      setIsLogin(true)
+      await supabase.auth.signOut()
+      setEmail('')
+      setPassword('')
+      setConfirmPassword('')
+      setSuccessMsg('shown')
     }
+    signingUpRef.current = false
     setLoading(false)
   }
 
@@ -464,6 +468,25 @@ function AuthForm() {
           </p>
         </div>
       </div>
+
+      {/* Account Created Modal */}
+      {successMsg && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', background: 'rgba(0,0,0,0.75)' }}>
+          <div style={{ background: '#fff', borderRadius: '16px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', width: '100%', maxWidth: '400px', padding: '32px 28px', textAlign: 'center' }}>
+            <h2 style={{ fontWeight: 800, fontSize: '20px', color: '#111827', margin: '0 0 12px' }}>Account Created Successfully</h2>
+            <p style={{ fontSize: '14px', color: '#6b7280', lineHeight: '1.6', margin: '0 0 24px' }}>
+              Your account has been created. Please check your email to confirm your account before logging in.
+            </p>
+            <button
+              type="button"
+              onClick={() => { setSuccessMsg(''); setIsLogin(true) }}
+              style={{ width: '100%', padding: '12px', background: '#f5c518', border: 'none', borderRadius: '10px', fontWeight: 700, fontSize: '15px', color: '#111827', cursor: 'pointer' }}
+            >
+              Go to Login
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Terms and Conditions Modal */}
       {showTermsModal && (
