@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import gcashLogo from '../Assets/GCash_logo.png'
+import mayaLogo from '../Assets/Maya_logo.png'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
@@ -1968,13 +1970,13 @@ function TaskerEWallet({ userId }) {
                       onClick={() => { setCashoutMethod('gcash'); setCashoutErrors((p) => ({ ...p, method: undefined })) }}
                       className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-colors ${cashoutMethod === 'gcash' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500 hover:border-green-300'}`}
                     >
-                      <span className="text-base">🟢</span> GCash
+                      <img src={gcashLogo} alt="GCash" className="h-5 w-auto" />
                     </button>
                     <button
                       onClick={() => { setCashoutMethod('paymaya'); setCashoutErrors((p) => ({ ...p, method: undefined })) }}
                       className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-colors ${cashoutMethod === 'paymaya' ? 'border-purple-500 bg-purple-50 text-purple-700' : 'border-gray-200 text-gray-500 hover:border-purple-300'}`}
                     >
-                      <span className="text-base">🟣</span> PayMaya
+                      <img src={mayaLogo} alt="PayMaya" className="h-5 w-auto" />
                     </button>
                   </div>
                   {cashoutErrors.method && <p className="text-red-500 text-xs mt-1">{cashoutErrors.method}</p>}

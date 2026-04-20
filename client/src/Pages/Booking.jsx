@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup, useMapEvents, useMap } from 're
 import L from 'leaflet'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import backgroundImg from '../Assets/Background.jpg'
+import gcashLogo from '../Assets/GCash_logo.png'
+import mayaLogo from '../Assets/Maya_logo.png'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
 import Groq from 'groq-sdk'
@@ -3425,8 +3427,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           />
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <Smartphone size={18} className="text-blue-500" />
-              <span className="font-semibold text-gray-800">GCash</span>
+              <img src={gcashLogo} alt="GCash" className="h-5 w-auto" />
             </div>
             <p className="text-xs text-gray-400 mt-0.5">You'll be redirected to a secure PayMongo checkout to pay via GCash.</p>
           </div>
@@ -3444,8 +3445,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
           />
           <div className="flex-1">
             <div className="flex items-center gap-2">
-              <Smartphone size={18} className="text-green-500" />
-              <span className="font-semibold text-gray-800">PayMaya</span>
+              <img src={mayaLogo} alt="PayMaya" className="h-5 w-auto" />
             </div>
             <p className="text-xs text-gray-400 mt-0.5">You'll be redirected to a secure PayMongo checkout to pay via PayMaya.</p>
           </div>
