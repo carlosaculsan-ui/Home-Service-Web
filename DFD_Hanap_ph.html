@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Hanap.ph — Data Flow Diagram</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #fff; color: #000; font-size: 11px; }
+
+  .page {
+    width: 277mm;
+    min-height: 190mm;
+    margin: 0 auto 10mm;
+    padding: 15mm;
+    background: #fff;
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+
+  h1 { font-size: 15px; text-align: center; margin-bottom: 4px; }
+  h2 { font-size: 12px; text-align: center; font-weight: normal; margin-bottom: 16px; color: #333; }
+  h3 { font-size: 11px; margin-bottom: 10px; border-bottom: 1px solid #000; padding-bottom: 3px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 24px; margin-bottom: 14px; font-size: 10px; align-items: center; }
+  .leg { display: flex; align-items: center; gap: 6px; }
+  .box-entity  { width: 50px; height: 22px; border: 1.5px solid #000; background: #fff; }
+  .box-process { width: 34px; height: 34px; border-radius: 50%; border: 1.5px solid #000; background: #fff; }
+  .box-store   { width: 50px; height: 22px; border-top: 1.5px solid #000; border-bottom: 1.5px solid #000; background: #fff; }
+
+  /* Canvas */
+  .canvas { position: relative; width: 100%; }
+
+  /* Shapes */
+  .entity {
+    position: absolute;
+    border: 1.5px solid #000;
+    background: #fff;
+    font-size: 9px;
+    font-weight: bold;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1.3;
+  }
+  .process {
+    position: absolute;
+    border: 1.5px solid #000;
+    border-radius: 50%;
+    background: #fff;
+    font-size: 8px;
+    font-weight: bold;
+    text-align: center;
+    display: flex; align-items: center; justify-content: center;
+    flex-direction: column;
+    line-height: 1.3;
+  }
+  .process .num { font-size: 7px; margin-bottom: 1px; }
+  .store {
+    position: absolute;
+    border-top: 1.5px solid #000;
+    border-bottom: 1.5px solid #000;
+    background: #fff;
+    font-size: 8px;
+    display: flex; align-items: center;
+    padding: 0;
+    white-space: nowrap;
+  }
+  .store .sid {
+    border-right: 1.5px solid #000;
+    padding: 0 4px;
+    height: 100%;
+    display: flex; align-items: center;
+    font-weight: bold;
+    margin-right: 4px;
+  }
+
+  svg.arrows {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none; overflow: visible;
+  }
+  line.fl { stroke: #000; stroke-width: 1; }
+  text.fl { font-family: Arial, sans-serif; font-size: 7.5px; fill: #000; }
+
+  /* Table */
+  table { width: 100%; border-collapse: collapse; font-size: 9.5px; margin-bottom: 14px; }
+  th { border: 1px solid #000; padding: 4px 6px; background: #eee; text-align: left; font-size: 9px; }
+  td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; line-height: 1.4; }
+  tr:nth-child(even) td { background: #f9f9f9; }
+
+  @media print {
+    body { margin: 0; }
+    .page { margin: 0; width: 277mm; }
+  }
+</style>
+</head>
+<body>
+
+
+<!-- ═══════════════════════
+     PAGE 1 — COVER
+═══════════════════════ -->
+<div class="page" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:190mm;text-align:center;gap:8px;">
+  <h1 style="font-size:20px;">Hanap.ph</h1>
+  <p style="font-size:13px;">Home Service Booking Platform</p>
+  <hr style="width:80px;border:1px solid #000;margin:10px 0;"/>
+  <p style="font-size:14px;font-weight:bold;">DATA FLOW DIAGRAM (DFD)</p>
+  <p style="font-size:10px;color:#555;margin-top:8px;max-width:320px;line-height:1.6;">
+    This document presents the Data Flow Diagram of the Hanap.ph platform —
+    a home service booking system connecting customers with professional taskers.
+  </p>
+  <p style="font-size:10px;margin-top:20px;">Contents: Level 0 · Level 1 · Data Dictionary</p>
+  <p style="font-size:10px;color:#888;margin-top:30px;">Academic Capstone Documentation · AY 2025–2026</p>
+</div>
+
+
+<!-- ═══════════════════════
+     PAGE 2 — LEVEL 0 CONTEXT DIAGRAM
+═══════════════════════ -->
+<div class="page">
+  <h1>Data Flow Diagram — Level 0</h1>
+  <h2>Context Diagram — Hanap.ph Home Service Platform</h2>
+
+  <div class="legend">
+    <div class="leg"><div class="box-entity"></div> External Entity</div>
+    <div class="leg"><div class="box-process"></div> Process / System</div>
+    <div class="leg"><span style="font-size:16px;">→</span> Data Flow</div>
+  </div>
+
+  <div class="canvas" style="height:158mm;">
+    <svg class="arrows">
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <polygon points="0 0, 8 4, 0 8" fill="#000"/>
+        </marker>
+      </defs>
+
+      <!-- CUSTOMER (left top) → System -->
+      <line class="fl" x1="118" y1="48" x2="270" y2="168" marker-end="url(#arr)"/>
+      <text class="fl" x="152" y="92">Booking Request</text>
+      <!-- System → CUSTOMER -->
+      <line class="fl" x1="270" y1="195" x2="118" y2="80" marker-end="url(#arr)"/>
+      <text class="fl" x="138" y="155">Status / Notifications</text>
+
+      <!-- TASKER (left mid) → System -->
+      <line class="fl" x1="118" y1="270" x2="270" y2="240" marker-end="url(#arr)"/>
+      <text class="fl" x="130" y="262">Job Updates / Location</text>
+      <!-- System → TASKER -->
+      <line class="fl" x1="270" y1="260" x2="118" y2="300" marker-end="url(#arr)"/>
+      <text class="fl" x="130" y="292">Assignments / Earnings</text>
+
+      <!-- ADMIN (left bot) → System -->
+      <line class="fl" x1="118" y1="398" x2="270" y2="310" marker-end="url(#arr)"/>
+      <text class="fl" x="132" y="368">Management Commands</text>
+      <!-- System → ADMIN -->
+      <line class="fl" x1="270" y1="325" x2="118" y2="415" marker-end="url(#arr)"/>
+      <text class="fl" x="132" y="405">Reports / Analytics</text>
+
+      <!-- System → PAYMONGO (right top) -->
+      <line class="fl" x1="530" y1="195" x2="630" y2="68" marker-end="url(#arr)"/>
+      <text class="fl" x="550" y="132">Payment Intent / Request</text>
+      <!-- PAYMONGO → System -->
+      <line class="fl" x1="630" y1="90" x2="530" y2="215" marker-end="url(#arr)"/>
+      <text class="fl" x="562" y="175">Payment Status</text>
+
+      <!-- System → SUPABASE (right mid) -->
+      <line class="fl" x1="530" y1="258" x2="618" y2="258" marker-end="url(#arr)"/>
+      <text class="fl" x="540" y="250">DB Read / Write</text>
+      <!-- SUPABASE → System -->
+      <line class="fl" x1="618" y1="272" x2="530" y2="272" marker-end="url(#arr)"/>
+      <text class="fl" x="540" y="285">Data / Auth Tokens</text>
+
+      <!-- System → GOOGLE OAUTH (right bot top) -->
+      <line class="fl" x1="530" y1="320" x2="618" y2="355" marker-end="url(#arr)"/>
+      <text class="fl" x="537" y="333">OAuth Request</text>
+      <!-- GOOGLE → System -->
+      <line class="fl" x1="618" y1="372" x2="530" y2="338" marker-end="url(#arr)"/>
+      <text class="fl" x="537" y="368">User Identity</text>
+
+      <!-- System → GROQ AI (right bot) -->
+      <line class="fl" x1="530" y1="360" x2="618" y2="420" marker-end="url(#arr)"/>
+      <text class="fl" x="537" y="400">Task Description</text>
+      <!-- GROQ → System -->
+      <line class="fl" x1="618" y1="438" x2="530" y2="378" marker-end="url(#arr)"/>
+      <text class="fl" x="537" y="432">AI Analysis Score</text>
+    </svg>
+
+    <!-- EXTERNAL ENTITIES — LEFT -->
+    <div class="entity" style="left:5px; top:28px; width:110px; height:38px;">CUSTOMER</div>
+    <div class="entity" style="left:5px; top:248px; width:110px; height:38px;">TASKER</div>
+    <div class="entity" style="left:5px; top:383px; width:110px; height:38px;">ADMIN</div>
+
+    <!-- EXTERNAL ENTITIES — RIGHT -->
+    <div class="entity" style="right:5px; top:48px; width:120px; height:38px; font-size:8.5px;">PAYMONGO<br/><span style="font-weight:normal;">(Payment Gateway)</span></div>
+    <div class="entity" style="right:5px; top:242px; width:120px; height:38px; font-size:8.5px;">SUPABASE<br/><span style="font-weight:normal;">(Database &amp; Auth)</span></div>
+    <div class="entity" style="right:5px; top:345px; width:120px; height:38px; font-size:8.5px;">GOOGLE OAUTH<br/><span style="font-weight:normal;">(Login Provider)</span></div>
+    <div class="entity" style="right:5px; top:412px; width:120px; height:38px; font-size:8.5px;">GROQ AI<br/><span style="font-weight:normal;">(Task Analyzer)</span></div>
+
+    <!-- CENTRAL PROCESS -->
+    <div class="process" style="left:270px; top:150px; width:260px; height:200px; border-radius:50%;">
+      <div class="num">0</div>
+      <div style="font-size:13px;">HANAP.PH</div>
+      <div style="font-size:9px; font-weight:normal; margin-top:3px;">Home Service Platform</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════
+     PAGE 3 — LEVEL 1 DIAGRAM
+═══════════════════════ -->
+<div class="page">
+  <h1>Data Flow Diagram — Level 1</h1>
+  <h2>System Processes and Data Stores</h2>
+
+  <div class="legend">
+    <div class="leg"><div class="box-entity"></div> External Entity</div>
+    <div class="leg"><div class="box-process"></div> Process</div>
+    <div class="leg"><div class="box-store"></div> Data Store</div>
+    <div class="leg"><span style="font-size:16px;">→</span> Data Flow</div>
+  </div>
+
+  <div class="canvas" style="height:155mm;">
+    <svg class="arrows">
+      <defs>
+        <marker id="arr2" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+          <polygon points="0 0, 8 4, 0 8" fill="#000"/>
+        </marker>
+      </defs>
+
+      <!-- CUSTOMER → P1 Auth -->
+      <line class="fl" x1="95" y1="42" x2="178" y2="42" marker-end="url(#arr2)"/>
+      <text class="fl" x="100" y="36">Credentials</text>
+
+      <!-- P1 → D1 Profiles -->
+      <line class="fl" x1="207" y1="62" x2="207" y2="105" marker-end="url(#arr2)"/>
+      <text class="fl" x="212" y="90">Save User</text>
+
+      <!-- D1 → P2 Booking -->
+      <line class="fl" x1="275" y1="115" x2="350" y2="65" marker-end="url(#arr2)"/>
+      <text class="fl" x="283" y="82">User Profile</text>
+
+      <!-- CUSTOMER → P2 Booking -->
+      <line class="fl" x1="95" y1="58" x2="350" y2="58" marker-end="url(#arr2)"/>
+      <text class="fl" x="175" y="52">Booking Details</text>
+
+      <!-- P2 → D2 Bookings -->
+      <line class="fl" x1="415" y1="72" x2="510" y2="105" marker-end="url(#arr2)"/>
+      <text class="fl" x="430" y="83">Save Booking</text>
+
+      <!-- P2 → P3 Payment -->
+      <line class="fl" x1="415" y1="48" x2="555" y2="42" marker-end="url(#arr2)"/>
+      <text class="fl" x="440" y="38">Payment Info</text>
+
+      <!-- P3 → PayMongo -->
+      <line class="fl" x1="620" y1="42" x2="700" y2="42" marker-end="url(#arr2)"/>
+      <text class="fl" x="625" y="36">API Call</text>
+      <!-- PayMongo → P3 -->
+      <line class="fl" x1="700" y1="56" x2="620" y2="56" marker-end="url(#arr2)"/>
+      <text class="fl" x="625" y="70">Confirmation</text>
+
+      <!-- P3 → D2 update -->
+      <line class="fl" x1="588" y1="62" x2="560" y2="105" marker-end="url(#arr2)"/>
+      <text class="fl" x="560" y="80">Update Status</text>
+
+      <!-- TASKER → P4 Booking Mgmt -->
+      <line class="fl" x1="95" y1="185" x2="178" y2="175" marker-end="url(#arr2)"/>
+      <text class="fl" x="98" y="178">Status Update</text>
+
+      <!-- P4 → D2 Bookings -->
+      <line class="fl" x1="237" y1="158" x2="510" y2="120" marker-end="url(#arr2)"/>
+      <text class="fl" x="320" y="128">Update Booking</text>
+
+      <!-- P4 → D1 Profiles (earnings) -->
+      <line class="fl" x1="207" y1="158" x2="207" y2="138" marker-end="url(#arr2)"/>
+      <text class="fl" x="212" y="152">Earnings</text>
+
+      <!-- P4 → D4 Notifications -->
+      <line class="fl" x1="207" y1="195" x2="207" y2="235" marker-end="url(#arr2)"/>
+
+      <!-- CUSTOMER → P5 Review -->
+      <line class="fl" x1="95" y1="295" x2="178" y2="285" marker-end="url(#arr2)"/>
+      <text class="fl" x="98" y="286">Rating + Comment</text>
+
+      <!-- P5 → D3 Reviews -->
+      <line class="fl" x1="207" y1="305" x2="207" y2="328" marker-end="url(#arr2)"/>
+
+      <!-- ADMIN → P6 Admin Mgmt -->
+      <line class="fl" x1="95" y1="380" x2="178" y2="368" marker-end="url(#arr2)"/>
+      <text class="fl" x="98" y="372">Admin Actions</text>
+
+      <!-- P6 → D1 -->
+      <line class="fl" x1="207" y1="348" x2="207" y2="138" marker-end="url(#arr2)"/>
+
+      <!-- P6 → D2 -->
+      <line class="fl" x1="237" y1="358" x2="510" y2="140" marker-end="url(#arr2)"/>
+
+      <!-- TASKER → P7 Wallet -->
+      <line class="fl" x1="95" y1="450" x2="350" y2="442" marker-end="url(#arr2)"/>
+      <text class="fl" x="170" y="436">Cashout Request</text>
+
+      <!-- P7 → D5 Wallet Txns -->
+      <line class="fl" x1="415" y1="442" x2="510" y2="375" marker-end="url(#arr2)"/>
+
+      <!-- P7 → D1 Profiles -->
+      <line class="fl" x1="382" y1="422" x2="235" y2="138" marker-end="url(#arr2)"/>
+      <text class="fl" x="276" y="268">Update Balance</text>
+
+      <!-- D4 Notifications → Customer -->
+      <line class="fl" x1="178" y1="245" x2="95" y2="330" marker-end="url(#arr2)"/>
+      <text class="fl" x="96" y="295">Alerts</text>
+    </svg>
+
+    <!-- EXTERNAL ENTITIES -->
+    <div class="entity" style="left:2px;top:22px;width:90px;height:32px;">CUSTOMER</div>
+    <div class="entity" style="left:2px;top:160px;width:90px;height:32px;">TASKER</div>
+    <div class="entity" style="left:2px;top:355px;width:90px;height:32px;">ADMIN</div>
+    <div class="entity" style="right:2px;top:22px;width:90px;height:32px;font-size:8px;">PAYMONGO</div>
+
+    <!-- PROCESSES -->
+    <div class="process" style="left:178px;top:18px;width:56px;height:56px;"><div class="num">1.0</div>User<br/>Auth</div>
+    <div class="process" style="left:350px;top:22px;width:66px;height:66px;"><div class="num">2.0</div>Booking<br/>Creation</div>
+    <div class="process" style="left:555px;top:18px;width:66px;height:66px;"><div class="num">3.0</div>Payment<br/>Process</div>
+    <div class="process" style="left:178px;top:145px;width:58px;height:58px;"><div class="num">4.0</div>Booking<br/>Mgmt</div>
+    <div class="process" style="left:178px;top:255px;width:58px;height:58px;"><div class="num">5.0</div>Reviews &amp;<br/>Ratings</div>
+    <div class="process" style="left:178px;top:338px;width:58px;height:58px;"><div class="num">6.0</div>Admin<br/>Mgmt</div>
+    <div class="process" style="left:350px;top:412px;width:66px;height:66px;"><div class="num">7.0</div>Wallet &amp;<br/>Finance</div>
+
+    <!-- DATA STORES -->
+    <div class="store" style="left:178px;top:105px;width:130px;height:22px;"><div class="sid">D1</div>profiles</div>
+    <div class="store" style="left:510px;top:105px;width:155px;height:22px;"><div class="sid">D2</div>bookings</div>
+    <div class="store" style="left:178px;top:328px;width:155px;height:22px;"><div class="sid">D3</div>reviews</div>
+    <div class="store" style="left:178px;top:235px;width:155px;height:22px;"><div class="sid">D4</div>notifications</div>
+    <div class="store" style="left:510px;top:370px;width:190px;height:22px;"><div class="sid">D5</div>wallet_transactions</div>
+    <div class="store" style="left:510px;top:220px;width:155px;height:22px;"><div class="sid">D6</div>messages</div>
+    <div class="store" style="left:510px;top:258px;width:155px;height:22px;"><div class="sid">D7</div>taskers</div>
+    <div class="store" style="left:510px;top:296px;width:155px;height:22px;"><div class="sid">D8</div>tasker_leaves</div>
+  </div>
+</div>
+
+
+<!-- ═══════════════════════
+     PAGE 4 — LEVEL 1 TABLE
+═══════════════════════ -->
+<div class="page">
+  <h1>Data Flow Diagram — Level 1</h1>
+  <h2>Process Description Table</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:5%">No.</th>
+        <th style="width:15%">Process</th>
+        <th style="width:20%">Input</th>
+        <th style="width:20%">Output</th>
+        <th style="width:17%">Reads From</th>
+        <th style="width:17%">Writes To</th>
+        <th style="width:6%">Entity</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1.0</td>
+        <td>User Authentication</td>
+        <td>Email, password, Google token, OTP code</td>
+        <td>Session token, role, redirect URL</td>
+        <td>profiles</td>
+        <td>profiles</td>
+        <td>Customer, Tasker, Admin</td>
+      </tr>
+      <tr>
+        <td>2.0</td>
+        <td>Booking Creation</td>
+        <td>Service type, task options, schedule, address, task details</td>
+        <td>Booking reference number, estimated total, tasker notification</td>
+        <td>profiles, taskers, task_prices, tasker_leaves</td>
+        <td>bookings, notifications</td>
+        <td>Customer</td>
+      </tr>
+      <tr>
+        <td>3.0</td>
+        <td>Payment Processing</td>
+        <td>Payment method, card/GCash/Maya details, wallet balance, booking reference</td>
+        <td>Payment confirmation, updated booking status, wallet receipt</td>
+        <td>profiles, bookings</td>
+        <td>bookings, profiles, wallet_transactions</td>
+        <td>Customer, PayMongo</td>
+      </tr>
+      <tr>
+        <td>4.0</td>
+        <td>Booking Management</td>
+        <td>Booking ID, new status, GPS coordinates</td>
+        <td>Updated status, customer notification, tasker earnings, location</td>
+        <td>bookings, helpers</td>
+        <td>bookings, profiles, wallet_transactions, notifications</td>
+        <td>Tasker, Customer</td>
+      </tr>
+      <tr>
+        <td>5.0</td>
+        <td>Reviews &amp; Ratings</td>
+        <td>Star rating (1–5), review text, images, booking ID</td>
+        <td>Published review, updated tasker rating, notification</td>
+        <td>bookings, profiles</td>
+        <td>reviews, notifications</td>
+        <td>Customer</td>
+      </tr>
+      <tr>
+        <td>6.0</td>
+        <td>Admin Management</td>
+        <td>Approval decision, cancellation reason, refund flag, service data</td>
+        <td>Approval notification, refund credited, updated records, reports</td>
+        <td>taskers, bookings, profiles, reviews</td>
+        <td>taskers, bookings, profiles, notifications, payroll_records</td>
+        <td>Admin</td>
+      </tr>
+      <tr>
+        <td>7.0</td>
+        <td>Wallet &amp; Finance</td>
+        <td>Cashout amount, GCash/Maya number, account name</td>
+        <td>Transaction record, updated balance, cashout notification</td>
+        <td>profiles</td>
+        <td>profiles, wallet_transactions, notifications</td>
+        <td>Tasker, Customer</td>
+      </tr>
+      <tr>
+        <td>8.0</td>
+        <td>Notifications</td>
+        <td>Event trigger, user ID, message content</td>
+        <td>In-app notification, read receipt</td>
+        <td>profiles</td>
+        <td>notifications</td>
+        <td>Customer, Tasker, Admin</td>
+      </tr>
+      <tr>
+        <td>9.0</td>
+        <td>Messaging</td>
+        <td>Message text, booking ID, sender/receiver ID</td>
+        <td>Delivered message, read status update</td>
+        <td>messages, bookings</td>
+        <td>messages, notifications</td>
+        <td>Customer, Tasker</td>
+      </tr>
+      <tr>
+        <td>10.0</td>
+        <td>Tasker Onboarding</td>
+        <td>Personal info, government IDs, NBI clearance, certificates, resume</td>
+        <td>Application submitted, admin review queued, approval/rejection notification</td>
+        <td>profiles</td>
+        <td>taskers, profiles, notifications</td>
+        <td>Tasker, Admin</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:9px; margin-top:8px;"><strong>Booking Status Flow:</strong>
+  pending_payment → confirmed → accepted → on_the_way → in_progress → completed &nbsp;|&nbsp;
+  Any stage → cancelled or rejected (with automatic E-Wallet refund)
+  </p>
+</div>
+
+
+<!-- ═══════════════════════
+     PAGE 5 — DATA DICTIONARY
+═══════════════════════ -->
+<div class="page">
+  <h1>Data Flow Diagram — Level 2</h1>
+  <h2>Data Dictionary</h2>
+
+  <h3>External Entities</h3>
+  <table>
+    <thead>
+      <tr><th style="width:15%">Entity</th><th>Description</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Customer</td><td>A registered user who searches for and books home services. Can manage bookings, use E-Wallet, leave reviews, and chat with taskers.</td></tr>
+      <tr><td>Tasker</td><td>A vetted service professional (electrician, plumber, cleaner, etc.) who accepts and fulfills job bookings. Earns via wallet and can cash out.</td></tr>
+      <tr><td>Admin</td><td>Platform administrator. Approves tasker applications, manages bookings, processes refunds, moderates reviews, and monitors analytics.</td></tr>
+      <tr><td>PayMongo</td><td>Third-party payment gateway that processes GCash, PayMaya, and Credit/Debit Card transactions via REST API.</td></tr>
+      <tr><td>Supabase</td><td>Backend-as-a-service providing PostgreSQL database, user authentication, real-time subscriptions, and file storage.</td></tr>
+      <tr><td>Google OAuth</td><td>Third-party login provider. Supplies verified user identity to the system for account creation or sign-in.</td></tr>
+      <tr><td>Groq AI</td><td>AI API that analyzes customer task descriptions for relevance and completeness. Returns a confidence score to guide the user.</td></tr>
+    </tbody>
+  </table>
+
+  <h3 style="margin-top:12px;">Data Stores</h3>
+  <table>
+    <thead>
+      <tr><th style="width:15%">Store</th><th style="width:35%">Description</th><th>Key Fields</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>D1 — profiles</td>
+        <td>Stores all user account data for customers, taskers, and admins.</td>
+        <td>id, role, full_name, email, phone, wallet_balance, is_archived, created_at</td>
+      </tr>
+      <tr>
+        <td>D2 — bookings</td>
+        <td>Records all job bookings including service details, pricing, payment info, and status lifecycle.</td>
+        <td>id, client_id, tasker_id, service, status, scheduled_date, estimated_total, tasker_payout, platform_fee, helper_fee, paymongo_payment_id, reference_number, is_refunded</td>
+      </tr>
+      <tr>
+        <td>D3 — reviews</td>
+        <td>Stores post-completion customer reviews with star ratings, text, and photo uploads.</td>
+        <td>id, booking_id, tasker_id, customer_id, rating, comment, images, is_flagged, is_hidden</td>
+      </tr>
+      <tr>
+        <td>D4 — notifications</td>
+        <td>Stores in-app alerts generated by booking updates, payments, and messages.</td>
+        <td>id, user_id, title, message, is_read, created_at</td>
+      </tr>
+      <tr>
+        <td>D5 — wallet_transactions</td>
+        <td>Financial ledger of all wallet debits and credits — payments, refunds, earnings, withdrawals.</td>
+        <td>id, user_id, booking_id, amount, type (debit/credit), description, created_at</td>
+      </tr>
+      <tr>
+        <td>D6 — messages</td>
+        <td>In-app chat messages between customers and taskers, linked to specific bookings.</td>
+        <td>id, booking_id, sender_id, receiver_id, message_text, is_read, created_at</td>
+      </tr>
+      <tr>
+        <td>D7 — taskers</td>
+        <td>Tasker professional profiles including availability, hourly rate, status, and application documents.</td>
+        <td>id, user_id, name, status (pending/approved/rejected), hourly_rate, availability, is_available, service_area</td>
+      </tr>
+      <tr>
+        <td>D8 — tasker_leaves</td>
+        <td>Approved leave dates per tasker used to determine availability during booking scheduling.</td>
+        <td>id, tasker_id, leave_dates (JSON array), status (pending/approved/rejected)</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+</body>
+</html>
