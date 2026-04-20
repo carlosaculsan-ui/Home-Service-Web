@@ -59,6 +59,8 @@ function BecomeATasker() {
     hasNbiClearance: false,
     hasBarangayClearance: false,
     hasCertificates: false,
+    certificate1: null,
+    certificate2: null,
   })
 
   const handleChange = (e) => {
@@ -165,6 +167,8 @@ function BecomeATasker() {
   const [phoneError, setPhoneError] = useState('')
   const [errors, setErrors] = useState({})
   const [resumePreviewUrl, setResumePreviewUrl] = useState(null)
+  const [cert1PreviewUrl, setCert1PreviewUrl] = useState(null)
+  const [cert2PreviewUrl, setCert2PreviewUrl] = useState(null)
 
   const isImageFile = (file) => file && /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.type)
 
@@ -177,6 +181,20 @@ function BecomeATasker() {
     setResumePreviewUrl(url)
     return () => URL.revokeObjectURL(url)
   }, [formData.resume])
+
+  useEffect(() => {
+    if (!formData.certificate1 || !isImageFile(formData.certificate1)) { setCert1PreviewUrl(null); return }
+    const url = URL.createObjectURL(formData.certificate1)
+    setCert1PreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [formData.certificate1])
+
+  useEffect(() => {
+    if (!formData.certificate2 || !isImageFile(formData.certificate2)) { setCert2PreviewUrl(null); return }
+    const url = URL.createObjectURL(formData.certificate2)
+    setCert2PreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [formData.certificate2])
 
   const PH_PHONE_RE = /^(09|\+639)\d{9}$/
   const validatePhone = (val) => PH_PHONE_RE.test(val.trim())
@@ -239,6 +257,8 @@ function BecomeATasker() {
     // Upload files to Supabase Storage
     const fileFields = [
       { key: 'resume', urlKey: 'resume_url' },
+      ...(formData.certificate1 ? [{ key: 'certificate1', urlKey: 'certificate1_url' }] : []),
+      ...(formData.certificate2 ? [{ key: 'certificate2', urlKey: 'certificate2_url' }] : []),
     ]
 
     const filesToUpload = fileFields.filter(({ key }) => formData[key])
@@ -743,12 +763,12 @@ function BecomeATasker() {
 
               {/* Experience */}
               <div className="mb-4">
-                <p className="font-bold text-gray-800 text-sm mb-2">Any Experience</p>
+                <p className="font-bold text-gray-800 text-sm mb-2">Any Experience <span className="text-gray-400 font-normal">(optional)</span></p>
                 <textarea
                   name="experience"
                   value={formData.experience}
                   onChange={handleChange}
-                  placeholder="Any 5 Years Or Experience..."
+                  placeholder="Please describe your relevant work experience. Include the type of services you have performed, the number of years you have been working in this field, and any relevant certifications or training."
                   rows={3}
                   className="w-full border border-gray-300 rounded-md p-2 text-sm resize-none"
                 />
@@ -914,6 +934,63 @@ function BecomeATasker() {
                     />
                     <span className="text-sm font-medium text-gray-700">I have Certificates and/or Training documents</span>
                   </label>
+
+                  {formData.hasCertificates && (
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      {[
+                        { key: 'certificate1', id: 'cert1-upload', previewUrl: cert1PreviewUrl, label: 'Certificate / Document 1' },
+                        { key: 'certificate2', id: 'cert2-upload', previewUrl: cert2PreviewUrl, label: 'Certificate / Document 2' },
+                      ].map(({ key, id, previewUrl, label }) => (
+                        <div key={key}>
+                          <div
+                            onClick={() => document.getElementById(id).click()}
+                            className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${formData[key] ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-orange-300'}`}
+                          >
+                            {formData[key] ? (
+                              previewUrl ? (
+                                <div className="flex flex-col items-center gap-2">
+                                  <img src={previewUrl} alt={label} className="max-h-28 max-w-full rounded-md object-contain" />
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-medium text-green-700 truncate max-w-[120px]">{formData[key].name}</span>
+                                    <button type="button" onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, [key]: null })) }} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                  <FileText size={18} className="text-green-500 flex-shrink-0" />
+                                  <span className="text-xs font-medium text-green-700 truncate max-w-[110px]">{formData[key].name}</span>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setFormData(prev => ({ ...prev, [key]: null })) }} className="text-xs text-gray-400 hover:text-red-500">✕</button>
+                                </div>
+                              )
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <FileText size={22} className="text-gray-400" />
+                                <p className="text-xs text-gray-500 font-medium">{label}</p>
+                                <p className="text-xs text-gray-400">PDF or image (JPG, PNG)</p>
+                              </div>
+                            )}
+                          </div>
+                          <input
+                            id={id}
+                            type="file"
+                            accept="image/jpeg,image/jpg,image/png,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files[0]
+                              if (!file) return
+                              const ext = file.name.split('.').pop().toLowerCase()
+                              if (!['jpg', 'jpeg', 'png', 'pdf'].includes(ext)) {
+                                alert('Only JPG, PNG, or PDF files are allowed.')
+                                e.target.value = ''
+                                return
+                              }
+                              setFormData(prev => ({ ...prev, [key]: file }))
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Info note */}
