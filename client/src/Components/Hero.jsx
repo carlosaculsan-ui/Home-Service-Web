@@ -78,7 +78,7 @@ function Hero() {
             </p>
 
             {/* BUTTONS */}
-            {role !== "tasker" && role !== "admin" && (
+            {role !== "admin" && (
               <div
                 className={`space-y-4 transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[900ms]" : "opacity-0 translate-y-6"}`}
               >
