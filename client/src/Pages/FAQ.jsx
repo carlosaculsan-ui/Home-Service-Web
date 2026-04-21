@@ -71,7 +71,7 @@ const categories = [
       },
       {
         q: "How much does hanap.ph charge?",
-        a: "hanap.ph retains a 30% platform fee from the base service price. Taskers receive 70% of the base price. Any Helper fees are collected separately and go directly to the platform to compensate assigned Helpers.",
+        a: "hanap.ph retains a 10% platform fee from the base service price. Taskers receive 90% of the base price. Any Helper fees are collected separately and go directly to the platform to compensate assigned Helpers.",
       },
     ],
   },

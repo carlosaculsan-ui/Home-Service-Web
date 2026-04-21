@@ -734,8 +734,8 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     setStatusError('')
     const updatePayload = { status: newStatus }
     if (newStatus === 'completed' && booking.estimated_total != null) {
-      updatePayload.platform_fee = booking.estimated_total * 0.30
-      updatePayload.tasker_payout = booking.estimated_total * 0.70
+      updatePayload.platform_fee = booking.estimated_total * 0.10
+      updatePayload.tasker_payout = booking.estimated_total * 0.90
     }
     const { error } = await supabase.from('bookings').update(updatePayload).eq('id', booking.id)
     setActionLoading(null)
@@ -956,11 +956,11 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
               </div>
             )}
             <div className="flex justify-between text-green-700 font-medium">
-              <span>Your Payout (70%)</span>
+              <span>Your Payout (90%)</span>
               <span>{fmt(booking.tasker_payout)}</span>
             </div>
             <div className="flex justify-between text-gray-400">
-              <span>Platform Fee (30%)</span>
+              <span>Platform Fee (10%)</span>
               <span>{fmt(booking.platform_fee)}</span>
             </div>
           </div>
@@ -1711,8 +1711,8 @@ function EarningsSummary({ taskerId, taskerUserId }) {
                 <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Service</th>
                 <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Duration</th>
                 <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Amount Paid</th>
-                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Your Earnings (70%)</th>
-                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Platform Fee (30%)</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Your Earnings (90%)</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Platform Fee (10%)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -3248,11 +3248,11 @@ function BookingHistory({ taskerId, taskerUserId }) {
                         </div>
                       )}
                       <div className="flex justify-between text-green-700 font-medium">
-                        <span>Your Payout (70%)</span>
+                        <span>Your Payout (90%)</span>
                         <span>{fmt(b.tasker_payout)}</span>
                       </div>
                       <div className="flex justify-between text-gray-400">
-                        <span>Platform Fee (30%)</span>
+                        <span>Platform Fee (10%)</span>
                         <span>{fmt(b.platform_fee)}</span>
                       </div>
                     </div>

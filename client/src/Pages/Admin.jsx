@@ -3518,8 +3518,8 @@ function PayrollPanel() {
                   <th className="px-4 py-3 text-left">Tasker Name</th>
                   <th className="px-4 py-3 text-right">Completed Jobs</th>
                   <th className="px-4 py-3 text-right">Total Earnings</th>
-                  <th className="px-4 py-3 text-right">Platform Cut (30%)</th>
-                  <th className="px-4 py-3 text-right">Tasker Payout (70%)</th>
+                  <th className="px-4 py-3 text-right">Platform Cut (10%)</th>
+                  <th className="px-4 py-3 text-right">Tasker Payout (90%)</th>
                   <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
@@ -3838,7 +3838,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="mb-2"><DollarSign className="w-8 h-8 text-emerald-500" /></div>
           <div className="text-2xl md:text-4xl font-bold text-emerald-600">{'₱' + platformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Platform Earnings</div>
-          <div className="text-xs text-gray-400 mt-1">Hanap.ph 30% cut</div>
+          <div className="text-xs text-gray-400 mt-1">Hanap.ph 10% cut</div>
         </div>
 
         {/* This Month's Earnings card */}
@@ -5440,8 +5440,8 @@ function TransactionsPanel() {
         const b = refundDetailModal
         const total = Number(b.estimated_total ?? 0)
         const helperFee = b.helper_fee !== null && b.helper_fee !== undefined ? Number(b.helper_fee) : total * 0.30
-        const platformFee = b.platform_fee !== null && b.platform_fee !== undefined ? Number(b.platform_fee) : total * 0.30
-        const taskerPayout = b.tasker_payout !== null && b.tasker_payout !== undefined ? Number(b.tasker_payout) : total * 0.70
+        const platformFee = b.platform_fee !== null && b.platform_fee !== undefined ? Number(b.platform_fee) : total * 0.10
+        const taskerPayout = b.tasker_payout !== null && b.tasker_payout !== undefined ? Number(b.tasker_payout) : total * 0.90
         const fmt = (n) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         const refundedAt = b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'
         return (
@@ -5469,7 +5469,7 @@ function TransactionsPanel() {
                     <span className="text-gray-700">{fmt(platformFee)}</span>
                   </div>
                   <div className="flex justify-between border-t border-gray-200 pt-2 mt-1">
-                    <span className="font-semibold text-gray-700">Tasker Payout (70%)</span>
+                    <span className="font-semibold text-gray-700">Tasker Payout (90%)</span>
                     <span className="font-bold text-emerald-600">{fmt(taskerPayout)}</span>
                   </div>
                 </div>

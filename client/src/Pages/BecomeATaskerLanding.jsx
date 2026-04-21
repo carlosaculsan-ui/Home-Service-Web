@@ -79,7 +79,7 @@ function EarningsCalculator() {
   const [hours, setHours] = useState(20)
   const [service, setService] = useState(SERVICES[0])
 
-  const monthly = Math.round(service.rate * 0.70 * hours * 4)
+  const monthly = Math.round(service.rate * 0.90 * hours * 4)
   const formatted = '₱' + monthly.toLocaleString('en-PH')
 
   return (
@@ -135,7 +135,7 @@ function EarningsCalculator() {
         <div className="transition-all duration-300 text-center flex flex-col gap-1">
           <p className="text-3xl sm:text-4xl md:text-5xl font-black text-orange-500">{formatted} / month</p>
           <p className="text-xs sm:text-sm text-gray-500">
-            Based on {hours} hrs/week at ₱{service.rate}/hr (70% tasker payout)
+            Based on {hours} hrs/week at ₱{service.rate}/hr (90% tasker payout)
           </p>
           <p className="text-xs sm:text-sm text-gray-400 italic mt-1">{motivationalLine(monthly)}</p>
         </div>
@@ -218,7 +218,7 @@ function BecomeATaskerLanding() {
               {
                 icon: <Wallet size={48} className="text-orange-500" />,
                 title: 'Set your own rates',
-                desc: 'You keep 70% of every job you complete, plus tips! Get paid securely and consistently through our platform.',
+                desc: 'You keep 90% of every job you complete, plus tips! Get paid securely and consistently through our platform.',
               },
               {
                 icon: <TrendingUp size={48} className="text-orange-500" />,

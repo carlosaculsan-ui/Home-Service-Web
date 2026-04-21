@@ -38,8 +38,8 @@ BOOKING PROCESS:
 PAYMENT & PRICING:
 - Prices are fixed based on task type and size
 - Payment is processed securely via PayMongo via GCash, PayMaya, or Credit/Debit Card
-- Platform takes a 30% cut from the base service price
-- Tasker receives 70% of the base service price
+- Platform takes a 10% cut from the base service price
+- Tasker receives 90% of the base service price
 - Helper fees go directly to the platform to pay helpers
 
 PAYMENT ISSUES:

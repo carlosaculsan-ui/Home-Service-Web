@@ -524,7 +524,7 @@ function AuthForm() {
 
               <div style={{ marginBottom: '16px' }}>
                 <p style={{ fontWeight: 700, color: '#111827', marginBottom: '4px' }}>4. Booking and Payment Policies</p>
-                <p>Bookings are confirmed upon receipt of full payment through the Platform's accepted payment methods. Service rates are set by individual Taskers and displayed on their profiles. Hanap.ph charges a platform fee of 30% of the total booking value, which is deducted from the Tasker's payout. Customers are required to pay the full service fee prior to service commencement. All transactions are processed in Philippine Peso (PHP). Hanap.ph uses third-party payment processors and does not store credit card information on its servers. Prices are inclusive of applicable taxes unless otherwise stated.</p>
+                <p>Bookings are confirmed upon receipt of full payment through the Platform's accepted payment methods. Service rates are set by individual Taskers and displayed on their profiles. Hanap.ph charges a platform fee of 10% of the total booking value, which is deducted from the Tasker's payout. Customers are required to pay the full service fee prior to service commencement. All transactions are processed in Philippine Peso (PHP). Hanap.ph uses third-party payment processors and does not store credit card information on its servers. Prices are inclusive of applicable taxes unless otherwise stated.</p>
               </div>
 
               <div style={{ marginBottom: '16px' }}>

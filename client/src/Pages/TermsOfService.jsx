@@ -214,7 +214,7 @@ export default function TermsOfService() {
 
             <h3>Platform Fee</h3>
             <p>
-              hanap.ph retains 30% of the base service price as a platform fee. Taskers receive 70%
+              hanap.ph retains 10% of the base service price as a platform fee. Taskers receive 90%
               of the base service price. Helper fees, if applicable, go entirely to the platform to
               compensate assigned helpers.
             </p>

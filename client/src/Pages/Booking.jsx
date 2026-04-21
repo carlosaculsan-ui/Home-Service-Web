@@ -3774,8 +3774,8 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const finalAmount = rawFinalAmount
               const baseServicePrice = taskOptions?.final_price ?? estimatedTotal
               const helperFeeAmount = taskOptions?.helper_fee ?? 0
-              const platformFee = Math.round(baseServicePrice * 0.3)
-              const taskerPayout = Math.round(baseServicePrice * 0.7)
+              const platformFee = Math.round(baseServicePrice * 0.1)
+              const taskerPayout = Math.round(baseServicePrice * 0.9)
 
               let helperNames = []
               const helperSlotCount = taskersNeeded - 1
