@@ -74,8 +74,7 @@ function Hero() {
             <p
               className={`text-sm md:text-lg text-gray-300 max-w-md transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-[700ms]" : "opacity-0 translate-y-6"}`}
             >
-              Hindi lang basta serbisyo—professional service talaga. We make
-              sure every job is done right the first time.
+              Anumang home service. Isang araw lang. Guaranteed.
             </p>
 
             {/* BUTTONS */}

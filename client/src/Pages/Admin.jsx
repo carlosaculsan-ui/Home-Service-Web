@@ -54,6 +54,7 @@ const DOC_FIELDS = [
 
 const isPdf = (url) => url && url.toLowerCase().includes('.pdf')
 
+
 function TaskerApplications() {
   const [taskers, setTaskers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -4432,7 +4433,9 @@ function HelpersPanel() {
   const [helpers, setHelpers] = useState([])
   const [approvedTaskers, setApprovedTaskers] = useState([])
   const [assignments, setAssignments] = useState({}) // { helper_id: [{ tasker_id, tasker_name, slot }] }
+  const [appByPhone, setAppByPhone] = useState({}) // { phone: helper_application_row }
   const [loading, setLoading] = useState(true)
+  const [expandedRows, setExpandedRows] = useState({})
 
   // Search
   const [search, setSearch] = useState('')
@@ -4459,13 +4462,17 @@ function HelpersPanel() {
   const [assignSaving, setAssignSaving] = useState(false)
 
   async function fetchData() {
-    const [{ data: helpersData }, { data: assignData }, { data: taskersData }] = await Promise.all([
+    const [{ data: helpersData }, { data: assignData }, { data: taskersData }, { data: appsData }] = await Promise.all([
       supabase.from('helpers').select('*').order('created_at', { ascending: false }),
       supabase.from('tasker_helpers').select('helper_id, slot, tasker_id, taskers(id, name)'),
       supabase.from('taskers').select('id, name').eq('status', 'approved').order('name'),
+      supabase.from('helper_applications').select('*').eq('status', 'approved'),
     ])
     setHelpers(helpersData ?? [])
     setApprovedTaskers(taskersData ?? [])
+    const phoneMap = {}
+    for (const app of appsData ?? []) phoneMap[app.phone] = app
+    setAppByPhone(phoneMap)
     const map = {}
     for (const row of assignData ?? []) {
       if (!map[row.helper_id]) map[row.helper_id] = []
@@ -4599,61 +4606,114 @@ function HelpersPanel() {
                   return h.name?.toLowerCase().includes(q) || h.phone?.toLowerCase().includes(q)
                 }).map((h) => {
                   const helperAssignments = assignments[h.id] ?? []
+                  const app = appByPhone[h.phone] ?? null
+                  const isExpanded = expandedRows[h.id] ?? false
                   return (
-                    <tr key={h.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{h.phone || <span className="text-gray-300">—</span>}</td>
-
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() => handleToggleActive(h)}
-                          className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
-                            h.is_active
-                              ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                          }`}
-                        >
-                          {h.is_active ? 'Active' : 'Inactive'}
-                        </button>
-                      </td>
-
-                      <td className="px-4 py-3">
-                        {helperAssignments.length === 0 ? (
-                          <span className="text-gray-400 text-xs">—</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1">
-                            {helperAssignments.map((a, i) => (
-                              <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
-                                {a.tasker_name} (Slot {a.slot})
-                              </span>
-                            ))}
+                    <>
+                      <tr key={h.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-4 py-3 font-medium text-gray-800">
+                          <div className="flex items-center gap-2">
+                            {h.name}
+                            {app && (
+                              <button
+                                onClick={() => setExpandedRows(prev => ({ ...prev, [h.id]: !prev[h.id] }))}
+                                className="text-xs text-orange-500 hover:underline"
+                              >
+                                {isExpanded ? '▲ less' : '▼ details'}
+                              </button>
+                            )}
                           </div>
-                        )}
-                      </td>
+                        </td>
+                        <td className="px-4 py-3 text-gray-600">{h.phone || <span className="text-gray-300">—</span>}</td>
 
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
+                        <td className="px-4 py-3">
                           <button
-                            onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
-                            className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                            onClick={() => handleToggleActive(h)}
+                            className={`px-2.5 py-0.5 rounded-full text-xs font-semibold transition-colors ${
+                              h.is_active
+                                ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                            }`}
                           >
-                            Assign
+                            {h.is_active ? 'Active' : 'Inactive'}
                           </button>
-                          <button
-                            onClick={() => { setEditHelper(h); setEditName(h.name); setEditPhone(h.phone ?? ''); setEditError('') }}
-                            className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(h)}
-                            className="text-xs px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
+                        </td>
+
+                        <td className="px-4 py-3">
+                          {helperAssignments.length === 0 ? (
+                            <span className="text-gray-400 text-xs">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {helperAssignments.map((a, i) => (
+                                <span key={i} className="bg-orange-50 border border-orange-100 text-orange-700 text-xs px-2 py-0.5 rounded-full">
+                                  {a.tasker_name} (Slot {a.slot})
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
+                              className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
+                            >
+                              Assign
+                            </button>
+                            <button
+                              onClick={() => { setEditHelper(h); setEditName(h.name); setEditPhone(h.phone ?? ''); setEditError('') }}
+                              className="text-xs px-2.5 py-1 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(h)}
+                              className="text-xs px-2.5 py-1 border border-red-200 text-red-500 hover:bg-red-50 rounded-lg transition-colors font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+
+                      {/* Expandable details row */}
+                      {isExpanded && app && (
+                        <tr key={`${h.id}-details`} className="bg-orange-50/40">
+                          <td colSpan={5} className="px-6 py-4">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm mb-3">
+                              <div>
+                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Age</p>
+                                <p className="text-gray-700">{app.age}</p>
+                              </div>
+                              <div className="col-span-2">
+                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Address</p>
+                                <p className="text-gray-700">{app.address}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Emergency Contact</p>
+                                <p className="text-gray-700">{app.emergency_contact_name}</p>
+                                <p className="text-gray-500 text-xs">{app.emergency_contact_phone}</p>
+                              </div>
+                            </div>
+                            <div className="flex gap-3 flex-wrap">
+                              {app.gov_id_url && (
+                                <a href={app.gov_id_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors">
+                                  🪪 Government ID
+                                </a>
+                              )}
+                              {app.nbi_clearance_url && (
+                                <a href={app.nbi_clearance_url} target="_blank" rel="noopener noreferrer"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors">
+                                  📄 NBI Clearance
+                                </a>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   )
                 })}
               </tbody>
@@ -5866,11 +5926,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             />
           </button>
 
-          <div style={{ maxHeight: empSubOpen ? '120px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
+          <div style={{ maxHeight: empSubOpen ? '160px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
             {[
-              { key: 'taskers',    label: 'Taskers'    },
-              { key: 'applicants', label: 'Applicants' },
-              { key: 'helpers',    label: 'Helpers'    },
+              { key: 'taskers',             label: 'Taskers'             },
+              { key: 'applicants',          label: 'Applicants'          },
+              { key: 'helpers',             label: 'Helpers'             },
             ].map(({ key, label }) => {
               const showApplicantBadge = key === 'applicants' && pendingCount > 0 && pendingCount !== pendingCountAtView
               return (

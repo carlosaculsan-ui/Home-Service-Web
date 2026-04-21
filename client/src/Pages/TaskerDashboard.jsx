@@ -3459,14 +3459,19 @@ function TaskerDashboard() {
         filter: `user_id=eq.${taskerUserId}`,
       }, (payload) => {
         fetchNotifications()
-        if (payload.eventType === 'INSERT' && 'Notification' in window && Notification.permission === 'granted') {
-          const n = new Notification(payload.new.title ?? 'New Notification', {
-            body: payload.new.message ?? '',
-            icon: '/vite.svg',
-            badge: '/vite.svg',
-            tag: payload.new.id,
-          })
-          n.onclick = () => { window.focus(); setTab('bookings') }
+        if (payload.eventType === 'INSERT') {
+          if (payload.new.title?.toLowerCase().includes('welcome to the team') && !payload.new.is_read) {
+            setWelcomeNotif(payload.new)
+          }
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const n = new Notification(payload.new.title ?? 'New Notification', {
+              body: payload.new.message ?? '',
+              icon: '/vite.svg',
+              badge: '/vite.svg',
+              tag: payload.new.id,
+            })
+            n.onclick = () => { window.focus(); setTab('bookings') }
+          }
         }
       })
       .subscribe()

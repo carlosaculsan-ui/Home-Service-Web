@@ -336,6 +336,21 @@ function BecomeATaskerLanding() {
         </Link>
       </section>
 
+      {/* ── Become a Helper ─────────────────────────────────────────────── */}
+      <section className="bg-gray-900 py-14 px-4 text-center">
+        <p className="text-gray-400 text-sm uppercase tracking-widest font-semibold mb-3">Not ready to be a Tasker?</p>
+        <h2 className="text-2xl md:text-3xl font-extrabold text-white mb-3">Start as a Helper</h2>
+        <p className="text-gray-400 max-w-md mx-auto mb-8 text-sm leading-relaxed">
+          Helpers assist Taskers on jobs assigned by hanap.ph. It's a great way to get started, earn ₱300–₱600 per job, and learn the ropes before becoming a full Tasker.
+        </p>
+        <Link
+          to="/become-a-helper"
+          className="inline-block bg-white text-gray-900 font-bold px-8 py-3 rounded-xl hover:bg-gray-100 transition-colors text-base"
+        >
+          Apply as a Helper
+        </Link>
+      </section>
+
       <Footer />
       <Chatbot />
     </div>

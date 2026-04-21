@@ -103,6 +103,14 @@ function Footer() {
             </li>
             <li>
               <Link
+                to="/become-a-helper"
+                className="hover:text-white block py-1 transition-colors"
+              >
+                Become a Helper
+              </Link>
+            </li>
+            <li>
+              <Link
                 to="/contact"
                 className="hover:text-white block py-1 transition-colors"
               >

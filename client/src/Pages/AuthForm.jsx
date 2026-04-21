@@ -66,6 +66,11 @@ function AuthForm() {
       return
     }
 
+    if (role === 'helper') {
+      navigate('/helper-dashboard')
+      return
+    }
+
     if (role === 'admin') {
       await supabase.auth.signOut()
       setError('Admins must log in through the Admin Login page.')
