@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import confetti from 'canvas-confetti'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -137,6 +138,23 @@ function TaskerShowcase() {
   const [fetchError, setFetchError] = useState(false)
   const [selectedTasker, setSelectedTasker] = useState(null)
   const justOpenedRef = useRef(false)
+  const confettiFiredRef = useRef(false)
+
+  const fireEliteConfetti = useCallback((e) => {
+    if (confettiFiredRef.current) return
+    confettiFiredRef.current = true
+
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = (rect.left + rect.width / 2) / window.innerWidth
+    const y = (rect.top + rect.height / 2) / window.innerHeight
+
+    const gold = ['#FFD700', '#FFA500', '#FF8C00', '#FFFACD', '#FFC200']
+    confetti({ particleCount: 60, spread: 70, angle: 90, origin: { x, y: y - 0.05 }, colors: gold, scalar: 1.1 })
+    confetti({ particleCount: 30, spread: 50, angle: 60, origin: { x, y: y - 0.05 }, colors: gold, scalar: 0.9 })
+    confetti({ particleCount: 30, spread: 50, angle: 120, origin: { x, y: y - 0.05 }, colors: gold, scalar: 0.9 })
+
+    setTimeout(() => { confettiFiredRef.current = false }, 2000)
+  }, [])
 
 
   useEffect(() => {
@@ -166,7 +184,7 @@ function TaskerShowcase() {
         ratingMap[r.tasker_id].push(r.rating ?? 0)
       })
 
-      setTaskers(data.map((t) => {
+      const mapped = data.map((t) => {
         const ratings = ratingMap[t.id] ?? []
         const avgRating = ratings.length > 0 ? (ratings.reduce((s, v) => s + v, 0) / ratings.length).toFixed(1) : null
         return {
@@ -182,7 +200,14 @@ function TaskerShowcase() {
           hourly_rate: t.hourly_rate,
           service_area: t.service_area,
         }
-      }))
+      })
+      // Identify top performer by jobs then rating
+      let topId = null
+      if (mapped.length > 0) {
+        const top = [...mapped].sort((a, b) => b.jobsCompleted - a.jobsCompleted || (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))[0]
+        topId = top.id
+      }
+      setTaskers(mapped.map((t) => ({ ...t, isTop: t.id === topId })))
       setLoading(false)
     }
     fetchTaskers()
@@ -239,6 +264,21 @@ function TaskerShowcase() {
           "linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)",
       }}
     >
+      <style>{`
+        @keyframes elite-glow {
+          0%, 100% { box-shadow: 0 0 12px 2px rgba(255,215,0,0.55), 0 0 30px 6px rgba(255,165,0,0.25); }
+          50%       { box-shadow: 0 0 24px 6px rgba(255,215,0,0.85), 0 0 55px 12px rgba(255,165,0,0.4); }
+        }
+        @keyframes elite-sweep {
+          0%   { transform: translateX(-160%) skewX(-18deg); opacity: 0; }
+          15%  { opacity: 1; }
+          85%  { opacity: 1; }
+          100% { transform: translateX(320%) skewX(-18deg); opacity: 0; }
+        }
+        .elite-card  { animation: elite-glow 2.2s ease-in-out infinite; }
+        .elite-shine { animation: elite-sweep 3.5s ease-in-out infinite; animation-delay: 0.6s; }
+      `}</style>
+
       {/* Section heading */}
       <h2 style={{ fontSize: '2.5rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', color: 'white', marginBottom: '2rem' }}>
         MEET OUR{' '}
@@ -276,9 +316,17 @@ function TaskerShowcase() {
           {taskers.map((tasker, index) => (
             <SwiperSlide key={index} style={{ width: "300px" }}>
               <div
-                className="group relative h-[380px] rounded-2xl overflow-hidden shadow-2xl hover:shadow-4xl transition-all duration-500 hover:scale-105 cursor-grab active:cursor-grabbing bg-gradient-to-b from-slate-800/80 to-slate-900/90 border border-slate-700/50 backdrop-blur-sm"
+                onMouseEnter={tasker.isTop ? fireEliteConfetti : undefined}
+                className={`group relative h-[380px] rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 cursor-grab active:cursor-grabbing backdrop-blur-sm ${tasker.isTop ? 'elite-card hover:scale-107' : 'hover:scale-105'}`}
                 style={{
-                  filter: "brightness(0.9)",
+                  filter: tasker.isTop ? "brightness(1.05)" : "brightness(0.9)",
+                  background: tasker.isTop
+                    ? 'linear-gradient(160deg, #1c1a10 0%, #0f0e08 100%)'
+                    : undefined,
+                  backgroundImage: !tasker.isTop ? 'linear-gradient(to bottom, rgba(30,41,59,0.8), rgba(15,23,42,0.9))' : undefined,
+                  border: tasker.isTop
+                    ? '2px solid #FFD700'
+                    : '1px solid rgba(100,116,139,0.5)',
                 }}
                 onClick={() => {
                   justOpenedRef.current = true;
@@ -288,6 +336,37 @@ function TaskerShowcase() {
                   }, 300);
                 }}
               >
+                {/* Elite sweep shine */}
+                {tasker.isTop && (
+                  <div
+                    className="elite-shine absolute inset-0 z-20 pointer-events-none"
+                    style={{
+                      background: 'linear-gradient(105deg, transparent 30%, rgba(255,215,0,0.18) 50%, transparent 70%)',
+                      width: '60%',
+                    }}
+                  />
+                )}
+
+                {/* Vortex Elite badge */}
+                {tasker.isTop && (
+                  <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1">
+                    <span style={{
+                      background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+                      color: '#1a1a1a',
+                      fontWeight: 900,
+                      fontSize: '0.55rem',
+                      letterSpacing: '0.08em',
+                      padding: '3px 8px',
+                      borderRadius: '999px',
+                      textTransform: 'uppercase',
+                      boxShadow: '0 2px 8px rgba(255,165,0,0.5)',
+                      whiteSpace: 'nowrap',
+                    }}>
+                      👑 VORTEX ELITE
+                    </span>
+                  </div>
+                )}
+
                 {/* Image */}
                 {tasker.profile_photo ? (
                   <img
@@ -309,16 +388,14 @@ function TaskerShowcase() {
                   </div>
                 )}
 
-
                 {/* Content */}
                 <div className="p-5 text-left relative z-10">
-                  <h3 className="font-bold text-lg text-white mb-1 truncate group-hover:mb-2 transition-all duration-300">
+                  <h3 className={`font-bold text-lg mb-1 truncate group-hover:mb-2 transition-all duration-300 ${tasker.isTop ? 'text-yellow-200' : 'text-white'}`}>
                     {tasker.name}
                   </h3>
                   <p className="text-orange-400 font-semibold text-sm mb-2">
                     {tasker.role}
                   </p>
-
 
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-yellow-400 text-sm font-medium">
@@ -329,19 +406,27 @@ function TaskerShowcase() {
                     </span>
                   </div>
 
-
-                  <button className="w-full text-white py-2 px-3 rounded-lg font-semibold text-xs bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 transition-all duration-300 shadow-lg hover:shadow-xl border border-orange-500/30 backdrop-blur-sm">
+                  <button
+                    className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-300 shadow-lg hover:shadow-xl backdrop-blur-sm"
+                    style={tasker.isTop ? {
+                      background: 'linear-gradient(90deg, #FFD700, #FFA500)',
+                      color: '#1a1a1a',
+                      border: '1px solid rgba(255,215,0,0.4)',
+                    } : {
+                      background: 'linear-gradient(to right, #f97316, #ea580c)',
+                      color: '#fff',
+                      border: '1px solid rgba(249,115,22,0.3)',
+                    }}
+                  >
                     More Info
                   </button>
                 </div>
 
-
                 {/* Glassmorphism overlay */}
-                <div className="absolute inset-0 .bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                 {/* Glow effect */}
-                <div className="absolute inset-0 .bg-gradient-to-r from-orange-500/20 via-transparent to-orange-500/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl" />
+                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl ${tasker.isTop ? 'bg-gradient-to-r from-yellow-500/20 via-transparent to-yellow-500/20' : 'bg-gradient-to-r from-orange-500/20 via-transparent to-orange-500/20'}`} />
               </div>
             </SwiperSlide>
           ))}
