@@ -15,6 +15,7 @@ const HQ_ADDRESS = 'St. Clare College of Caloocan, Zabarte Road, Barangay 172, Z
 const GOOGLE_MAPS_URL = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(HQ_ADDRESS)}`
 
 const NOMINATIM_BASE = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
+const HQ_COORDS = [14.755105, 121.043457]
 
 // Sequential slot counter — spreads concurrent geocode requests 1.2 s apart
 // so Nominatim's 1 req/s rate limit is never hit when many cards mount together.
@@ -81,6 +82,8 @@ function HQSection() {
   const [visible, setVisible] = useState(false)
   const sectionRef = useRef(null)
 
+  useEffect(() => { setCoords(HQ_COORDS) }, [])
+
   // Fade-up on scroll
   useEffect(() => {
     const el = sectionRef.current
@@ -96,20 +99,6 @@ function HQSection() {
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
-
-  // Geocode HQ address
-  useEffect(() => {
-    fetch(
-      `${NOMINATIM_BASE}/search?format=json&q=${encodeURIComponent(HQ_ADDRESS)}&countrycodes=ph`
-    )
-      .then((r) => r.json())
-      .then((data) => {
-        if (data && data.length > 0) {
-          setCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)])
-        }
-      })
-      .catch(() => {})
   }, [])
 
   return (
