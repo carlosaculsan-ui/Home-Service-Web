@@ -12,9 +12,17 @@ import {
 } from 'lucide-react'
 
 const TASKER_STATUS_STYLES = {
-  pending:  'bg-yellow-100 text-yellow-700',
-  approved: 'bg-green-100 text-green-700',
-  rejected: 'bg-red-100 text-red-600',
+  pending:              'bg-yellow-100 text-yellow-700',
+  interview_scheduled:  'bg-blue-100 text-blue-700',
+  approved:             'bg-green-100 text-green-700',
+  rejected:             'bg-red-100 text-red-600',
+}
+
+const TASKER_STATUS_LABELS = {
+  pending:             'Pending Review',
+  interview_scheduled: 'Interview Scheduled',
+  approved:            'Approved',
+  rejected:            'Rejected',
 }
 
 const BOOKING_STATUS_STYLES = {
@@ -31,6 +39,7 @@ const BOOKING_STATUS_STYLES = {
 // ─── Tasker Applications Tab ────────────────────────────────────────────────
 
 const DOC_FIELDS = [
+  { key: 'resume_url',               label: 'Resume / CV',           required: true  },
   { key: 'front_image_url',          label: 'ID Front' },
   { key: 'back_image_url',           label: 'ID Back' },
   { key: 'nbi_clearance_url',        label: 'NBI Clearance' },
@@ -39,7 +48,11 @@ const DOC_FIELDS = [
   { key: 'certificate_training_url', label: 'Certificate of Training' },
   { key: 'skill_assessment_url',     label: 'Skill Assessment' },
   { key: 'work_experience_url',      label: 'Work Experience' },
+  { key: 'certificate1_url',         label: 'Certificate 1' },
+  { key: 'certificate2_url',         label: 'Certificate 2' },
 ]
+
+const isPdf = (url) => url && url.toLowerCase().includes('.pdf')
 
 function TaskerApplications() {
   const [taskers, setTaskers] = useState([])
@@ -49,6 +62,16 @@ function TaskerApplications() {
   const [deleteErrors, setDeleteErrors] = useState({}) // { [id]: string }
   const [deleteSuccess, setDeleteSuccess] = useState({}) // { [id]: bool }
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [interviewModal, setInterviewModal] = useState(null)   // { tasker, date }
+
+  const todayPlus = (n) => {
+    const d = new Date()
+    d.setDate(d.getDate() + n)
+    return d.toISOString().split('T')[0]
+  }
+
+  const formatDate = (iso) =>
+    new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
 
   async function saveRate(id) {
     const val = parseFloat(editingRate[id])
@@ -70,18 +93,40 @@ function TaskerApplications() {
 
   useEffect(() => { fetchTaskers() }, [])
 
-  async function updateStatus(tasker, status) {
-    await supabase
-      .from('taskers')
-      .update({ status, ...(status === 'approved' ? { is_available: true } : {}) })
-      .eq('id', tasker.id)
+  async function scheduleInterview(tasker, date) {
+    await supabase.from('taskers').update({ status: 'interview_scheduled' }).eq('id', tasker.id)
 
-    if (status === 'approved') {
-      await supabase.from('profiles').update({ role: 'tasker' }).eq('id', tasker.user_id)
-    } else if (status === 'rejected') {
-      await supabase.from('profiles').update({ role: 'customer' }).eq('id', tasker.user_id)
-    }
+    const firstName = tasker.name?.split(' ')[0] || 'Applicant'
+    const readableDate = formatDate(date)
+    await supabase.from('notifications').insert({
+      user_id: tasker.user_id,
+      title: 'Tasker Application — Interview Scheduled',
+      message: `Congratulations, ${firstName}! You've passed the initial screening of your Tasker application. Your Final Interview is scheduled on ${readableDate}. Please visit our office and bring a valid government-issued ID. Check your email for further details. We look forward to meeting you!`,
+      is_read: false,
+    })
 
+    setInterviewModal(null)
+    fetchTaskers()
+  }
+
+  async function finalApprove(tasker) {
+    await supabase.from('taskers').update({ status: 'approved', is_available: true }).eq('id', tasker.id)
+    await supabase.from('profiles').update({ role: 'tasker' }).eq('id', tasker.user_id)
+
+    const firstName = tasker.name?.split(' ')[0] || 'Tasker'
+    await supabase.from('notifications').insert({
+      user_id: tasker.user_id,
+      title: 'Welcome to the Team!',
+      message: `Welcome aboard, ${firstName}! You've officially been approved as a TaskEase Tasker. Your profile is now live and you can start accepting bookings. We're excited to have you!`,
+      is_read: false,
+    })
+
+    fetchTaskers()
+  }
+
+  async function rejectApplicant(tasker) {
+    await supabase.from('taskers').update({ status: 'rejected' }).eq('id', tasker.id)
+    await supabase.from('profiles').update({ role: 'customer' }).eq('id', tasker.user_id)
     fetchTaskers()
   }
 
@@ -127,17 +172,29 @@ function TaskerApplications() {
                 {t.name || '—'}
               </h3>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full capitalize ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
-                  {t.status}
+                <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${TASKER_STATUS_STYLES[t.status] ?? TASKER_STATUS_STYLES.pending}`}>
+                  {TASKER_STATUS_LABELS[t.status] ?? t.status}
                 </span>
                 {t.status === 'pending' && (
                   <>
                     <button
-                      onClick={() => updateStatus(t, 'approved')}
+                      onClick={() => setInterviewModal({ tasker: t, date: todayPlus(3) })}
                       className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
-                    >Approve</button>
+                    >Approve for Interview</button>
                     <button
-                      onClick={() => updateStatus(t, 'rejected')}
+                      onClick={() => rejectApplicant(t)}
+                      className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >Reject</button>
+                  </>
+                )}
+                {t.status === 'interview_scheduled' && (
+                  <>
+                    <button
+                      onClick={() => finalApprove(t)}
+                      className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                    >Approve as Tasker</button>
+                    <button
+                      onClick={() => rejectApplicant(t)}
                       className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                     >Reject</button>
                   </>
@@ -189,15 +246,29 @@ function TaskerApplications() {
                 </button>
                 {expandedDocs[t.id] && (
                   <div className="flex flex-wrap gap-3 mt-3">
-                    {docs.map(({ key, label }) => (
+                    {docs.map(({ key, label, required }) => (
                       <div key={key} className="text-center">
-                        <img
-                          src={t[key]}
-                          alt={label}
-                          onClick={() => setLightboxSrc(t[key])}
-                          className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
-                        />
-                        <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
+                        {isPdf(t[key]) ? (
+                          <a
+                            href={t[key]}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-20 h-20 flex flex-col items-center justify-center rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all bg-gray-50 gap-1"
+                          >
+                            <span className="text-2xl">📄</span>
+                            <span className="text-[10px] text-orange-500 font-semibold">Open PDF</span>
+                          </a>
+                        ) : (
+                          <img
+                            src={t[key]}
+                            alt={label}
+                            onClick={() => setLightboxSrc(t[key])}
+                            className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in"
+                          />
+                        )}
+                        <p className="text-xs text-gray-500 mt-1 w-20 truncate">
+                          {label}{required && <span className="text-orange-400"> *</span>}
+                        </p>
                       </div>
                     ))}
                   </div>
@@ -221,6 +292,42 @@ function TaskerApplications() {
         )
       })}
       <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+
+      {/* Interview Date Picker Modal */}
+      {interviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">Schedule Final Interview</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Select an interview date for <span className="font-semibold text-gray-700">{interviewModal.tasker.name}</span>.
+              Must be 3–7 days from today.
+            </p>
+            <input
+              type="date"
+              min={todayPlus(3)}
+              max={todayPlus(7)}
+              value={interviewModal.date}
+              onChange={(e) => setInterviewModal((prev) => ({ ...prev, date: e.target.value }))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-1"
+            />
+            {interviewModal.date && (
+              <p className="text-xs text-orange-500 font-medium mb-4">{formatDate(interviewModal.date)}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setInterviewModal(null)}
+                className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors"
+              >Cancel</button>
+              <button
+                onClick={() => scheduleInterview(interviewModal.tasker, interviewModal.date)}
+                disabled={!interviewModal.date}
+                className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >Confirm & Notify</button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -396,23 +503,22 @@ function TaskerAccountsPanel() {
     }
 
     if (!window.confirm(
-      'Are you sure you want to remove this tasker? All their records including bookings, reviews, and leave requests will be permanently deleted. This cannot be undone.'
+      'Remove this tasker? Their account will be converted back to a regular customer. Their booking history will be preserved.'
     )) return
 
     try {
-      await supabase.from('reviews').delete().eq('tasker_id', tasker.id)
-      await supabase.from('bookings').delete().eq('tasker_id', tasker.id)
       await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
+      await supabase.from('taskers').delete().eq('id', tasker.id)
 
-      const { error: taskerError } = await supabase.from('taskers').delete().eq('id', tasker.id)
-      const { error: profileError } = await supabase.from('profiles').delete().eq('id', tasker.user_id)
-      if (profileError) {
-        throw profileError
-      }
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ role: 'customer', is_archived: false })
+        .eq('id', tasker.user_id)
+      if (profileError) throw profileError
 
       setArchivedTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
     } catch (err) {
-      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete employee: ' + (err?.message || 'Please try again.') }))
+      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to remove tasker: ' + (err?.message || 'Please try again.') }))
     }
   }
 
@@ -3502,7 +3608,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         .from('bookings')
         .select('id, customer_name, service, scheduled_date, scheduled_time, status')
         .order('created_at', { ascending: false })
-        .limit(5)
+        .limit(10)
       setRecentBookings(recentData || [])
 
       setAllBookings(yearBookings ?? [])
@@ -3589,7 +3695,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               .from('bookings')
               .select('id, customer_name, service, scheduled_date, scheduled_time, status')
               .order('created_at', { ascending: false })
-              .limit(5)
+              .limit(10)
             setRecentBookings(recentData || [])
             const { data: bookingsData } = await supabase.from('bookings').select('service')
             const serviceCounts = {}
@@ -3776,7 +3882,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-sm font-semibold text-gray-700">Recent Bookings</h3>
             <span className="text-xs bg-gray-100 text-gray-500 font-semibold px-2 py-1 rounded-full">
-              Last 5
+              Last 10
             </span>
           </div>
           {recentBookings.length === 0 ? (
@@ -3788,7 +3894,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
                   <div>
                     <p className="text-sm font-medium text-gray-800">{booking.customer_name || 'Customer'}</p>
                     <p className="text-xs text-gray-500">{booking.service}</p>
-                    <p className="text-xs text-gray-400">{booking.scheduled_date}{booking.scheduled_time ? ` at ${booking.scheduled_time}` : ''}</p>
+                    <p className="text-xs text-gray-400">
+                      {booking.scheduled_date
+                        ? new Date(booking.scheduled_date + 'T00:00:00').toLocaleDateString('en-PH', { month: 'long', day: 'numeric', year: 'numeric' })
+                        : ''}
+                      {booking.scheduled_time
+                        ? ` at ${new Date(`1970-01-01T${booking.scheduled_time}`).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', hour12: true })}`
+                        : ''}
+                    </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize ${BOOKING_STATUS_STYLES[booking.status] ?? BOOKING_STATUS_STYLES.pending}`}>
                     {booking.status?.replace('_', ' ')}
@@ -5673,7 +5786,7 @@ const NAV_ITEMS = [
   { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, pendingCount, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, pendingCount, pendingCountAtView, setPendingCountAtView, onLogout, onClose }) {
   // ── Subtab open state ───────────────────────────────────────────────────────
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
   const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
@@ -5758,19 +5871,33 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
               { key: 'taskers',    label: 'Taskers'    },
               { key: 'applicants', label: 'Applicants' },
               { key: 'helpers',    label: 'Helpers'    },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => { setTab('tasker-accounts'); setEmpSubtab(key); setEmpSubOpen(false); onClose?.() }}
-                className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
-                  tab === 'tasker-accounts' && empSubtab === key
-                    ? 'bg-white/20 text-white font-semibold'
-                    : 'text-orange-100 hover:bg-orange-600 hover:text-white'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            ].map(({ key, label }) => {
+              const showApplicantBadge = key === 'applicants' && pendingCount > 0 && pendingCount !== pendingCountAtView
+              return (
+                <button
+                  key={key}
+                  onClick={() => {
+                    setTab('tasker-accounts')
+                    setEmpSubtab(key)
+                    setEmpSubOpen(false)
+                    if (key === 'applicants') setPendingCountAtView(pendingCount)
+                    onClose?.()
+                  }}
+                  className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                    tab === 'tasker-accounts' && empSubtab === key
+                      ? 'bg-white/20 text-white font-semibold'
+                      : 'text-orange-100 hover:bg-orange-600 hover:text-white'
+                  }`}
+                >
+                  {label}
+                  {showApplicantBadge && (
+                    <span className="ml-2 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                      {pendingCount > 99 ? '99+' : pendingCount}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -5909,6 +6036,7 @@ function Admin() {
   const [adminUserId, setAdminUserId] = useState('')
   const [inboxUnread, setInboxUnread] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
+  const [pendingCountAtView, setPendingCountAtView] = useState(null)
   const [calendarBookings, setCalendarBookings] = useState([])
   const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
@@ -6052,6 +6180,8 @@ function Admin() {
           adminEmail={adminEmail}
           inboxUnread={inboxUnread}
           pendingCount={pendingCount}
+          pendingCountAtView={pendingCountAtView}
+          setPendingCountAtView={setPendingCountAtView}
           onLogout={handleLogout}
         />
       </div>
@@ -6078,6 +6208,8 @@ function Admin() {
               adminEmail={adminEmail}
               inboxUnread={inboxUnread}
               pendingCount={pendingCount}
+              pendingCountAtView={pendingCountAtView}
+              setPendingCountAtView={setPendingCountAtView}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
             />

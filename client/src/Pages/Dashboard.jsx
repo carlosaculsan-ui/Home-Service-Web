@@ -2617,7 +2617,7 @@ function CustomerComingSoon() {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
 function Dashboard() {
-  const [tab, setTab] = useState('bookings')
+  const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'bookings')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
@@ -2629,6 +2629,7 @@ function Dashboard() {
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [notifToast, setNotifToast] = useState(null)
+  const [interviewNotif, setInterviewNotif] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -2690,6 +2691,24 @@ function Dashboard() {
       setCustomerName(profile?.full_name ?? '')
       await load(uid)
       setLoading(false)
+
+      const { data: taskerRow } = await supabase
+        .from('taskers')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('status', 'interview_scheduled')
+        .maybeSingle()
+
+      if (taskerRow) {
+        const { data: notifs } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', uid)
+          .ilike('title', '%Interview Scheduled%')
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (notifs?.[0]) setInterviewNotif(notifs[0])
+      }
     }
     init()
   }, [])
@@ -2744,7 +2763,11 @@ function Dashboard() {
             badge: '/vite.svg',
             tag: payload.new.id,
           })
-          n.onclick = () => { window.focus(); setTab('bookings') }
+          n.onclick = () => {
+            window.focus()
+            const isInterview = (payload.new.title ?? '').includes('Interview Scheduled')
+            setTab(isInterview ? 'notifications' : 'bookings')
+          }
         }
       })
       .subscribe()
@@ -2815,6 +2838,30 @@ function Dashboard() {
             />
           </div>
         </>
+      )}
+
+      {/* Interview Scheduled Modal */}
+      {interviewNotif && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="bg-orange-500 px-5 py-4 text-white">
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-0.5">Tasker Application Update</p>
+              <h2 className="text-base font-bold">You've Passed the Initial Screening!</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm text-gray-700 leading-relaxed">
+              <p>{interviewNotif.message}</p>
+              <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5 text-xs text-orange-700">
+                Please bring a valid government-issued ID on the day of your interview.
+              </div>
+            </div>
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => setInterviewNotif(null)}
+                className="w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors"
+              >Got it!</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Main content */}

@@ -745,7 +745,8 @@ function Navbar() {
                           <div
                             key={n.id}
                             onClick={async () => {
-                              if (!n.is_read) {
+                              const isInterview = (n.title ?? '').includes('Interview Scheduled')
+                              if (!n.is_read && !isInterview) {
                                 await supabase
                                   .from("notifications")
                                   .update({ is_read: true })
@@ -762,6 +763,8 @@ function Navbar() {
                               setShowNotifDropdown(false);
                               if (isApprovedTasker) {
                                 navigate("/tasker-dashboard?tab=bookings");
+                              } else if (isInterview) {
+                                window.location.href = "/dashboard?tab=notifications";
                               } else {
                                 navigate("/dashboard");
                               }
