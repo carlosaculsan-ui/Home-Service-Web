@@ -2,6 +2,7 @@
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import confetti from 'canvas-confetti'
 import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
@@ -2630,6 +2631,7 @@ function Dashboard() {
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [notifToast, setNotifToast] = useState(null)
   const [interviewNotif, setInterviewNotif] = useState(null)
+  const [welcomeNotif, setWelcomeNotif] = useState(null)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -2709,9 +2711,40 @@ function Dashboard() {
           .limit(1)
         if (notifs?.[0]) setInterviewNotif(notifs[0])
       }
+
+      const { data: approvedRow } = await supabase
+        .from('taskers')
+        .select('id')
+        .eq('user_id', uid)
+        .eq('status', 'approved')
+        .maybeSingle()
+
+      if (approvedRow) {
+        const { data: welcomeNotifs } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', uid)
+          .ilike('title', '%Welcome to the Team%')
+          .eq('is_read', false)
+          .order('created_at', { ascending: false })
+          .limit(1)
+        if (welcomeNotifs?.[0]) setWelcomeNotif(welcomeNotifs[0])
+      }
     }
     init()
   }, [])
+
+  useEffect(() => {
+    if (!welcomeNotif) return
+    const duration = 3500
+    const end = Date.now() + duration
+    const colors = ['#f97316', '#facc15', '#34d399', '#60a5fa', '#f472b6', '#a78bfa']
+    ;(function frame() {
+      confetti({ particleCount: 6, angle: 60, spread: 55, origin: { x: 0 }, colors })
+      confetti({ particleCount: 6, angle: 120, spread: 55, origin: { x: 1 }, colors })
+      if (Date.now() < end) requestAnimationFrame(frame)
+    })()
+  }, [welcomeNotif])
 
   useEffect(() => {
     if (!userId) return
@@ -2838,6 +2871,34 @@ function Dashboard() {
             />
           </div>
         </>
+      )}
+
+      {/* Welcome to the Team Modal */}
+      {welcomeNotif && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="bg-gradient-to-r from-orange-500 to-amber-400 px-5 py-5 text-white text-center">
+              <p className="text-3xl mb-1">🎉</p>
+              <p className="text-xs font-semibold uppercase tracking-wide opacity-80 mb-0.5">Tasker Application</p>
+              <h2 className="text-lg font-bold">Welcome to the Team!</h2>
+            </div>
+            <div className="px-5 py-4 space-y-3 text-sm text-gray-700 leading-relaxed">
+              <p>{welcomeNotif.message}</p>
+              <div className="bg-orange-50 border border-orange-100 rounded-xl px-3 py-2.5 text-xs text-orange-700">
+                Your tasker profile is now live. You can start accepting bookings right away!
+              </div>
+            </div>
+            <div className="px-5 pb-5">
+              <button
+                onClick={async () => {
+                  await supabase.from('notifications').update({ is_read: true }).eq('id', welcomeNotif.id)
+                  setWelcomeNotif(null)
+                }}
+                className="w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg transition-colors"
+              >Let's Go!</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Interview Scheduled Modal */}

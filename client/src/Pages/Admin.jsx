@@ -117,7 +117,7 @@ function TaskerApplications() {
     await supabase.from('notifications').insert({
       user_id: tasker.user_id,
       title: 'Welcome to the Team!',
-      message: `Welcome aboard, ${firstName}! You've officially been approved as a TaskEase Tasker. Your profile is now live and you can start accepting bookings. We're excited to have you!`,
+      message: `Welcome aboard, ${firstName}! You've officially been approved as a Hanap.ph Tasker. Your profile is now live and you can start accepting bookings. We're excited to have you!`,
       is_read: false,
     })
 

@@ -932,7 +932,7 @@ function BecomeATasker() {
                       onChange={(e) => setFormData(prev => ({ ...prev, hasCertificates: e.target.checked }))}
                       className="accent-orange-500 w-4 h-4 flex-shrink-0"
                     />
-                    <span className="text-sm font-medium text-gray-700">I have Certificates and/or Training documents</span>
+                    <span className="text-sm font-medium text-gray-700">I have Certificates and/or Training documents <span className="text-gray-400 font-normal">(optional)</span></span>
                   </label>
 
                   {formData.hasCertificates && (
