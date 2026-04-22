@@ -2,6 +2,7 @@
 // ALTER TABLE reviews ADD COLUMN IF NOT EXISTS is_hidden boolean DEFAULT false;
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { toPng } from 'html-to-image'
 import confetti from 'canvas-confetti'
 import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
@@ -704,6 +705,250 @@ function CancelBookingModal({ onClose, onConfirm, cancelling, cancelError, estim
   )
 }
 
+// ─── Receipt helpers ──────────────────────────────────────────────────────────
+const RECEIPT_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function fmtReceiptDate(dateStr, timeStr) {
+  if (!dateStr) return '—'
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const base = `${RECEIPT_MONTHS[m - 1]} ${d}, ${y}`
+  if (!timeStr) return base
+  const [h, min] = timeStr.split(':').map(Number)
+  const ampm = h >= 12 ? 'PM' : 'AM'
+  const hour = h % 12 || 12
+  const minutes = min === 0 ? '' : `:${String(min).padStart(2, '0')}`
+  return `${base} at ${hour}${minutes} ${ampm}`
+}
+
+function fmtReceiptPaymentMethod(method) {
+  if (!method) return '—'
+  if (method === 'gcash') return 'GCash'
+  if (method === 'paymaya') return 'PayMaya'
+  if (method === 'card') return 'Credit/Debit Card'
+  return method.charAt(0).toUpperCase() + method.slice(1)
+}
+
+function maskReceiptPhone(phone) {
+  if (!phone) return ''
+  const digits = phone.replace(/\D/g, '')
+  if (digits.length < 6) return phone
+  const visible = digits.slice(0, 2) + '*'.repeat(digits.length - 5) + digits.slice(-3)
+  return phone.startsWith('+') ? '+' + visible : visible
+}
+
+const RECEIPT_EXTRAS_LOOKUP = {
+  'Cleaning':           { 'With Laundry': 200, 'With Appliances': 250 },
+  'Carpentry':          { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 },
+  'Electrical':         { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 },
+  'Aircon Maintenance': { 'Same Day Service': 300 },
+  'Painting':           { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 },
+  'Plumbing Repair':    { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 },
+}
+
+function buildReceiptBreakdown(taskOptions, helperFee, helperCount) {
+  if (!taskOptions) return []
+  const { service } = taskOptions
+  const lines = []
+  const combinedBase = (taskOptions.base_price ?? 0) + (helperFee ?? 0)
+  if (service === 'Cleaning') {
+    lines.push({ label: `${taskOptions.type} (${taskOptions.area})`, price: combinedBase })
+  } else if (service === 'Carpentry') {
+    lines.push({ label: `${taskOptions.type} — ${taskOptions.category ?? taskOptions.item ?? ''}`, price: combinedBase })
+  } else if (service === 'Electrical') {
+    lines.push({ label: taskOptions.sub_option ? `${taskOptions.type} — ${taskOptions.sub_option}` : taskOptions.type, price: combinedBase })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  } else if (service === 'Aircon Maintenance') {
+    const u = taskOptions.units || 1
+    lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: combinedBase })
+  } else if (service === 'Painting') {
+    lines.push({ label: `${taskOptions.what_to_paint} Painting (${taskOptions.area})`, price: combinedBase })
+    if (taskOptions.paint_cost > 0) lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
+  } else if (service === 'Plumbing Repair') {
+    lines.push({ label: taskOptions.sub_option ? `${taskOptions.problem} — ${taskOptions.sub_option}` : taskOptions.problem, price: combinedBase })
+    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+  }
+  if (helperFee > 0 && helperCount > 0)
+    lines.push({ label: `Helpers: ${helperCount} helper${helperCount > 1 ? 's' : ''} assigned`, price: null, isHelperInfo: true })
+  const extrasMap = RECEIPT_EXTRAS_LOOKUP[service] || {}
+  ;(taskOptions.extras || []).forEach((extra) => {
+    const p = service === 'Aircon Maintenance' && extra === 'Freon Recharge'
+      ? 500 * (taskOptions.units || 1)
+      : (extrasMap[extra] ?? 0)
+    lines.push({ label: extra, price: p, isExtra: true })
+  })
+  return lines
+}
+
+function ReceiptModal({ booking, onClose }) {
+  const [downloading, setDownloading] = useState(false)
+  const receiptId = `receipt-modal-${booking.id}`
+
+  const taskOptions = (() => {
+    try { return booking?.task_options ? JSON.parse(booking.task_options) : null } catch { return null }
+  })()
+  const helperFee   = booking?.helper_fee ?? 0
+  const helperCount = (booking?.taskers_needed ?? 1) > 1 ? (booking.taskers_needed - 1) : 0
+  const breakdown   = buildReceiptBreakdown(taskOptions, helperFee, helperCount)
+
+  const receiptDate = booking?.created_at
+    ? (() => {
+        const d = new Date(booking.created_at)
+        const mo = d.getMonth(); const day = d.getDate(); const yr = d.getFullYear()
+        let h = d.getHours(); const min = d.getMinutes()
+        const ampm = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12
+        const mins = min === 0 ? '' : `:${String(min).padStart(2, '0')}`
+        return `${RECEIPT_MONTHS[mo]} ${day}, ${yr} at ${h}${mins} ${ampm}`
+      })()
+    : '—'
+
+  async function handleDownload() {
+    setDownloading(true)
+    const node = document.getElementById(receiptId)
+    toPng(node, { cacheBust: true, pixelRatio: 2 })
+      .then((dataUrl) => {
+        const link = document.createElement('a')
+        link.href = dataUrl
+        link.download = `Hanap-Receipt-${booking?.reference_number ?? 'receipt'}.png`
+        link.click()
+        URL.revokeObjectURL(dataUrl)
+      })
+      .catch((err) => console.error('Download failed:', err))
+      .finally(() => setDownloading(false))
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-8 overflow-y-auto" onClick={onClose}>
+      <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+        <div id={receiptId} className="bg-white rounded-2xl shadow-lg overflow-hidden">
+          {/* Header */}
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-8 pb-10 flex flex-col items-center text-center text-white">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <svg width="18" height="16" viewBox="0 0 20 18" fill="none">
+                  <path d="M10 1L1 8.5V17H7V12H13V17H19V8.5L10 1Z" fill="white" stroke="white" strokeWidth="0.4" strokeLinejoin="round"/>
+                  <rect x="8" y="12" width="4" height="5" rx="0.5" fill="#f97316"/>
+                  <rect x="13" y="3.2" width="2.4" height="3.8" rx="0.4" fill="white" opacity="0.85"/>
+                </svg>
+              </div>
+              <span className="text-white font-bold text-lg tracking-tight">Hanap.ph</span>
+            </div>
+            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4">
+              <CheckCircle2 size={44} className="text-white" />
+            </div>
+            <p className="text-2xl font-bold">Booking Confirmed!</p>
+            <p className="text-orange-100 text-sm mt-1">Payment Successful</p>
+            <div className="mt-4 bg-white/10 border border-white/20 rounded-xl px-6 py-3 w-full">
+              <p className="text-orange-100 text-xs uppercase tracking-widest mb-1">Reference Number</p>
+              <p className="text-xl font-bold tracking-widest">{booking?.reference_number ?? '—'}</p>
+            </div>
+          </div>
+
+          {/* Tear edge */}
+          <div className="relative h-4 bg-white">
+            <div className="absolute -top-3 left-0 right-0 flex justify-between px-2">
+              {Array.from({ length: 18 }).map((_, i) => (
+                <div key={i} className="w-5 h-5 rounded-full bg-gray-50" />
+              ))}
+            </div>
+          </div>
+
+          {/* Body */}
+          <div className="bg-white px-6 pb-6 space-y-4">
+            <p className="text-xs text-gray-400 uppercase tracking-widest text-center pt-2">Receipt Details</p>
+            <div className="space-y-3 text-sm">
+              {[
+                ['Receipt Date',  receiptDate],
+                ['Customer',      booking?.customer_name ?? '—'],
+                ['Service',       booking?.service ?? '—'],
+                ['Tasker',        booking?.taskerName ?? '—'],
+                ['Scheduled',     fmtReceiptDate(booking?.scheduled_date, booking?.scheduled_time)],
+                ['Address',       booking?.address ?? '—'],
+              ].map(([label, val]) => (
+                <div key={label} className="flex justify-between gap-4 border-b border-gray-50 pb-2">
+                  <span className="text-gray-400 flex-shrink-0">{label}</span>
+                  <span className="text-gray-800 text-right">{val}</span>
+                </div>
+              ))}
+              {/* Payment method */}
+              <div className="flex justify-between gap-4 items-start">
+                <span className="text-gray-400 flex-shrink-0">Payment Method</span>
+                <div className="text-right space-y-1">
+                  {(() => {
+                    const method    = booking?.payment_method
+                    const walletUsed = Number(booking?.wallet_amount_used) || 0
+                    if (!method) return (
+                      <span className="text-gray-800 flex items-center justify-end gap-1">
+                        <Wallet size={14} className="text-orange-500 flex-shrink-0" /> Hanap.ph E-Wallet
+                      </span>
+                    )
+                    if (walletUsed > 0) return (
+                      <>
+                        <span className="text-gray-800 flex items-center justify-end gap-1">
+                          <Wallet size={14} className="text-orange-500 flex-shrink-0" />
+                          Hanap.ph E-Wallet + {fmtReceiptPaymentMethod(method)}
+                        </span>
+                        {['gcash','paymaya','maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
+                          <p className="text-gray-400 text-xs">{maskReceiptPhone(booking.customer_phone)}</p>
+                        )}
+                      </>
+                    )
+                    return (
+                      <>
+                        <span className="text-gray-800">{fmtReceiptPaymentMethod(method)}</span>
+                        {['gcash','paymaya','maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
+                          <p className="text-gray-400 text-xs">{maskReceiptPhone(booking.customer_phone)}</p>
+                        )}
+                      </>
+                    )
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            {/* Price breakdown */}
+            {breakdown.length > 0 && (
+              <div className="border border-gray-100 rounded-xl p-4 space-y-2">
+                <p className="text-xs text-gray-400 uppercase tracking-widest mb-1">Price Breakdown</p>
+                {breakdown.map((line, i) => (
+                  line.isHelperInfo
+                    ? <div key={i} className="text-xs text-gray-400">{line.label}</div>
+                    : <div key={i} className="flex justify-between text-sm">
+                        <span className="text-gray-500">{line.label}</span>
+                        <span className="text-gray-700">{line.isExtra ? `+₱${line.price.toLocaleString()}` : `₱${line.price.toLocaleString()}`}</span>
+                      </div>
+                ))}
+              </div>
+            )}
+
+            {/* Total */}
+            <div className="flex justify-between items-center bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+              <span className="font-bold text-gray-800">Total Paid</span>
+              <span className="font-bold text-orange-500 text-lg">₱{Number(booking?.estimated_total ?? 0).toLocaleString()}</span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col gap-2 mt-2">
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base disabled:opacity-60"
+              >
+                {downloading ? 'Downloading...' : 'Download Receipt'}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-full bg-white border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl transition-colors text-base hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BookingCard({ booking, userId, onCancel }) {
   const navigate = useNavigate()
   const [showReviewModal, setShowReviewModal] = useState(false)
@@ -718,6 +963,7 @@ function BookingCard({ booking, userId, onCancel }) {
   const [proposalLoading, setProposalLoading] = useState(null)
   const [toast, setToast] = useState('')
   const [showTrackModal, setShowTrackModal] = useState(false)
+  const [showReceiptModal, setShowReceiptModal] = useState(false)
 
   const proposedDates = (() => {
     try { return JSON.parse(booking.proposed_dates) } catch { return [] }
@@ -927,6 +1173,10 @@ function BookingCard({ booking, userId, onCancel }) {
             setTimeout(() => setToast(''), 4000)
           }}
         />
+      )}
+
+      {showReceiptModal && (
+        <ReceiptModal booking={booking} onClose={() => setShowReceiptModal(false)} />
       )}
 
       {toast && (
@@ -1147,6 +1397,18 @@ function BookingCard({ booking, userId, onCancel }) {
               className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
             >
               Rebook
+            </button>
+          </div>
+        )}
+
+        {booking.reference_number && (
+          <div className="pt-1">
+            <button
+              onClick={() => setShowReceiptModal(true)}
+              className="flex items-center gap-1.5 text-sm font-semibold text-gray-500 hover:text-orange-500 transition-colors"
+            >
+              <CheckCircle2 size={15} />
+              View Receipt
             </button>
           </div>
         )}
@@ -2622,6 +2884,7 @@ function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
+  const [bookingSearch, setBookingSearch] = useState('')
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
@@ -2990,6 +3253,28 @@ function Dashboard() {
                 </div>
               ) : (
                 <>
+                  {/* Search bar */}
+                  <div className="relative mb-4">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={bookingSearch}
+                      onChange={(e) => setBookingSearch(e.target.value)}
+                      placeholder="Search by service, tasker name or reference number…"
+                      className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
+                    />
+                    {bookingSearch && (
+                      <button
+                        onClick={() => setBookingSearch('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+
                   {/* Status filter toggles */}
                   <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
                     {[
@@ -3016,12 +3301,25 @@ function Dashboard() {
                   </div>
 
                   <div className="space-y-4">
-                    {(bookingFilter === 'all' ? bookings : bookings.filter((b) => b.status === bookingFilter)).map((booking) => (
-                      <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
-                    ))}
-                    {bookingFilter !== 'all' && bookings.filter((b) => b.status === bookingFilter).length === 0 && (
-                      <p className="text-center text-gray-400 py-10">No bookings with this status.</p>
-                    )}
+                    {(() => {
+                      const q = bookingSearch.trim().toLowerCase()
+                      const filtered = bookings.filter((b) => {
+                        const matchesStatus = bookingFilter === 'all' || b.status === bookingFilter
+                        const matchesSearch = !q ||
+                          (b.service ?? '').toLowerCase().includes(q) ||
+                          (b.tasker_name ?? '').toLowerCase().includes(q) ||
+                          (b.reference_number ?? '').toLowerCase().includes(q)
+                        return matchesStatus && matchesSearch
+                      })
+                      if (filtered.length === 0) return (
+                        <p className="text-center text-gray-400 py-10">
+                          {bookings.length === 0 ? 'No bookings yet.' : 'No bookings match your search.'}
+                        </p>
+                      )
+                      return filtered.map((booking) => (
+                        <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
+                      ))
+                    })()}
                   </div>
                 </>
               )}

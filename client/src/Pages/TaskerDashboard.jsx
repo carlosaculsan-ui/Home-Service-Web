@@ -55,7 +55,6 @@ const NAV_ITEMS = [
   { key: 'profile',        label: 'Profile Management',icon: UserCog },
   { key: 'history',        label: 'Booking History',   icon: History },
   { key: 'contact-admin',  label: 'Contact Admin',     icon: Headset },
-  { key: 'break-room',     label: 'Break Room',        icon: Gamepad2 },
 ]
 
 function timeAgo(dateString) {
