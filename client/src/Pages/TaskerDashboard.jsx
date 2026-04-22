@@ -2645,22 +2645,6 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
 
-          {/* Working Hours */}
-          <div className="w-full">
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Working Hours</p>
-            {editingWork ? (
-              <input
-                type="text"
-                value={workFields.working_hours}
-                onChange={e => setWorkFields(prev => ({ ...prev, working_hours: e.target.value }))}
-                className={inputCls}
-                placeholder="e.g. 8AM - 5PM"
-              />
-            ) : (
-              <p className="text-sm text-gray-800 font-medium">{profile.working_hours ? (Array.isArray(profile.working_hours) ? profile.working_hours.join(', ') : profile.working_hours) : 'Not provided'}</p>
-            )}
-          </div>
-
           {/* Availability */}
           <div className="w-full">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-0.5">Availability</p>
