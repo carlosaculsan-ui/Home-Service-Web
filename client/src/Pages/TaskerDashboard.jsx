@@ -10,9 +10,10 @@ import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight,
+  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
+import BreakRoom from '../Components/BreakRoom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -54,6 +55,7 @@ const NAV_ITEMS = [
   { key: 'profile',        label: 'Profile Management',icon: UserCog },
   { key: 'history',        label: 'Booking History',   icon: History },
   { key: 'contact-admin',  label: 'Contact Admin',     icon: Headset },
+  { key: 'break-room',     label: 'Break Room',        icon: Gamepad2 },
 ]
 
 function timeAgo(dateString) {
@@ -3799,6 +3801,10 @@ function TaskerDashboard() {
                 <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
               )}
             </>
+          )}
+
+          {tab === 'break-room' && (
+            <BreakRoom taskerId={taskerId} />
           )}
 
          {tab === 'notifications' && (

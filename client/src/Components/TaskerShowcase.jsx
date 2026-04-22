@@ -98,7 +98,7 @@ function ProfileModal({ tasker, onClose, justOpenedRef }) {
 
         {/* Photo */}
         {avatar ? (
-          <img src={avatar} alt={tasker.name} className="w-full h-52 object-cover" />
+          <img src={avatar} alt={tasker.name} className="w-full h-52 object-cover object-top" />
         ) : (
           <div className="w-full h-52 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #374151, #1f2937)' }}>
             <span style={{ fontSize: '4rem', fontWeight: 900, color: '#f97316' }}>{tasker.name?.charAt(0) ?? '?'}</span>
@@ -277,6 +277,11 @@ function TaskerShowcase() {
         }
         .elite-card  { animation: elite-glow 2.2s ease-in-out infinite; }
         .elite-shine { animation: elite-sweep 3.5s ease-in-out infinite; animation-delay: 0.6s; }
+        @keyframes crown-bob {
+          0%, 100% { transform: translateY(0px) rotate(-6deg); }
+          50%       { transform: translateY(-10px) rotate(6deg); }
+        }
+        .crown-bob { animation: crown-bob 1.8s ease-in-out infinite; }
       `}</style>
 
       {/* Section heading */}
@@ -315,8 +320,15 @@ function TaskerShowcase() {
         >
           {taskers.map((tasker, index) => (
             <SwiperSlide key={index} style={{ width: "300px" }}>
+              {/* Crown above elite card */}
+              {tasker.isTop && (
+                <div className="flex justify-center mb-1" style={{ height: '2.5rem' }}>
+                  <span className="crown-bob text-4xl drop-shadow-[0_0_8px_rgba(255,215,0,0.9)]">👑</span>
+                </div>
+              )}
               <div
                 onMouseEnter={tasker.isTop ? fireEliteConfetti : undefined}
+                onTouchStart={tasker.isTop ? fireEliteConfetti : undefined}
                 className={`group relative h-[380px] rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 cursor-grab active:cursor-grabbing backdrop-blur-sm ${tasker.isTop ? 'elite-card hover:scale-107' : 'hover:scale-105'}`}
                 style={{
                   filter: tasker.isTop ? "brightness(1.05)" : "brightness(0.9)",
