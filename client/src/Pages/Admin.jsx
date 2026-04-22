@@ -3585,7 +3585,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'customer'),
         supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'tasker'),
         supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-        supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
+        supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed').or('is_refunded.is.null,is_refunded.eq.false'),
         supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
       ])
 
@@ -3674,7 +3674,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               { data: yearBookings },
             ] = await Promise.all([
               supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-              supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed'),
+              supabase.from('bookings').select('estimated_total, platform_fee, helper_fee, scheduled_date, created_at').eq('status', 'completed').or('is_refunded.is.null,is_refunded.eq.false'),
               supabase.from('bookings').select('created_at').gte('created_at', `${currentYear}-01-01`).lte('created_at', `${currentYear}-12-31`),
             ])
             const currentMonth = new Date().getMonth()
