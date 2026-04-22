@@ -817,29 +817,29 @@ function ReceiptModal({ booking, onClose }) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 px-4 py-8 overflow-y-auto" onClick={onClose}>
-      <div className="w-full max-w-md" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 py-4 overflow-y-auto" onClick={onClose}>
+      <div className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
         <div id={receiptId} className="bg-white rounded-2xl shadow-lg overflow-hidden">
           {/* Header */}
-          <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-6 pt-8 pb-10 flex flex-col items-center text-center text-white">
-            <div className="flex items-center gap-2 mb-6">
-              <div className="w-8 h-8 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
-                <svg width="18" height="16" viewBox="0 0 20 18" fill="none">
+          <div className="bg-gradient-to-br from-orange-500 to-orange-600 px-5 pt-5 pb-7 flex flex-col items-center text-center text-white">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center flex-shrink-0">
+                <svg width="16" height="14" viewBox="0 0 20 18" fill="none">
                   <path d="M10 1L1 8.5V17H7V12H13V17H19V8.5L10 1Z" fill="white" stroke="white" strokeWidth="0.4" strokeLinejoin="round"/>
                   <rect x="8" y="12" width="4" height="5" rx="0.5" fill="#f97316"/>
                   <rect x="13" y="3.2" width="2.4" height="3.8" rx="0.4" fill="white" opacity="0.85"/>
                 </svg>
               </div>
-              <span className="text-white font-bold text-lg tracking-tight">Hanap.ph</span>
+              <span className="text-white font-bold text-base tracking-tight">Hanap.ph</span>
             </div>
-            <div className="w-20 h-20 rounded-full bg-white/20 flex items-center justify-center mb-4">
-              <CheckCircle2 size={44} className="text-white" />
+            <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center mb-3">
+              <CheckCircle2 size={32} className="text-white" />
             </div>
-            <p className="text-2xl font-bold">Booking Confirmed!</p>
-            <p className="text-orange-100 text-sm mt-1">Payment Successful</p>
-            <div className="mt-4 bg-white/10 border border-white/20 rounded-xl px-6 py-3 w-full">
-              <p className="text-orange-100 text-xs uppercase tracking-widest mb-1">Reference Number</p>
-              <p className="text-xl font-bold tracking-widest">{booking?.reference_number ?? '—'}</p>
+            <p className="text-xl font-bold">Booking Confirmed!</p>
+            <p className="text-orange-100 text-xs mt-0.5">Payment Successful</p>
+            <div className="mt-3 bg-white/10 border border-white/20 rounded-xl px-4 py-2 w-full">
+              <p className="text-orange-100 text-xs uppercase tracking-widest mb-0.5">Reference Number</p>
+              <p className="text-lg font-bold tracking-widest">{booking?.reference_number ?? '—'}</p>
             </div>
           </div>
 
@@ -853,7 +853,7 @@ function ReceiptModal({ booking, onClose }) {
           </div>
 
           {/* Body */}
-          <div className="bg-white px-6 pb-6 space-y-4">
+          <div className="bg-white px-5 pb-5 space-y-3">
             <p className="text-xs text-gray-400 uppercase tracking-widest text-center pt-2">Receipt Details</p>
             <div className="space-y-3 text-sm">
               {[
@@ -931,13 +931,13 @@ function ReceiptModal({ booking, onClose }) {
               <button
                 onClick={handleDownload}
                 disabled={downloading}
-                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base disabled:opacity-60"
+                className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2.5 rounded-xl transition-colors text-sm disabled:opacity-60"
               >
                 {downloading ? 'Downloading...' : 'Download Receipt'}
               </button>
               <button
                 onClick={onClose}
-                className="w-full bg-white border border-gray-200 text-gray-600 font-semibold py-3 rounded-xl transition-colors text-base hover:bg-gray-50"
+                className="w-full bg-white border border-gray-200 text-gray-600 font-semibold py-2.5 rounded-xl transition-colors text-sm hover:bg-gray-50"
               >
                 Close
               </button>
