@@ -728,47 +728,26 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   }, [booking.id, booking.status, currentUserId])
 
   async function handleAction(newStatus) {
-    if (newStatus === 'completed') {
-      if (!window.confirm('Mark this job as complete? The customer will be notified to leave a review.')) return
+    if (newStatus === 'pending_confirmation') {
+      if (!window.confirm('Mark this job as complete? The customer will be asked to confirm.')) return
     }
     setActionLoading(newStatus)
     setStatusError('')
-    const updatePayload = { status: newStatus }
-    if (newStatus === 'completed' && booking.estimated_total != null) {
-      updatePayload.platform_fee = booking.estimated_total * 0.10
-      updatePayload.tasker_payout = booking.estimated_total * 0.90
-    }
-    const { error } = await supabase.from('bookings').update(updatePayload).eq('id', booking.id)
+    const { error } = await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
     setActionLoading(null)
     if (error) {
       setStatusError('Failed to update status. Try again.')
       return
     }
 
-    // Credit tasker wallet on completion
-    if (newStatus === 'completed' && updatePayload.tasker_payout && currentUserId) {
-      const payout = updatePayload.tasker_payout
-      await supabase.rpc('increment_wallet_balance', {
-        target_user_id: currentUserId,
-        increment_amount: payout,
-      })
-      await supabase.from('wallet_transactions').insert({
-        user_id: currentUserId,
-        booking_id: booking.id,
-        amount: payout,
-        type: 'credit',
-        description: `Earnings from booking ${booking.reference_number ?? booking.id}`,
-      })
-    }
-
     // Notify customer of status change
     if (booking.client_id) {
       const statusMessages = {
-        accepted: 'Your booking has been accepted by your tasker.',
-        rejected: 'Your booking has been declined by your tasker.',
-        on_the_way: 'Your tasker is on the way to your location.',
-        in_progress: 'Your tasker has started working on your task.',
-        completed: 'Your task has been completed. Please leave a review!',
+        accepted:             'Your booking has been accepted by your tasker.',
+        rejected:             'Your booking has been declined by your tasker.',
+        on_the_way:           'Your tasker is on the way to your location.',
+        in_progress:          'Your tasker has started working on your task.',
+        pending_confirmation: 'Your tasker has completed the job. Please confirm to finalize your booking.',
       }
       await supabase.from('notifications').insert({
         user_id: booking.client_id,
@@ -1074,12 +1053,19 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       {booking.status === 'in_progress' && (
         <div className="pt-1">
           <button
-            onClick={() => handleAction('completed')}
+            onClick={() => handleAction('pending_confirmation')}
             disabled={actionLoading !== null}
             className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-green-500 text-white hover:bg-green-600 disabled:opacity-50"
           >
-            {actionLoading === 'completed' ? 'Updating…' : <span className="flex items-center gap-1"><CheckCircle2 size={15} />Complete Job</span>}
+            {actionLoading === 'pending_confirmation' ? 'Updating…' : <span className="flex items-center gap-1"><CheckCircle2 size={15} />Complete Job</span>}
           </button>
+        </div>
+      )}
+
+      {/* Awaiting customer confirmation */}
+      {booking.status === 'pending_confirmation' && (
+        <div className="pt-1">
+          <p className="text-sm text-purple-600 font-medium">⏳ Waiting for customer to confirm job completion.</p>
         </div>
       )}
 

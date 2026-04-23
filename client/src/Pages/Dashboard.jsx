@@ -18,8 +18,9 @@ const STATUS_STYLES = {
   confirmed:   'bg-amber-100 text-amber-700',
   accepted:    'bg-green-100 text-green-700',
   on_the_way:  'bg-blue-100 text-blue-700',
-  in_progress: 'bg-orange-100 text-orange-700',
-  completed:   'bg-green-100 text-green-700',
+  in_progress:          'bg-orange-100 text-orange-700',
+  pending_confirmation: 'bg-purple-100 text-purple-700',
+  completed:            'bg-green-100 text-green-700',
   cancelled:   'bg-red-100 text-red-600',
   rejected:    'bg-red-100 text-red-600',
 }
@@ -28,8 +29,9 @@ const STATUS_LABELS = {
   confirmed:   'Awaiting Tasker',
   accepted:    'Accepted',
   on_the_way:  'Tasker On The Way',
-  in_progress: 'In Progress',
-  completed:   'Completed',
+  in_progress:          'In Progress',
+  pending_confirmation: 'Confirm Completion',
+  completed:            'Completed',
   cancelled:   'Cancelled',
   rejected:    'Rejected by Tasker',
 }
@@ -1019,6 +1021,7 @@ function BookingCard({ booking, userId, onCancel }) {
   const [hasReview, setHasReview] = useState(true)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [confirming, setConfirming] = useState(false)
   const [cancelling, setCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
   const [showChat, setShowChat] = useState(false)
@@ -1100,6 +1103,41 @@ function BookingCard({ booking, userId, onCancel }) {
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [booking.id, booking.status, userId])
+
+  async function handleConfirmComplete() {
+    setConfirming(true)
+    const platform_fee = booking.estimated_total != null ? booking.estimated_total * 0.10 : null
+    const tasker_payout = booking.estimated_total != null ? booking.estimated_total * 0.90 : null
+    const updatePayload = { status: 'completed' }
+    if (platform_fee != null) {
+      updatePayload.platform_fee = platform_fee
+      updatePayload.tasker_payout = tasker_payout
+    }
+    const { error } = await supabase.from('bookings').update(updatePayload).eq('id', booking.id)
+    if (!error && tasker_payout && booking.taskerUserId) {
+      await supabase.rpc('increment_wallet_balance', {
+        target_user_id: booking.taskerUserId,
+        increment_amount: tasker_payout,
+      })
+      await supabase.from('wallet_transactions').insert({
+        user_id: booking.taskerUserId,
+        booking_id: booking.id,
+        amount: tasker_payout,
+        type: 'credit',
+        description: `Earnings from booking ${booking.reference_number ?? booking.id}`,
+      })
+    }
+    if (!error && booking.taskerUserId) {
+      await supabase.from('notifications').insert({
+        user_id: booking.taskerUserId,
+        title: 'Job Confirmed',
+        message: 'The customer has confirmed the job is complete. Your earnings have been added to your wallet.',
+        is_read: false,
+      })
+    }
+    setConfirming(false)
+    if (!error) onCancel()
+  }
 
   async function handleCancel(reason, note) {
     setCancelling(true)
@@ -1401,6 +1439,21 @@ function BookingCard({ booking, userId, onCancel }) {
               className="text-sm font-semibold text-gray-500 hover:text-gray-700 border border-gray-300 hover:border-gray-400 px-3 py-1 rounded-lg transition-colors"
             >
               Cancel Booking
+            </button>
+          </div>
+        )}
+
+        {booking.status === 'pending_confirmation' && (
+          <div className="space-y-2 pt-1">
+            <p className="text-sm text-gray-600">
+              Your tasker has marked this job as complete. Please confirm to finalize the booking.
+            </p>
+            <button
+              onClick={handleConfirmComplete}
+              disabled={confirming}
+              className="text-sm font-semibold text-white bg-green-500 hover:bg-green-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+            >
+              {confirming ? 'Confirming…' : '✓ I Confirm Job is Done'}
             </button>
           </div>
         )}
