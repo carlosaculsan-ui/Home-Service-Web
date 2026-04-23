@@ -3008,6 +3008,13 @@ function ReviewsPanel() {
                       ))}
                     </div>
                   )}
+                  {r.video && (
+                    <video
+                      src={r.video}
+                      controls
+                      className="mt-2 w-full max-w-xs rounded-lg border border-gray-200 max-h-40"
+                    />
+                  )}
                   <div className="flex items-center gap-3 flex-wrap text-xs text-gray-400">
                     <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full font-medium">{r.service}</span>
                     {taskerMap[r.tasker_id] && (

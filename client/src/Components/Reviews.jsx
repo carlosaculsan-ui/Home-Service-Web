@@ -104,6 +104,15 @@ function Reviews() {
                 ))}
               </div>
             )}
+            {selectedReview.video && (
+              <div className="mb-4">
+                <video
+                  src={selectedReview.video}
+                  controls
+                  className="w-full rounded-xl max-h-64"
+                />
+              </div>
+            )}
 
             <span className="text-xs bg-orange-100 text-orange-600 px-2 py-1 rounded-full font-medium">
               {selectedReview.service}
@@ -157,11 +166,13 @@ function Reviews() {
               const name = review.reviewer_name || 'Anonymous'
               const initial = name[0]?.toUpperCase() ?? 'A'
               const hasImages = review.images?.length > 0
+              const hasVideo = !!review.video
+              const hasMedia = hasImages || hasVideo
               return (
                 <SwiperSlide key={review.id}>
                   <div
-                    onClick={() => hasImages && setSelectedReview(review)}
-                    className={`bg-white rounded-xl shadow-md p-5 hover:shadow-xl transition-shadow relative flex flex-col overflow-hidden ${hasImages ? 'cursor-pointer' : ''}`}
+                    onClick={() => hasMedia && setSelectedReview(review)}
+                    className={`bg-white rounded-xl shadow-md p-5 hover:shadow-xl transition-shadow relative flex flex-col overflow-hidden ${hasMedia ? 'cursor-pointer' : ''}`}
                     style={{ height: '220px' }}
                   >
                     {/* Stars */}
@@ -172,7 +183,7 @@ function Reviews() {
                     </div>
 
                     {/* Comment + optional thumbnail side by side */}
-                    <div className={`flex gap-2 mb-3 flex-1 min-h-0 ${hasImages ? 'items-start' : ''}`}>
+                    <div className={`flex gap-2 mb-3 flex-1 min-h-0 ${hasMedia ? 'items-start' : ''}`}>
                       <p className="text-gray-600 text-xs leading-relaxed line-clamp-4 flex-1">"{review.comment}"</p>
                       {hasImages && (
                         <div className="relative flex-shrink-0 rounded-lg overflow-hidden shadow-sm border border-gray-100" style={{ width: '64px', height: '64px' }}>
@@ -182,6 +193,11 @@ function Reviews() {
                               +{review.images.length - 1}
                             </span>
                           )}
+                        </div>
+                      )}
+                      {!hasImages && hasVideo && (
+                        <div className="relative flex-shrink-0 rounded-lg overflow-hidden shadow-sm border border-gray-100 bg-gray-800 flex items-center justify-center" style={{ width: '64px', height: '64px' }}>
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         </div>
                       )}
                     </div>
@@ -203,6 +219,12 @@ function Reviews() {
                           <div className="ml-auto flex items-center gap-1 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
                             <Camera size={10} />
                             <span>{review.images.length}</span>
+                          </div>
+                        )}
+                        {!hasImages && hasVideo && (
+                          <div className="ml-auto flex items-center gap-1 text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded-full">
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+                            <span>1</span>
                           </div>
                         )}
                       </div>

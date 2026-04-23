@@ -2138,7 +2138,7 @@ function TaskerReviews({ taskerId }) {
     async function fetchReviews() {
       const { data } = await supabase
         .from('reviews')
-        .select('id, rating, comment, images, is_flagged, is_hidden, created_at, customer_id')
+        .select('id, rating, comment, images, video, is_flagged, is_hidden, created_at, customer_id')
         .eq('tasker_id', taskerId)
         .order('created_at', { ascending: false })
 
@@ -2276,6 +2276,15 @@ function TaskerReviews({ taskerId }) {
                     />
                   ))}
                 </div>
+              )}
+
+              {/* Video */}
+              {review.video && (
+                <video
+                  src={review.video}
+                  controls
+                  className="w-full rounded-xl border border-gray-100 max-h-48"
+                />
               )}
             </div>
           )
@@ -2992,7 +3001,7 @@ function ReviewModal({ bookingId, onClose }) {
   useEffect(() => {
     supabase
       .from('reviews')
-      .select('id, rating, comment, images, is_flagged, is_hidden, created_at')
+      .select('id, rating, comment, images, video, is_flagged, is_hidden, created_at')
       .eq('booking_id', bookingId)
       .maybeSingle()
       .then(({ data }) => { setReview(data); setRevLoading(false) })
@@ -3069,6 +3078,15 @@ function ReviewModal({ bookingId, onClose }) {
                       />
                     ))}
                   </div>
+                )}
+
+                {/* Video */}
+                {review.video && (
+                  <video
+                    src={review.video}
+                    controls
+                    className="w-full rounded-xl border border-gray-100 max-h-48"
+                  />
                 )}
 
                 {/* Date */}

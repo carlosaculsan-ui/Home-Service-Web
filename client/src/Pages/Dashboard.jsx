@@ -76,6 +76,8 @@ async function moderateReview(comment) {
   }
 }
 
+const VIDEO_MAX_BYTES = 20 * 1024 * 1024 // 20 MB
+
 function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [rating, setRating] = useState(0)
   const [hovered, setHovered] = useState(0)
@@ -83,6 +85,20 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [status, setStatus] = useState('idle')
   const [submitMessage, setSubmitMessage] = useState('')
   const [photos, setPhotos] = useState([])
+  const [video, setVideo] = useState(null)
+  const [videoError, setVideoError] = useState('')
+
+  function handleVideoChange(e) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.size > VIDEO_MAX_BYTES) {
+      setVideoError('Video must be 20 MB or less.')
+      return
+    }
+    setVideoError('')
+    setVideo(file)
+  }
 
   async function handleSubmit() {
     if (rating === 0 || !comment.trim()) return
@@ -115,6 +131,21 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
       }
     }
 
+    let videoUrl = null
+    if (video) {
+      setSubmitMessage('Uploading video...')
+      const fileExt = video.name.split('.').pop()
+      const fileName = `vid_${booking.id}_${Date.now()}.${fileExt}`
+      const { error: vidUploadError } = await supabase.storage
+        .from('review-images')
+        .upload(fileName, video)
+      if (vidUploadError) { setStatus('error'); setSubmitMessage(''); return }
+      const { data: vidData } = supabase.storage
+        .from('review-images')
+        .getPublicUrl(fileName)
+      videoUrl = vidData.publicUrl
+    }
+
     const { error } = await supabase
       .from('reviews')
       .insert({
@@ -129,6 +160,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
         is_hidden: isFlagged,
         is_flagged: isFlagged,
         images: publicUrls.length > 0 ? publicUrls : null,
+        video: videoUrl,
       })
 
     if (error) { setStatus('error'); setSubmitMessage(''); return }
@@ -231,6 +263,38 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
               />
             </label>
           )}
+        </div>
+
+        <div className="mb-3">
+          <p className="text-sm font-semibold text-gray-600 mb-2">
+            Add Video <span className="text-xs text-gray-400 font-normal">(optional, max 20 MB)</span>
+          </p>
+          {video ? (
+            <div className="relative">
+              <video
+                src={URL.createObjectURL(video)}
+                controls
+                className="w-full rounded-lg border border-gray-200 max-h-40"
+              />
+              <button
+                type="button"
+                onClick={() => setVideo(null)}
+                className="absolute top-1.5 right-1.5 w-5 h-5 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
+              >✕</button>
+            </div>
+          ) : (
+            <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-500 border border-dashed border-gray-300 rounded-lg hover:border-orange-400 hover:text-orange-500 transition-colors">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
+              Add Video
+              <input
+                type="file"
+                accept="video/mp4,video/quicktime,video/webm"
+                className="hidden"
+                onChange={handleVideoChange}
+              />
+            </label>
+          )}
+          {videoError && <p className="text-xs text-red-500 mt-1">{videoError}</p>}
         </div>
 
         {status === 'submitting' && submitMessage && (
@@ -1458,7 +1522,7 @@ function CustomerReviews({ userId }) {
     async function fetchReviews() {
       const { data: reviewRows } = await supabase
         .from('reviews')
-        .select('id, booking_id, tasker_id, rating, comment, images, created_at')
+        .select('id, booking_id, tasker_id, rating, comment, images, video, created_at')
         .eq('client_id', userId)
         .order('created_at', { ascending: false })
 
@@ -1597,6 +1661,15 @@ function CustomerReviews({ userId }) {
                       className="w-16 h-16 object-cover rounded-lg border border-gray-100" />
                   ))}
                 </div>
+              )}
+
+              {/* Video */}
+              {r.video && (
+                <video
+                  src={r.video}
+                  controls
+                  className="w-full rounded-xl border border-gray-100 max-h-48"
+                />
               )}
             </div>
           )
