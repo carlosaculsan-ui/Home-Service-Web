@@ -1341,7 +1341,7 @@ function ProgressTracker({ step }) {
   )
 }
 
-const NOMINATIM_BASE_BOOKING = import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'
+const NOMINATIM_BASE_BOOKING = '/nominatim'
 
 function MapFlyTo({ coords }) {
   const map = useMap()
@@ -1350,22 +1350,30 @@ function MapFlyTo({ coords }) {
 }
 
 function InteractiveAddressMap({ address, onLandmarkFound }) {
-  const [coords, setCoords] = useState(null)
+  const [coords, setCoords] = useState([12.8797, 121.7740])
   const [searchQuery, setSearchQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
   const [selectedPin, setSelectedPin] = useState(null)
   const [flyTarget, setFlyTarget] = useState(null)
   const searchDebounce = useRef(null)
+  const geocodeDebounce = useRef(null)
 
   useEffect(() => {
     if (!address) return
-    fetch(`${NOMINATIM_BASE_BOOKING}/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`)
-      .then(r => r.json())
-      .then(data => {
-        if (data?.length > 0) setCoords([parseFloat(data[0].lat), parseFloat(data[0].lon)])
-      })
-      .catch(() => {})
+    clearTimeout(geocodeDebounce.current)
+    geocodeDebounce.current = setTimeout(() => {
+      fetch(`${NOMINATIM_BASE_BOOKING}/search?format=json&q=${encodeURIComponent(address)}&countrycodes=ph`)
+        .then(r => r.json())
+        .then(data => {
+          if (data?.length > 0) {
+            const pos = [parseFloat(data[0].lat), parseFloat(data[0].lon)]
+            setCoords(pos)
+            setFlyTarget(pos)
+          }
+        })
+        .catch(() => {})
+    }, 1000)
   }, [address])
 
   function handleSearchInput(val) {
@@ -1380,7 +1388,7 @@ function InteractiveAddressMap({ address, onLandmarkFound }) {
         .then(data => setSearchResults(data || []))
         .catch(() => {})
         .finally(() => setSearching(false))
-    }, 400)
+    }, 1000)
   }
 
   function handleSelectResult(result) {
@@ -1427,32 +1435,23 @@ function InteractiveAddressMap({ address, onLandmarkFound }) {
           </ul>
         )}
       </div>
-      {coords ? (
-        <div className="relative">
-          <MapContainer center={coords} zoom={15} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
-            <TileLayer
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            />
-            <Marker position={coords}>
-              <Popup>{address}</Popup>
+      <div className="relative">
+        <MapContainer center={coords} zoom={6} className="w-full h-48 rounded-xl" style={{ zIndex: 1 }}>
+          <TileLayer
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+          />
+          <Marker position={coords}>
+            <Popup>{address}</Popup>
+          </Marker>
+          {selectedPin && (
+            <Marker position={selectedPin} icon={pinIcon}>
+              <Popup>{searchQuery}</Popup>
             </Marker>
-            {selectedPin && (
-              <Marker position={selectedPin} icon={pinIcon}>
-                <Popup>{searchQuery}</Popup>
-              </Marker>
-            )}
-            {flyTarget && <MapFlyTo coords={flyTarget} />}
-          </MapContainer>
-        </div>
-      ) : (
-        <div className="w-full h-48 bg-gray-200 rounded-xl flex items-center justify-center border border-gray-200">
-          <div className="text-center">
-            <MapPin size={32} className="text-gray-400" />
-            <p className="text-sm text-gray-400">Locating address...</p>
-          </div>
-        </div>
-      )}
+          )}
+          {flyTarget && <MapFlyTo coords={flyTarget} />}
+        </MapContainer>
+      </div>
     </div>
   )
 }
@@ -1816,7 +1815,7 @@ function Step1({ service, onContinue, initialState }) {
       try {
         const { latitude, longitude } = position.coords
         const res = await fetch(
-          `${import.meta.env.DEV ? '/nominatim' : 'https://nominatim.openstreetmap.org'}/reverse?format=json&lat=${latitude}&lon=${longitude}`
+          `/nominatim/reverse?format=json&lat=${latitude}&lon=${longitude}`
         )
         const data = await res.json()
         if (data?.display_name) {

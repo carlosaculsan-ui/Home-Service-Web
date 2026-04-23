@@ -1,5 +1,8 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "rewrites": [
+    { "source": "/nominatim/:path*", "destination": "https://nominatim.openstreetmap.org/:path*" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
