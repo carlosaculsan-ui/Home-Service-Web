@@ -3278,6 +3278,119 @@ function BookingHistory({ taskerId, taskerUserId }) {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 
+function BookingsCalendarModal({ bookings, onClose }) {
+  const today = new Date()
+  const [year, setYear] = useState(today.getFullYear())
+  const [month, setMonth] = useState(today.getMonth())
+  const [selectedDate, setSelectedDate] = useState(null)
+
+  const acceptedBookings = bookings.filter((b) => b.status === 'accepted')
+
+  const bookedDates = {}
+  acceptedBookings.forEach((b) => {
+    if (!b.scheduled_date) return
+    const key = b.scheduled_date.slice(0, 10)
+    if (!bookedDates[key]) bookedDates[key] = []
+    bookedDates[key].push(b)
+  })
+
+  const firstDay = new Date(year, month, 1).getDay()
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December']
+  const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+  function prevMonth() {
+    if (month === 0) { setMonth(11); setYear(y => y - 1) }
+    else setMonth(m => m - 1)
+    setSelectedDate(null)
+  }
+  function nextMonth() {
+    if (month === 11) { setMonth(0); setYear(y => y + 1) }
+    else setMonth(m => m + 1)
+    setSelectedDate(null)
+  }
+
+  const cells = []
+  for (let i = 0; i < firstDay; i++) cells.push(null)
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+
+  const pad = (n) => String(n).padStart(2, '0')
+  const selectedKey = selectedDate ? `${year}-${pad(month + 1)}-${pad(selectedDate)}` : null
+  const selectedBookings = selectedKey ? (bookedDates[selectedKey] ?? []) : []
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">‹</button>
+          <span className="font-bold text-gray-800">{MONTH_NAMES[month]} {year}</span>
+          <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500">›</button>
+        </div>
+
+        {/* Day labels */}
+        <div className="grid grid-cols-7 mb-1">
+          {DAY_LABELS.map((d) => (
+            <div key={d} className="text-center text-xs font-semibold text-gray-400 py-1">{d}</div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-y-1">
+          {cells.map((day, i) => {
+            if (!day) return <div key={`e-${i}`} />
+            const key = `${year}-${pad(month + 1)}-${pad(day)}`
+            const hasBooking = !!bookedDates[key]
+            const isSelected = selectedDate === day
+            const isToday = day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
+            return (
+              <button
+                key={key}
+                onClick={() => setSelectedDate(isSelected ? null : day)}
+                className={`flex flex-col items-center justify-center py-1.5 rounded-lg transition-colors text-sm font-medium
+                  ${isSelected ? 'bg-orange-500 text-white' : isToday ? 'bg-orange-50 text-orange-600' : 'hover:bg-gray-100 text-gray-700'}
+                `}
+              >
+                {day}
+                {hasBooking && (
+                  <span className={`w-1.5 h-1.5 rounded-full mt-0.5 ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Selected date bookings */}
+        {selectedDate && (
+          <div className="mt-4 border-t border-gray-100 pt-3 space-y-2">
+            {selectedBookings.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center">No accepted bookings on this date.</p>
+            ) : (
+              <>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{MONTH_NAMES[month]} {selectedDate}</p>
+                {selectedBookings.map((b) => (
+                  <div key={b.id} className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{b.customer_name ?? '—'}</p>
+                      <p className="text-xs text-orange-500">{b.service ?? '—'}</p>
+                    </div>
+                    <span className="text-xs text-gray-400">{b.scheduled_time ?? ''}</span>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        <button onClick={onClose} className="mt-4 w-full py-2 text-sm text-gray-400 hover:text-gray-600">Close</button>
+      </div>
+    </div>
+  )
+}
+
 function TaskerDashboard() {
   const location = useLocation()
   const [tab, setTab] = useState(() => {
@@ -3289,6 +3402,7 @@ function TaskerDashboard() {
   const [bookings, setBookings] = useState([])
   const [bookingSearch, setBookingSearch] = useState('')
   const [bookingStatusFilter, setBookingStatusFilter] = useState('all')
+  const [showBookingCalendar, setShowBookingCalendar] = useState(false)
   const [taskerId, setTaskerId] = useState(null)
   const [taskerUserId, setTaskerUserId] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -3636,12 +3750,14 @@ function TaskerDashboard() {
 
           {tab === 'bookings' && (() => {
             const STATUS_FILTER_TABS = [
-              { key: 'all',        label: 'All' },
-              { key: 'pending',    label: 'Pending' },
-              { key: 'confirmed',  label: 'Confirmed' },
-              { key: 'on_the_way', label: 'On the Way' },
-              { key: 'completed',  label: 'Completed' },
-              { key: 'cancelled',  label: 'Cancelled' },
+              { key: 'all',                  label: 'All' },
+              { key: 'confirmed',            label: 'Pending' },
+              { key: 'accepted',             label: 'Accepted' },
+              { key: 'on_the_way',           label: 'On the Way' },
+              { key: 'in_progress',          label: 'In Progress' },
+              { key: 'pending_confirmation', label: 'Awaiting Confirmation' },
+              { key: 'completed',            label: 'Completed' },
+              { key: 'cancelled',            label: 'Cancelled' },
             ]
             const q = bookingSearch.trim().toLowerCase()
             const filteredBookings = bookings.filter((b) => {
@@ -3677,8 +3793,8 @@ function TaskerDashboard() {
                   )}
                 </div>
 
-                {/* Status filter tabs */}
-                <div className="flex flex-wrap gap-2 mb-6">
+                {/* Status filter tabs + calendar button */}
+                <div className="flex flex-wrap gap-2 mb-6 items-center">
                   {STATUS_FILTER_TABS.map((s) => (
                     <button
                       key={s.key}
@@ -3692,7 +3808,20 @@ function TaskerDashboard() {
                       {s.label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => setShowBookingCalendar(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-sm"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    Calendar
+                  </button>
                 </div>
+
+                {showBookingCalendar && (
+                  <BookingsCalendarModal bookings={bookings} onClose={() => setShowBookingCalendar(false)} />
+                )}
 
                 {loading ? (
                   <div className="flex justify-center mt-20">
