@@ -1,5 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import confetti from 'canvas-confetti'
+import { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { Swiper, SwiperSlide } from 'swiper/react'
@@ -138,23 +137,6 @@ function TaskerShowcase() {
   const [fetchError, setFetchError] = useState(false)
   const [selectedTasker, setSelectedTasker] = useState(null)
   const justOpenedRef = useRef(false)
-  const confettiFiredRef = useRef(false)
-
-  const fireEliteConfetti = useCallback((e) => {
-    if (confettiFiredRef.current) return
-    confettiFiredRef.current = true
-
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = (rect.left + rect.width / 2) / window.innerWidth
-    const y = (rect.top + rect.height / 2) / window.innerHeight
-
-    const gold = ['#FFD700', '#FFA500', '#FF8C00', '#FFFACD', '#FFC200']
-    confetti({ particleCount: 60, spread: 70, angle: 90, origin: { x, y: y - 0.05 }, colors: gold, scalar: 1.1 })
-    confetti({ particleCount: 30, spread: 50, angle: 60, origin: { x, y: y - 0.05 }, colors: gold, scalar: 0.9 })
-    confetti({ particleCount: 30, spread: 50, angle: 120, origin: { x, y: y - 0.05 }, colors: gold, scalar: 0.9 })
-
-    setTimeout(() => { confettiFiredRef.current = false }, 2000)
-  }, [])
 
 
   useEffect(() => {
@@ -201,13 +183,7 @@ function TaskerShowcase() {
           service_area: t.service_area,
         }
       })
-      // Identify top performer by jobs then rating
-      let topId = null
-      if (mapped.length > 0) {
-        const top = [...mapped].sort((a, b) => b.jobsCompleted - a.jobsCompleted || (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0))[0]
-        topId = top.id
-      }
-      setTaskers(mapped.map((t) => ({ ...t, isTop: t.id === topId })))
+      setTaskers(mapped)
       setLoading(false)
     }
     fetchTaskers()
@@ -264,26 +240,6 @@ function TaskerShowcase() {
           "linear-gradient(135deg, #0f0f0f 0%, #1a1a2e 50%, #0f0f0f 100%)",
       }}
     >
-      <style>{`
-        @keyframes elite-glow {
-          0%, 100% { box-shadow: 0 0 12px 2px rgba(255,215,0,0.55), 0 0 30px 6px rgba(255,165,0,0.25); }
-          50%       { box-shadow: 0 0 24px 6px rgba(255,215,0,0.85), 0 0 55px 12px rgba(255,165,0,0.4); }
-        }
-        @keyframes elite-sweep {
-          0%   { transform: translateX(-160%) skewX(-18deg); opacity: 0; }
-          15%  { opacity: 1; }
-          85%  { opacity: 1; }
-          100% { transform: translateX(320%) skewX(-18deg); opacity: 0; }
-        }
-        .elite-card  { animation: elite-glow 2.2s ease-in-out infinite; }
-        .elite-shine { animation: elite-sweep 3.5s ease-in-out infinite; animation-delay: 0.6s; }
-        @keyframes crown-bob {
-          0%, 100% { transform: translateY(0px) rotate(-6deg); }
-          50%       { transform: translateY(-10px) rotate(6deg); }
-        }
-        .crown-bob { animation: crown-bob 1.8s ease-in-out infinite; }
-      `}</style>
-
       {/* Section heading */}
       <h2 style={{ fontSize: '2.5rem', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.15em', textAlign: 'center', color: 'white', marginBottom: '2rem' }}>
         MEET OUR{' '}
@@ -300,11 +256,11 @@ function TaskerShowcase() {
           loop={true}
           slidesPerView="auto"
           coverflowEffect={{
-            rotate: 0, // flat rotation (mas clean tulad ng pic)
-            stretch: 0, // spacing between cards
-            depth: 100, // mas deep 3D
+            rotate: 0,
+            stretch: 0,
+            depth: 100,
             modifier: 2.5,
-            slideShadows: false, // IMPORTANT
+            slideShadows: false,
           }}
           autoplay={{
             delay: 3000,
@@ -320,65 +276,19 @@ function TaskerShowcase() {
         >
           {taskers.map((tasker, index) => (
             <SwiperSlide key={index} style={{ width: "300px" }}>
-              {/* Crown above elite card */}
-              {tasker.isTop && (
-                <div className="flex justify-center mb-1" style={{ height: '2.5rem' }}>
-                  <span className="crown-bob text-4xl drop-shadow-[0_0_8px_rgba(255,215,0,0.9)]">👑</span>
-                </div>
-              )}
               <div
-                onMouseEnter={tasker.isTop ? fireEliteConfetti : undefined}
-                onTouchStart={tasker.isTop ? fireEliteConfetti : undefined}
-                className={`group relative h-[380px] rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 cursor-grab active:cursor-grabbing backdrop-blur-sm ${tasker.isTop ? 'elite-card hover:scale-107' : 'hover:scale-105'}`}
+                className="group relative h-[380px] rounded-2xl overflow-hidden shadow-2xl transition-all duration-500 cursor-grab active:cursor-grabbing backdrop-blur-sm hover:scale-105"
                 style={{
-                  filter: tasker.isTop ? "brightness(1.05)" : "brightness(0.9)",
-                  background: tasker.isTop
-                    ? 'linear-gradient(160deg, #1c1a10 0%, #0f0e08 100%)'
-                    : undefined,
-                  backgroundImage: !tasker.isTop ? 'linear-gradient(to bottom, rgba(30,41,59,0.8), rgba(15,23,42,0.9))' : undefined,
-                  border: tasker.isTop
-                    ? '2px solid #FFD700'
-                    : '1px solid rgba(100,116,139,0.5)',
+                  filter: 'brightness(0.9)',
+                  backgroundImage: 'linear-gradient(to bottom, rgba(30,41,59,0.8), rgba(15,23,42,0.9))',
+                  border: '1px solid rgba(100,116,139,0.5)',
                 }}
                 onClick={() => {
                   justOpenedRef.current = true;
                   setSelectedTasker(tasker);
-                  setTimeout(() => {
-                    justOpenedRef.current = false;
-                  }, 300);
+                  setTimeout(() => { justOpenedRef.current = false }, 300);
                 }}
               >
-                {/* Elite sweep shine */}
-                {tasker.isTop && (
-                  <div
-                    className="elite-shine absolute inset-0 z-20 pointer-events-none"
-                    style={{
-                      background: 'linear-gradient(105deg, transparent 30%, rgba(255,215,0,0.18) 50%, transparent 70%)',
-                      width: '60%',
-                    }}
-                  />
-                )}
-
-                {/* Vortex Elite badge */}
-                {tasker.isTop && (
-                  <div className="absolute top-2.5 right-2.5 z-30 flex flex-col items-end gap-1">
-                    <span style={{
-                      background: 'linear-gradient(135deg, #FFD700, #FFA500)',
-                      color: '#1a1a1a',
-                      fontWeight: 900,
-                      fontSize: '0.55rem',
-                      letterSpacing: '0.08em',
-                      padding: '3px 8px',
-                      borderRadius: '999px',
-                      textTransform: 'uppercase',
-                      boxShadow: '0 2px 8px rgba(255,165,0,0.5)',
-                      whiteSpace: 'nowrap',
-                    }}>
-                      👑 VORTEX ELITE
-                    </span>
-                  </div>
-                )}
-
                 {/* Image */}
                 {tasker.profile_photo ? (
                   <img
@@ -402,7 +312,7 @@ function TaskerShowcase() {
 
                 {/* Content */}
                 <div className="p-5 text-left relative z-10">
-                  <h3 className={`font-bold text-lg mb-1 truncate group-hover:mb-2 transition-all duration-300 ${tasker.isTop ? 'text-yellow-200' : 'text-white'}`}>
+                  <h3 className="font-bold text-lg mb-1 truncate group-hover:mb-2 transition-all duration-300 text-white">
                     {tasker.name}
                   </h3>
                   <p className="text-orange-400 font-semibold text-sm mb-2">
@@ -420,11 +330,7 @@ function TaskerShowcase() {
 
                   <button
                     className="w-full py-2 px-3 rounded-lg font-semibold text-xs transition-all duration-300 shadow-lg hover:shadow-xl backdrop-blur-sm"
-                    style={tasker.isTop ? {
-                      background: 'linear-gradient(90deg, #FFD700, #FFA500)',
-                      color: '#1a1a1a',
-                      border: '1px solid rgba(255,215,0,0.4)',
-                    } : {
+                    style={{
                       background: 'linear-gradient(to right, #f97316, #ea580c)',
                       color: '#fff',
                       border: '1px solid rgba(249,115,22,0.3)',
@@ -438,7 +344,7 @@ function TaskerShowcase() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
 
                 {/* Glow effect */}
-                <div className={`absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl ${tasker.isTop ? 'bg-gradient-to-r from-yellow-500/20 via-transparent to-yellow-500/20' : 'bg-gradient-to-r from-orange-500/20 via-transparent to-orange-500/20'}`} />
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 blur-xl bg-gradient-to-r from-orange-500/20 via-transparent to-orange-500/20" />
               </div>
             </SwiperSlide>
           ))}
