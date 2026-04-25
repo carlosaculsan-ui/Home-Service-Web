@@ -11,6 +11,8 @@ import {
   CreditCard, RefreshCw, Search, Smile,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
+import GCashLogo from '../Assets/GCash_logo.png'
+import MayaLogo from '../Assets/Maya_logo.png'
 
 const TASKER_STATUS_STYLES = {
   pending:              'bg-yellow-100 text-yellow-700',
@@ -5149,6 +5151,10 @@ function TransactionsPanel() {
   const [searchLoading, setSearchLoading] = useState(false)
   const [filteredPayments, setFilteredPayments] = useState(null) // null = show all
   const searchTimerRef = useRef(null)
+  const [limit, setLimit] = useState(20)
+  const limitRef = useRef(20)
+  const [allTimeTotal, setAllTimeTotal] = useState(null)
+  const [allTimeMethodCounts, setAllTimeMethodCounts] = useState({ gcash: null, maya: null, card: null })
 
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
@@ -5218,7 +5224,7 @@ function TransactionsPanel() {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('https://api.paymongo.com/v1/payments?limit=20', {
+      const res = await fetch(`https://api.paymongo.com/v1/payments?limit=${limitRef.current}`, {
         headers: {
           Authorization: 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':'),
         },
@@ -5254,9 +5260,32 @@ function TransactionsPanel() {
     setRefundedSet(new Set((allRefunded ?? []).map((b) => b.paymongo_payment_id)))
   }
 
+  async function fetchAllTimeTotal() {
+    const { data } = await supabase
+      .from('bookings')
+      .select('estimated_total, payment_method')
+      .not('paymongo_payment_id', 'is', null)
+      .eq('is_refunded', false)
+    const rows = data ?? []
+    const total = rows.reduce((sum, b) => sum + Number(b.estimated_total ?? 0), 0)
+    setAllTimeTotal(total)
+    setAllTimeMethodCounts({
+      gcash: rows.filter((b) => b.payment_method === 'gcash').length,
+      maya:  rows.filter((b) => b.payment_method === 'paymaya' || b.payment_method === 'maya').length,
+      card:  rows.filter((b) => b.payment_method === 'card').length,
+    })
+  }
+
+  function handleLimitChange(newLimit) {
+    setLimit(newLimit)
+    limitRef.current = newLimit
+    fetchPayments()
+  }
+
   useEffect(() => {
     fetchPayments()
     fetchRefundedBookings()
+    fetchAllTimeTotal()
     const interval = setInterval(fetchPayments, 60000)
     return () => clearInterval(interval)
   }, [])
@@ -5654,9 +5683,9 @@ function TransactionsPanel() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 disabled:opacity-50"
                 >
                   <option value="" disabled>Select a reason</option>
-                  <option value="requested_by_customer">requested_by_customer</option>
-                  <option value="fraudulent">fraudulent</option>
-                  <option value="duplicate">duplicate</option>
+                  <option value="requested_by_customer">Requested by Customer</option>
+                  <option value="fraudulent">Fraudulent</option>
+                  <option value="duplicate">Duplicate</option>
                 </select>
                 {refundReasonError && <p className="text-xs text-red-500 mt-1">{refundReasonError}</p>}
               </div>
@@ -5710,22 +5739,32 @@ function TransactionsPanel() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-emerald-500">
           <div className="mb-2"><span className="text-3xl font-bold text-emerald-500">₱</span></div>
-          <div className="text-2xl md:text-3xl font-bold text-emerald-600">{formatAmount(totalCollected)}</div>
-          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Collected</div>
+          <div className="text-2xl md:text-3xl font-bold text-emerald-600">
+            {allTimeTotal === null
+              ? '...'
+              : allTimeTotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Collected (All-Time)</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-blue-500">
-          <div className="mb-2"><CreditCard className="w-8 h-8 text-blue-500" /></div>
-          <div className="text-2xl md:text-3xl font-bold text-blue-600">{gcashCount}</div>
+          <div className="mb-2"><img src={GCashLogo} alt="GCash" className="h-8 object-contain" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-blue-600">
+            {allTimeMethodCounts.gcash === null ? '...' : allTimeMethodCounts.gcash}
+          </div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">GCash Payments</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-purple-500">
-          <div className="mb-2"><CreditCard className="w-8 h-8 text-purple-500" /></div>
-          <div className="text-2xl md:text-3xl font-bold text-purple-600">{mayaCount}</div>
+          <div className="mb-2"><img src={MayaLogo} alt="Maya" className="h-8 object-contain" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-purple-600">
+            {allTimeMethodCounts.maya === null ? '...' : allTimeMethodCounts.maya}
+          </div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">PayMaya Payments</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-orange-500">
           <div className="mb-2"><CreditCard className="w-8 h-8 text-orange-500" /></div>
-          <div className="text-2xl md:text-3xl font-bold text-orange-600">{cardCount}</div>
+          <div className="text-2xl md:text-3xl font-bold text-orange-600">
+            {allTimeMethodCounts.card === null ? '...' : allTimeMethodCounts.card}
+          </div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Card Payments</div>
         </div>
       </div>
@@ -5832,6 +5871,24 @@ function TransactionsPanel() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Rows per page */}
+      <div className="flex items-center justify-end gap-3 mt-3">
+        <span className="text-sm text-gray-500">Rows per page:</span>
+        {[10, 20, 50].map((n) => (
+          <button
+            key={n}
+            onClick={() => handleLimitChange(n)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+              limit === n
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-orange-400 hover:text-orange-500'
+            }`}
+          >
+            {n}
+          </button>
+        ))}
       </div>
 
       {/* Auto-Refunded Bookings */}
