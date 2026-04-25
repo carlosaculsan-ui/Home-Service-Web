@@ -4169,6 +4169,7 @@ function Booking() {
         'Painting': 'Painting',
       }
       const role = serviceToRole[service] || service
+      const excludedTaskerId = location.state?.excluded_tasker_id ?? null
       const { data, error } = await supabase
         .from('taskers')
         .select('*')
@@ -4177,7 +4178,8 @@ function Booking() {
       if (error) {
         setTaskersError(true)
       } else {
-        const taskerIds = data.map(t => t.id)
+        const filtered = excludedTaskerId ? data.filter(t => t.id !== excludedTaskerId) : data
+        const taskerIds = filtered.map(t => t.id)
         const [{ data: completedBookings }, { data: reviewsData }] = await Promise.all([
           supabase.from('bookings').select('tasker_id').eq('status', 'completed'),
           supabase.from('reviews').select('tasker_id, rating').in('tasker_id', taskerIds).eq('is_hidden', false).eq('is_flagged', false),
@@ -4192,7 +4194,7 @@ function Booking() {
           reviewCountMap[r.tasker_id] = (reviewCountMap[r.tasker_id] || 0) + 1
           reviewSumMap[r.tasker_id]   = (reviewSumMap[r.tasker_id]   || 0) + (r.rating ?? 0)
         })
-        setTaskers(data.map((t) => ({
+        setTaskers(filtered.map((t) => ({
           id: t.id,
           name: t.name,
           role: t.role,

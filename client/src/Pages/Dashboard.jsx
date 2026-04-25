@@ -1052,6 +1052,10 @@ function ReceiptModal({ booking, onClose }) {
 
 function BookingCard({ booking, userId, onCancel }) {
   const navigate = useNavigate()
+  const bookingTaskOpts = typeof booking.task_options === 'string'
+    ? (() => { try { return JSON.parse(booking.task_options) } catch { return {} } })()
+    : (booking.task_options ?? {})
+  const isUrgentBooking = bookingTaskOpts?.is_urgent === true
   const [showReviewModal, setShowReviewModal] = useState(false)
   const [hasReview, setHasReview] = useState(true)
   const [reviewSubmitted, setReviewSubmitted] = useState(false)
@@ -1233,20 +1237,23 @@ function BookingCard({ booking, userId, onCancel }) {
   }
 
   async function handleRebook() {
-    const { data } = await supabase
-      .from('taskers')
-      .select('id')
-      .eq('id', booking.tasker_id)
-      .eq('status', 'approved')
-      .maybeSingle()
-    if (!data) {
-      alert('This tasker is no longer available. Please make a new booking.')
-      return
+    if (!isUrgentBooking) {
+      const { data } = await supabase
+        .from('taskers')
+        .select('id')
+        .eq('id', booking.tasker_id)
+        .eq('status', 'approved')
+        .maybeSingle()
+      if (!data) {
+        alert('This tasker is no longer available. Please make a new booking.')
+        return
+      }
     }
     navigate(`/booking/${booking.service}`, {
       state: {
         service: booking.service,
-        tasker_id: booking.tasker_id,
+        tasker_id: isUrgentBooking ? null : booking.tasker_id,
+        ...(isUrgentBooking ? { excluded_tasker_id: booking.tasker_id } : {}),
         task_options: booking.task_options,
         taskers_needed: booking.taskers_needed,
         is_rebook: true,
@@ -1548,7 +1555,7 @@ function BookingCard({ booking, userId, onCancel }) {
               onClick={handleRebook}
               className="text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-400 hover:border-orange-500 bg-white px-3 py-1.5 rounded-lg transition-colors"
             >
-              Rebook
+              {isUrgentBooking ? 'Find Another Tasker' : 'Rebook'}
             </button>
           </div>
         )}
