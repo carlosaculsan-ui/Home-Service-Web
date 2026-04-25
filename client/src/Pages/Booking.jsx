@@ -3319,7 +3319,7 @@ function Step1({ service, onContinue, initialState }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, travelFee = 0, isRebook, rebookOriginalId, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, bookingImagePreview, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, travelFee = 0, isRebook, rebookOriginalId, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
   const [cardErrors, setCardErrors] = useState({})
@@ -3791,6 +3791,22 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 }
               }
 
+              let bookingImageUrl = null
+              if (bookingImagePreview) {
+                try {
+                  const res = await fetch(bookingImagePreview)
+                  const blob = await res.blob()
+                  const ext = blob.type.split('/')[1] || 'jpg'
+                  const path = `booking-images/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+                  const { error: uploadError } = await supabase.storage
+                    .from('tasker-files')
+                    .upload(path, blob, { contentType: blob.type })
+                  if (!uploadError) {
+                    bookingImageUrl = supabase.storage.from('tasker-files').getPublicUrl(path).data.publicUrl
+                  }
+                } catch {}
+              }
+
               const { error: insertError } = await supabase.from('bookings').insert({
                 client_id,
                 tasker_id: tasker?.id,
@@ -3808,6 +3824,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 payment_method: paymentMethod,
                 reference_number: ref,
                 ai_image_analysis: aiImageAnalysis ?? null,
+                booking_image_url: bookingImageUrl,
                 customer_name: customerName,
                 customer_phone: customerPhone,
                 task_options: taskOptions ? JSON.stringify(taskOptions) : null,
@@ -4065,6 +4082,7 @@ function Booking() {
   const [taskSize, setTaskSize] = useState('')
   const [taskDetails, setTaskDetails] = useState('')
   const [aiImageAnalysis, setAiImageAnalysis] = useState(null)
+  const [bookingImagePreview, setBookingImagePreview] = useState(null)
   const [taskOptions, setTaskOptions] = useState(null)
   const [travelFee, setTravelFee] = useState(0)
   const [taskersNeeded, setTaskersNeeded] = useState(1)
@@ -4176,6 +4194,7 @@ function Booking() {
     setTaskSize(data.size)
     setTaskDetails(data.details)
     setAiImageAnalysis(data.aiImageAnalysis)
+    if (data._draft?.imagePreview) setBookingImagePreview(data._draft.imagePreview)
     if (data.taskOptions) setTaskOptions(data.taskOptions)
     if (data.taskersNeeded) setTaskersNeeded(data.taskersNeeded)
     if (data.estimatedTotal) setEstimatedTotal(data.estimatedTotal)
@@ -4290,6 +4309,7 @@ function Booking() {
             taskLandmark={taskLandmark}
             taskDetails={taskDetails}
             aiImageAnalysis={aiImageAnalysis}
+            bookingImagePreview={bookingImagePreview}
             taskOptions={taskOptions}
             taskersNeeded={taskersNeeded}
             taskDuration={taskDuration}

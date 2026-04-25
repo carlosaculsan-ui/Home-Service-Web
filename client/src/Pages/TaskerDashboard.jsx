@@ -954,6 +954,12 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
       )}
 
+      {booking.booking_image_url && (
+        <div className="rounded-xl overflow-hidden border border-gray-200">
+          <img src={booking.booking_image_url} alt="Customer uploaded" className="w-full max-h-48 object-cover" />
+        </div>
+      )}
+
       {booking.ai_image_analysis && (
         <div className="text-sm bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-green-800">
           <span className="font-semibold flex items-center gap-1 inline-flex"><Bot size={14} /> AI Analysis: </span>{booking.ai_image_analysis}
