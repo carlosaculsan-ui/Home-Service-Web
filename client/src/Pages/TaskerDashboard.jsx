@@ -642,6 +642,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [toast, setToast] = useState('')
   const [sharingLocation, setSharingLocation] = useState(false)
   const [showNav, setShowNav] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
   const watchIdRef = useRef(null)
   const locationChannelRef = useRef(null)
 
@@ -882,51 +883,93 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         ) : null
       })()}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-        {[
-          ['Date & Time', fmtHistoryDate(booking.scheduled_date, booking.scheduled_time)],
-          ['Booked on',  booking.created_at
-            ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
-            : '—'],
-          ['Task Size',   getTaskLabel(booking)],
-          ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
-            ? [['Furniture Category', booking.task_options.category]]
-            : []),
-          ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.furniture_dimensions
-            ? [['Dimensions', booking.task_options.furniture_dimensions]]
-            : []),
-          ...(booking.task_options?.service === 'Painting' && booking.task_options?.what_to_paint === 'Furniture' && booking.task_options?.furniture_category
-            ? [['Furniture Category', booking.task_options.furniture_category], ['Number of Pieces', booking.task_options.furniture_pieces]]
-            : []),
-          ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
-            ? [['Specify Problem', booking.task_options.sub_option]]
-            : []),
-          ...(booking.task_options?.service === 'Electrical' && booking.task_options?.sub_option
-            ? [['Specify Work', booking.task_options.sub_option]]
-            : []),
-          ['Address',     booking.address ?? '—'],
-          ...(booking.landmark ? [['Landmark', booking.landmark]] : []),
-          ['Reference',   booking.reference_number ?? '—'],
-        ].map(([label, val]) => (
-          <div key={label} className="flex gap-2">
-            <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
-            <span className="text-gray-700">{val}</span>
-          </div>
-        ))}
+      <div className="space-y-1 text-sm">
+        {/* Task Schedule — highlighted */}
+        <div className="flex gap-2 items-start">
+          <span className="text-gray-400 w-28 flex-shrink-0">Task Schedule</span>
+          <span className="font-semibold text-blue-600">{fmtHistoryDate(booking.scheduled_date, booking.scheduled_time)}</span>
+        </div>
 
-        {/* Customer name — always visible */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start">
+          <span className="text-gray-400 w-28 flex-shrink-0">Booked on</span>
+          <span className="text-gray-700">
+            {booking.created_at
+              ? (() => { const d = new Date(booking.created_at); return `${d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` })()
+              : '—'}
+          </span>
+        </div>
+
+        <div className="flex gap-2 items-start">
+          <span className="text-gray-400 w-28 flex-shrink-0">Task Size</span>
+          <span className="text-gray-700">{getTaskLabel(booking)}</span>
+        </div>
+
+        {booking.task_options?.service === 'Carpentry' && booking.task_options?.category && (
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Furniture Category</span>
+            <span className="text-gray-700">{booking.task_options.category}</span>
+          </div>
+        )}
+        {booking.task_options?.service === 'Carpentry' && booking.task_options?.furniture_dimensions && (
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Dimensions</span>
+            <span className="text-gray-700">{booking.task_options.furniture_dimensions}</span>
+          </div>
+        )}
+        {booking.task_options?.service === 'Painting' && booking.task_options?.what_to_paint === 'Furniture' && booking.task_options?.furniture_category && (
+          <>
+            <div className="flex gap-2 items-start">
+              <span className="text-gray-400 w-28 flex-shrink-0">Furniture Category</span>
+              <span className="text-gray-700">{booking.task_options.furniture_category}</span>
+            </div>
+            <div className="flex gap-2 items-start">
+              <span className="text-gray-400 w-28 flex-shrink-0">Number of Pieces</span>
+              <span className="text-gray-700">{booking.task_options.furniture_pieces}</span>
+            </div>
+          </>
+        )}
+        {booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option && (
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Specify Problem</span>
+            <span className="text-gray-700">{booking.task_options.sub_option}</span>
+          </div>
+        )}
+        {booking.task_options?.service === 'Electrical' && booking.task_options?.sub_option && (
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Specify Work</span>
+            <span className="text-gray-700">{booking.task_options.sub_option}</span>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-start">
+          <span className="text-gray-400 w-28 flex-shrink-0">Address</span>
+          <span className="text-gray-700">{booking.address ?? '—'}</span>
+        </div>
+        {booking.landmark && (
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Landmark</span>
+            <span className="text-gray-700">{booking.landmark}</span>
+          </div>
+        )}
+
+        <div className="flex gap-2 items-start">
           <span className="text-gray-400 w-28 flex-shrink-0">Customer</span>
           <span className="text-gray-700">{booking.customer_name ?? 'Unknown'}</span>
         </div>
 
-        {/* Phone */}
-        <div className="flex gap-2">
-          <span className="text-gray-400 w-28 flex-shrink-0">Phone</span>
-          {booking.customer_phone
-            ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium flex items-center gap-1"><Phone size={14} />{booking.customer_phone}</a>
-            : <span className="text-gray-700">Not provided</span>
-          }
+        {/* Reference & Phone — bottom row */}
+        <div className="flex gap-6 pt-1">
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Reference</span>
+            <span className="text-gray-700">{booking.reference_number ?? '—'}</span>
+          </div>
+          <div className="flex gap-2 items-center">
+            <span className="text-gray-400 flex-shrink-0">Phone</span>
+            {booking.customer_phone
+              ? <a href={`tel:${booking.customer_phone}`} className="text-orange-500 underline font-medium flex items-center gap-1"><Phone size={14} />{booking.customer_phone}</a>
+              : <span className="text-gray-700">Not provided</span>
+            }
+          </div>
         </div>
       </div>
 
@@ -966,9 +1009,31 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       )}
 
       {booking.booking_image_url && (
-        <div className="rounded-xl overflow-hidden border border-gray-200">
-          <img src={booking.booking_image_url} alt="Customer uploaded" className="w-full max-h-48 object-cover" />
-        </div>
+        <>
+          <button
+            onClick={() => setShowImageModal(true)}
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+          >
+            <img src={booking.booking_image_url} alt="Customer uploaded" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+            View customer photo
+          </button>
+          {showImageModal && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+              onClick={() => setShowImageModal(false)}
+            >
+              <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setShowImageModal(false)}
+                  className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+                >
+                  ×
+                </button>
+                <img src={booking.booking_image_url} alt="Customer uploaded" className="w-full rounded-xl shadow-lg" />
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {booking.ai_image_analysis && (
