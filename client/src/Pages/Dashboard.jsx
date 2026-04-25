@@ -1258,6 +1258,10 @@ function BookingCard({ booking, userId, onCancel }) {
         taskers_needed: booking.taskers_needed,
         is_rebook: true,
         original_booking_id: booking.id,
+        prefill_address: booking.address ?? '',
+        prefill_landmark: booking.landmark ?? '',
+        prefill_details: booking.task_description ?? '',
+        prefill_size: booking.task_size ?? '',
       },
     })
   }

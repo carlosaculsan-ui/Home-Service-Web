@@ -4134,7 +4134,14 @@ function Booking() {
         : state.task_options
       if (opts) setTaskOptions(opts)
     } catch {}
-    if (state.tasker_id) {
+    if (state.excluded_tasker_id) {
+      // Urgent rebook — pre-fill Step 1 fields and jump straight to tasker selection
+      if (state.prefill_address) setTaskAddress(state.prefill_address)
+      if (state.prefill_landmark) setTaskLandmark(state.prefill_landmark)
+      if (state.prefill_details) setTaskDetails(state.prefill_details)
+      if (state.prefill_size) setTaskSize(state.prefill_size)
+      setStep(1)
+    } else if (state.tasker_id) {
       supabase.from('taskers').select('*').eq('id', state.tasker_id).single()
         .then(({ data: t }) => {
           if (!t) return
