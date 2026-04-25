@@ -10,9 +10,10 @@ import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2,
+  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
+import EmojiPicker from 'emoji-picker-react'
 import BreakRoom from '../Components/BreakRoom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -2753,8 +2754,10 @@ function ContactAdminChat({ taskerUserId }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const pickerRef = useRef(null)
 
   // Fetch admin user_id
   useEffect(() => {
@@ -2847,6 +2850,22 @@ function ContactAdminChat({ taskerUserId }) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }
 
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setInput((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    inputRef.current?.focus()
+  }
+
   const fmtTime = (iso) => iso
     ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : ''
@@ -2911,7 +2930,12 @@ function ContactAdminChat({ taskerUserId }) {
       </div>
 
       {/* Input */}
-      <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+      <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+        {showEmojiPicker && (
+          <div ref={pickerRef} className="absolute bottom-16 right-4 z-50">
+            <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+          </div>
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -2921,6 +2945,13 @@ function ContactAdminChat({ taskerUserId }) {
           placeholder="Type a message..."
           className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
         />
+        <button
+          type="button"
+          onClick={() => setShowEmojiPicker((p) => !p)}
+          className="p-2.5 rounded-xl text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0"
+        >
+          <Smile size={20} />
+        </button>
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}

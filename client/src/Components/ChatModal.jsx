@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send, Phone } from 'lucide-react'
+import { X, Send, Phone, Smile } from 'lucide-react'
 import { supabase } from '../supabase'
+import EmojiPicker from 'emoji-picker-react'
 
 function formatTime(iso) {
   if (!iso) return ''
@@ -20,6 +21,8 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const [bookingInfo, setBookingInfo] = useState(null)
   const [isCustomer, setIsCustomer] = useState(false)
   const [taskerPhone, setTaskerPhone] = useState(null)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const pickerRef = useRef(null)
 
   // ── Fetch booking info + user role for intro message ───────────────────────
   useEffect(() => {
@@ -158,6 +161,22 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     }
   }
 
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setInput((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    inputRef.current?.focus()
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -270,7 +289,12 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           </div>
 
           {/* Input */}
-          <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+          <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+            {showEmojiPicker && (
+              <div ref={pickerRef} className="absolute bottom-16 right-4 z-50">
+                <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+              </div>
+            )}
             <input
               ref={inputRef}
               type="text"
@@ -280,6 +304,13 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
               placeholder="Type a message..."
               className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
             />
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((p) => !p)}
+              className="p-2.5 rounded-xl text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0"
+            >
+              <Smile size={20} />
+            </button>
             <button
               onClick={handleSend}
               disabled={!input.trim() || sending}

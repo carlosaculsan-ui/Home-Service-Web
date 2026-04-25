@@ -8,8 +8,9 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, DollarSign, Calendar, ChevronRight, Megaphone,
-  CreditCard, RefreshCw, Search,
+  CreditCard, RefreshCw, Search, Smile,
 } from 'lucide-react'
+import EmojiPicker from 'emoji-picker-react'
 
 const TASKER_STATUS_STYLES = {
   pending:              'bg-yellow-100 text-yellow-700',
@@ -4094,8 +4095,10 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const pickerRef = useRef(null)
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -4170,6 +4173,22 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
     ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : ''
 
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setInput((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    inputRef.current?.focus()
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Chat header */}
@@ -4217,7 +4236,12 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
       </div>
 
       {/* Input */}
-      <div className="flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+      <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+        {showEmojiPicker && (
+          <div ref={pickerRef} className="absolute bottom-16 right-4 z-50">
+            <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+          </div>
+        )}
         <input
           ref={inputRef}
           type="text"
@@ -4227,6 +4251,13 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
           placeholder="Type a message..."
           className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
         />
+        <button
+          type="button"
+          onClick={() => setShowEmojiPicker((p) => !p)}
+          className="p-2.5 rounded-xl text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0"
+        >
+          <Smile size={20} />
+        </button>
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
@@ -4906,6 +4937,11 @@ function AnnouncementsPanel() {
   const [editingId, setEditingId] = useState(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const pickerRef = useRef(null)
+  const messageRef = useRef(null)
+  const formRef = useRef(null)
+  const titleInputRef = useRef(null)
 
   async function fetchAnnouncements() {
     const { data } = await supabase
@@ -4923,6 +4959,10 @@ function AnnouncementsPanel() {
     setTitle(ann.title)
     setMessage(ann.message)
     setError('')
+    setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      titleInputRef.current?.focus()
+    }, 50)
   }
 
   function cancelEdit() {
@@ -4960,6 +5000,22 @@ function AnnouncementsPanel() {
     setSaving(false)
     cancelEdit()
     fetchAnnouncements()
+  }
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setMessage((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    messageRef.current?.focus()
   }
 
   return (
@@ -5006,26 +5062,42 @@ function AnnouncementsPanel() {
       </div>
 
       {/* Create / Edit Form */}
-      <div className="bg-white rounded-2xl shadow-sm p-5">
+      <div ref={formRef} className="bg-white rounded-2xl shadow-sm p-5">
         <p className="font-bold text-gray-800 text-sm mb-4">
           {editingId ? 'Edit Announcement' : 'New Announcement'}
         </p>
         <form onSubmit={handleSubmit} className="space-y-3">
           <input
+            ref={titleInputRef}
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Title"
             className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
           />
-          <textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Message"
-            rows={4}
-            style={{ minHeight: 100 }}
-            className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors resize-none"
-          />
+          <div className="relative">
+            <textarea
+              ref={messageRef}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Message"
+              rows={4}
+              style={{ minHeight: 100 }}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors resize-none"
+            />
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker((p) => !p)}
+              className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg text-gray-400 hover:text-orange-500 transition-colors"
+            >
+              <Smile size={18} />
+            </button>
+            {showEmojiPicker && (
+              <div ref={pickerRef} className="absolute bottom-10 right-0 z-50">
+                <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+              </div>
+            )}
+          </div>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex gap-3">
             <button

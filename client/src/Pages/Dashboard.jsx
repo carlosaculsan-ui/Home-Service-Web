@@ -8,7 +8,8 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2 } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile } from 'lucide-react'
+import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
@@ -89,6 +90,25 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
   const [photos, setPhotos] = useState([])
   const [video, setVideo] = useState(null)
   const [videoError, setVideoError] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const pickerRef = useRef(null)
+  const commentRef = useRef(null)
+
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setComment((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    commentRef.current?.focus()
+  }
 
   function handleVideoChange(e) {
     const file = e.target.files?.[0]
@@ -219,13 +239,28 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
         </div>
 
         <p className="text-sm font-semibold text-gray-600 mb-1">Your Comment <span className="text-red-400">*</span></p>
-        <textarea
-          value={comment}
-          onChange={(e) => { setComment(e.target.value); if (status === 'error') setStatus('idle') }}
-          placeholder="Share your experience..."
-          rows={3}
-          className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400 mb-3"
-        />
+        <div className="relative mb-3">
+          <textarea
+            ref={commentRef}
+            value={comment}
+            onChange={(e) => { setComment(e.target.value); if (status === 'error') setStatus('idle') }}
+            placeholder="Share your experience..."
+            rows={3}
+            className="w-full border border-gray-200 rounded-lg p-3 text-sm text-gray-700 resize-none outline-none focus:border-orange-400"
+          />
+          <button
+            type="button"
+            onClick={() => setShowEmojiPicker((p) => !p)}
+            className="absolute bottom-2.5 right-2.5 p-1.5 rounded-lg text-gray-400 hover:text-orange-500 transition-colors"
+          >
+            <Smile size={18} />
+          </button>
+          {showEmojiPicker && (
+            <div ref={pickerRef} className="absolute bottom-10 right-0 z-50">
+              <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+            </div>
+          )}
+        </div>
 
         <div className="mb-3">
           <p className="text-sm font-semibold text-gray-600 mb-2">
