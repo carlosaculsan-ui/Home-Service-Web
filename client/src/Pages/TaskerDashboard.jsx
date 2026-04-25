@@ -871,11 +871,16 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </span>
       </div>
 
-      {booking.task_options?.is_urgent && (
-        <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-semibold">
-          🚨 Urgent Same-Day Emergency — Please respond as soon as possible
-        </div>
-      )}
+      {(() => {
+        const opts = typeof booking.task_options === 'string'
+          ? (() => { try { return JSON.parse(booking.task_options) } catch { return {} } })()
+          : (booking.task_options ?? {})
+        return opts.is_urgent ? (
+          <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-semibold">
+            🚨 Urgent Same-Day Emergency — Please respond as soon as possible
+          </div>
+        ) : null
+      })()}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
         {[
