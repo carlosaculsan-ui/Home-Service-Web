@@ -871,6 +871,12 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </span>
       </div>
 
+      {booking.task_options?.is_urgent && (
+        <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-semibold">
+          🚨 Urgent Same-Day Emergency — Please respond as soon as possible
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
         {[
           ['Date & Time', fmtHistoryDate(booking.scheduled_date, booking.scheduled_time)],

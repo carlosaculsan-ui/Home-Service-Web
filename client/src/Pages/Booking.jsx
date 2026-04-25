@@ -156,11 +156,16 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const isUrgentPlumbing = taskOptions?.is_urgent === true
+  const currentHour = now.getHours()
+  const isOutsideHours = isUrgentPlumbing && (currentHour < 7 || currentHour >= 17)
+  const urgentTargetDate = isOutsideHours
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    : todayStart
   const taskDuration = getTaskDuration(taskOptions)
   const isFullDay = taskDuration >= 8
 
-  const [viewMonth, setViewMonth] = useState(now.getMonth())
-  const [viewYear, setViewYear] = useState(now.getFullYear())
+  const [viewMonth, setViewMonth] = useState(isOutsideHours ? urgentTargetDate.getMonth() : now.getMonth())
+  const [viewYear, setViewYear] = useState(isOutsideHours ? urgentTargetDate.getFullYear() : now.getFullYear())
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [leaveDates, setLeaveDates] = useState(new Set())
@@ -239,8 +244,9 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
-  const isPast = (d) => isUrgentPlumbing ? getDateObj(d) < todayStart : getDateObj(d) <= todayStart
+  const isPast = (d) => isUrgentPlumbing ? getDateObj(d) < urgentTargetDate : getDateObj(d) <= todayStart
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
+  const isUrgentTarget = (d) => getDateObj(d).getTime() === urgentTargetDate.getTime()
 
   const isBlocked = (d) => {
     if (!d) return false
@@ -276,9 +282,28 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const handleDayClick = (d) => {
-    if (!d || isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isToday(d))) return
-    setSelectedDate(getDateObj(d))
+    if (!d || isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isUrgentTarget(d))) return
+    const newDate = getDateObj(d)
+    setSelectedDate(newDate)
     setSelectedSlot(null)
+
+    // Urgent non-full-day: auto-pick the earliest available slot so the button enables immediately
+    if (isUrgentPlumbing && !isFullDay) {
+      const dateKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+      const dateBookings = bookingsByDate[dateKey] || []
+      const isTargetToday = newDate.getTime() === todayStart.getTime()
+      for (const slot of TIME_SLOTS) {
+        const h = parseInt(slot.split(':')[0])
+        const available = isSlotAvailable(h, dateBookings, taskOptions)
+        const avail = taskerAvailability
+        const blockedByAvail = avail === 'Part Time - AM' ? h >= 13 : avail === 'Part Time - PM' ? h <= 12 : false
+        const isPastSlot = isTargetToday && h <= now.getHours() + 1
+        if (available && !blockedByAvail && !isPastSlot) {
+          setSelectedSlot(slot)
+          break
+        }
+      }
+    }
   }
 
   const selectedDateKey = selectedDate
@@ -355,20 +380,20 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                   {d ? (
                     <button
                       onClick={() => handleDayClick(d)}
-                      disabled={isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isToday(d))}
+                      disabled={isPast(d) || isBlocked(d) || (isUrgentPlumbing && !isUrgentTarget(d))}
                       className={`w-8 h-8 rounded-full text-sm flex items-center justify-center transition-colors
                         ${isSelected(d)
                           ? 'bg-orange-500 text-white font-bold'
-                          : isUrgentPlumbing && !isToday(d)
+                          : isUrgentPlumbing && !isUrgentTarget(d)
                           ? 'text-gray-300 cursor-not-allowed'
                           : isBlocked(d) && !isPast(d)
                           ? 'bg-red-100 text-red-300 cursor-not-allowed'
                           : isPast(d)
                           ? 'text-gray-300 cursor-not-allowed'
+                          : isUrgentTarget(d) && isUrgentPlumbing
+                          ? 'ring-2 ring-red-500 bg-red-50 text-red-600 font-bold hover:bg-red-100 cursor-pointer'
                           : isToday(d)
-                          ? isUrgentPlumbing
-                            ? 'ring-2 ring-red-500 bg-red-50 text-red-600 font-bold hover:bg-red-100 cursor-pointer'
-                            : 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
+                          ? 'ring-2 ring-orange-400 text-orange-600 font-bold hover:bg-orange-100 cursor-pointer'
                           : 'text-gray-700 hover:bg-orange-100 cursor-pointer'
                         }`}
                     >
@@ -378,6 +403,14 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                 </div>
               ))}
             </div>
+
+            {/* Outside-hours notice for urgent plumbing */}
+            {isUrgentPlumbing && isOutsideHours && (
+              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
+                <span>🕐</span>
+                <span>Our service hours are <strong>7AM–5PM</strong>. Since it's currently outside those hours, your urgent booking will be scheduled for <strong>tomorrow</strong>.</span>
+              </div>
+            )}
 
             {/* Time slots */}
             {selectedDate && (
