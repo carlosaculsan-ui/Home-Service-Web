@@ -904,7 +904,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
           : (booking.task_options ?? {})
         return opts.is_urgent ? (
           <div className="flex items-center gap-1.5 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-semibold">
-            🚨 Urgent Same-Day Emergency — Please respond as soon as possible
+            🚨 Urgent — Please respond as soon as possible
           </div>
         ) : null
       })()}
