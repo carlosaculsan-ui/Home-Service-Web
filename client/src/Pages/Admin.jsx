@@ -209,29 +209,56 @@ function TaskerApplications() {
             </div>
 
             {/* Personal Information */}
-            <div className="mb-4">
-              <h4 className="text-xs font-semibold text-orange-500 uppercase mb-2">Personal Information</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div><span className="text-gray-500">Email:</span> <span className="font-medium">{t.email || '—'}</span></div>
-                <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{t.phone || '—'}</span></div>
-                <div><span className="text-gray-500">Age:</span> <span className="font-medium">{t.age || '—'}</span></div>
-                <div><span className="text-gray-500">Gender:</span> <span className="font-medium">{t.gender || '—'}</span></div>
-                <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{t.address || '—'}</span></div>
-                <div><span className="text-gray-500">Service Area:</span> <span className="font-medium">{t.service_area || '—'}</span></div>
-                <div><span className="text-gray-500">Postal Code:</span> <span className="font-medium">{t.postal_code || '—'}</span></div>
+            <div className="mb-5">
+              <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Personal Information</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                  <p className="font-medium text-gray-800 break-all">{t.email || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                  <p className="font-medium text-gray-800">{t.phone || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Age</p>
+                  <p className="font-medium text-gray-800">{t.age || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Gender</p>
+                  <p className="font-medium text-gray-800">{t.gender || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Service Area</p>
+                  <p className="font-medium text-gray-800">{t.service_area || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Postal Code</p>
+                  <p className="font-medium text-gray-800">{t.postal_code || '—'}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-3">
+                  <p className="text-xs text-gray-400 mb-0.5">Address</p>
+                  <p className="font-medium text-gray-800">{t.address || '—'}</p>
+                </div>
               </div>
             </div>
 
             {/* Service Information */}
-            <div className="mb-4">
-              <h4 className="text-xs font-semibold text-orange-500 uppercase mb-2">Service Information</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-                <div><span className="text-gray-500">Service Role:</span> <span className="font-medium">{t.role || '—'}</span></div>
-                <div><span className="text-gray-500">Experience:</span> <span className="font-medium">{t.bio || '—'}</span></div>
-                <div><span className="text-gray-500">Working Hours:</span> <span className="font-medium">{Array.isArray(t.working_hours) ? t.working_hours.join(', ') : t.working_hours || '—'}</span></div>
-                <div><span className="text-gray-500">Availability:</span> <span className="font-medium">
-                  {Array.isArray(t.availability) ? t.availability.join(', ') : t.availability || '—'}
-                </span></div>
+            <div className="mb-5">
+              <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Service Information</h4>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Service Role</p>
+                  <p className="font-medium text-gray-800">{t.role || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-400 mb-0.5">Availability</p>
+                  <p className="font-medium text-gray-800">{Array.isArray(t.availability) ? t.availability.join(', ') : t.availability || '—'}</p>
+                </div>
+                <div className="col-span-2 sm:col-span-3">
+                  <p className="text-xs text-gray-400 mb-0.5">Experience</p>
+                  <p className="font-medium text-gray-800">{t.bio || '—'}</p>
+                </div>
               </div>
             </div>
 
@@ -3424,6 +3451,7 @@ function HelperPayrollModal({ period, onClose }) {
           ) : helperRows.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No helper fees recorded for this period.</p>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
@@ -3451,6 +3479,7 @@ function HelperPayrollModal({ period, onClose }) {
                 </tr>
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
