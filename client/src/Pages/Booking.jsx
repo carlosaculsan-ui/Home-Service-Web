@@ -303,7 +303,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
         const h = parseInt(slot.split(':')[0])
         const available = isSlotAvailable(h, dateBookings, taskOptions)
         const avail = taskerAvailability
-        const blockedByAvail = avail === 'Part Time - AM' ? h >= 13 : avail === 'Part Time - PM' ? h <= 12 : false
+        const blockedByAvail = (avail === 'Half Day - AM' || avail === 'Part Time - AM') ? h >= 13 : (avail === 'Half Day - PM' || avail === 'Part Time - PM') ? h <= 12 : false
         const isPastSlot = isTargetToday && h <= now.getHours() + 1
         if (available && !blockedByAvail && !isPastSlot) {
           setSelectedSlot(slot)
@@ -436,8 +436,8 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                     const h = parseInt(slot.split(':')[0])
                     const available = isSlotAvailable(h, selectedDateBookings, taskOptions)
                     const avail = taskerAvailability
-                    const blockedByAvail = avail === 'Part Time - AM' ? h >= 13
-                      : avail === 'Part Time - PM' ? h <= 12
+                    const blockedByAvail = (avail === 'Half Day - AM' || avail === 'Part Time - AM') ? h >= 13
+                      : (avail === 'Half Day - PM' || avail === 'Part Time - PM') ? h <= 12
                       : false
                     const selectedIsToday = selectedDate && selectedDate.getTime() === todayStart.getTime()
                     const isPastSlotToday = isUrgentPlumbing && selectedIsToday && h <= now.getHours() + 1
@@ -748,8 +748,8 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
               <span className="text-gray-300">•</span>
               <span>✅ {(tasker.tasks ?? 0).toLocaleString()} completed jobs</span>
             </div>
-            <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${tasker.availability === 'Part Time - AM' || tasker.availability === 'Part Time - PM' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
-              {tasker.availability === 'Part Time - AM' ? 'PART TIME · AM' : tasker.availability === 'Part Time - PM' ? 'PART TIME · PM' : 'FULL TIME'}
+            <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full mt-1 ${(tasker.availability === 'Half Day - AM' || tasker.availability === 'Part Time - AM' || tasker.availability === 'Half Day - PM' || tasker.availability === 'Part Time - PM') ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700'}`}>
+              {(tasker.availability === 'Half Day - AM' || tasker.availability === 'Part Time - AM') ? 'HALF DAY · AM' : (tasker.availability === 'Half Day - PM' || tasker.availability === 'Part Time - PM') ? 'HALF DAY · PM' : 'FULL DAY'}
             </span>
             <span className="flex items-center gap-1 text-xs text-gray-500 mt-1">
               <MapPin size={11} className="text-orange-400 flex-shrink-0" />
@@ -4384,7 +4384,7 @@ function Booking() {
             const taskDurationForFilter = getTaskDuration(taskOptions)
             const isFullDayTask = taskDurationForFilter >= 8
             const visibleTaskers = isFullDayTask
-              ? taskers.filter(t => !t.availability || t.availability.trim() === 'Full Time')
+              ? taskers.filter(t => !t.availability || t.availability.trim() === 'Full Day' || t.availability.trim() === 'Full Time')
               : taskers
             return (
               <Step2

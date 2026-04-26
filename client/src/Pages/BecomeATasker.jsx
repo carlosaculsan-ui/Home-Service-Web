@@ -3,7 +3,10 @@ import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 import LocationMap from '../Components/LocationMap'
-import { User, CreditCard as IdCard, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, FileText } from 'lucide-react'
+import { User, CreditCard as IdCard, Search, Hourglass, CheckCircle2, XCircle, Home, MapPin, FileText, Loader2 } from 'lucide-react'
+import Groq from 'groq-sdk'
+
+const groq = new Groq({ apiKey: import.meta.env.VITE_GROQ_API_KEY, dangerouslyAllowBrowser: true })
 
 const NAME_REGEX = /^[a-zA-ZñÑ\s\.\-]*$/
 
@@ -107,7 +110,7 @@ function BecomeATasker() {
     if (!formData.availType) {
       newErrors.availType = 'Please select your availability'
     }
-    if (formData.availType === 'Part Time' && !formData.partTimeShift) {
+    if (formData.availType === 'Half Day' && !formData.partTimeShift) {
       newErrors.partTimeShift = 'Please select your shift (AM or PM)'
     }
     if (!formData.serviceRole) {
@@ -145,6 +148,7 @@ function BecomeATasker() {
       }
     }
     if (step === 2) {
+      if (resumeAnalyzing) return
       if (!formData.resume) {
         setErrors(prev => ({ ...prev, resume: 'Please upload your Resume / CV before proceeding.' }))
         return
@@ -167,6 +171,8 @@ function BecomeATasker() {
   const [phoneError, setPhoneError] = useState('')
   const [errors, setErrors] = useState({})
   const [resumePreviewUrl, setResumePreviewUrl] = useState(null)
+  const [resumeAnalyzing, setResumeAnalyzing] = useState(false)
+  const [resumeAiError, setResumeAiError] = useState('')
   const [cert1PreviewUrl, setCert1PreviewUrl] = useState(null)
   const [cert2PreviewUrl, setCert2PreviewUrl] = useState(null)
 
@@ -299,12 +305,12 @@ function BecomeATasker() {
     setUploadProgress('Saving application...')
 
     const availabilityValue =
-      formData.availType === 'Full Time'
-        ? 'Full Time'
-        : formData.availType === 'Part Time' && formData.partTimeShift === 'AM'
-        ? 'Part Time - AM'
-        : formData.availType === 'Part Time' && formData.partTimeShift === 'PM'
-        ? 'Part Time - PM'
+      formData.availType === 'Full Day'
+        ? 'Full Day'
+        : formData.availType === 'Half Day' && formData.partTimeShift === 'AM'
+        ? 'Half Day - AM'
+        : formData.availType === 'Half Day' && formData.partTimeShift === 'PM'
+        ? 'Half Day - PM'
         : null
 
     const insertData = {
@@ -705,11 +711,11 @@ function BecomeATasker() {
                   className={`w-full border rounded-md p-2 text-sm mb-1 ${errors.availType ? 'border-red-400' : 'border-gray-300'}`}
                 >
                   <option value="">Select availability</option>
-                  <option value="Full Time">Full Time</option>
-                  <option value="Part Time">Part Time</option>
+                  <option value="Full Day">Full Day</option>
+                  <option value="Half Day">Half Day</option>
                 </select>
                 {errors.availType && <p className="text-red-500 text-xs mb-2">{errors.availType}</p>}
-                {formData.availType === 'Part Time' && (
+                {formData.availType === 'Half Day' && (
                   <div className="mt-1">
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
@@ -851,15 +857,61 @@ function BecomeATasker() {
                   type="file"
                   accept="image/*,.pdf"
                   className="hidden"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files[0]
-                    if (file) {
+                    if (!file) return
+                    setResumeAiError('')
+                    // PDFs are accepted directly — only images need vision validation
+                    if (!isImageFile(file)) {
+                      setFormData(prev => ({ ...prev, resume: file }))
+                      setErrors(prev => ({ ...prev, resume: undefined }))
+                      return
+                    }
+                    // Read image as base64 for AI check
+                    const reader = new FileReader()
+                    reader.onload = async (ev) => {
+                      const base64 = ev.target.result
+                      setResumeAnalyzing(true)
+                      try {
+                        const res = await groq.chat.completions.create({
+                          model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+                          messages: [{
+                            role: 'user',
+                            content: [
+                              { type: 'image_url', image_url: { url: base64 } },
+                              { type: 'text', text: 'Look at this image. Does it appear to be a resume or CV document? It should contain text sections like work experience, education, skills, contact information, or a professional summary. Answer ONLY with a JSON object: { "isResume": true or false, "reason": "short reason" }. No other text.' }
+                            ]
+                          }]
+                        })
+                        const raw = res.choices[0].message.content.trim()
+                        try {
+                          const json = JSON.parse(raw.replace(/```json|```/g, '').trim())
+                          if (json.isResume === false) {
+                            setResumeAiError(`⚠️ This doesn't look like a Resume or CV. Please upload a document showing your work experience, education, or skills. (${json.reason ?? 'Unrecognized document'})`)
+                            e.target.value = ''
+                            setResumeAnalyzing(false)
+                            return
+                          }
+                        } catch {
+                          // Unparseable response — fail open, accept the file
+                        }
+                      } catch {
+                        // API error — fail open, accept the file
+                      }
+                      setResumeAnalyzing(false)
                       setFormData(prev => ({ ...prev, resume: file }))
                       setErrors(prev => ({ ...prev, resume: undefined }))
                     }
+                    reader.readAsDataURL(file)
                   }}
                 />
-                {errors.resume && <p className="text-red-500 text-xs mt-1">{errors.resume}</p>}
+                {resumeAnalyzing && (
+                  <p className="flex items-center gap-1.5 text-xs text-orange-500 mt-1">
+                    <Loader2 size={13} className="animate-spin" /> Checking document with AI...
+                  </p>
+                )}
+                {resumeAiError && <p className="text-red-500 text-xs mt-1">{resumeAiError}</p>}
+                {errors.resume && !resumeAiError && <p className="text-red-500 text-xs mt-1">{errors.resume}</p>}
               </div>
 
               {/* Document Availability Checkboxes */}
@@ -1049,7 +1101,7 @@ function BecomeATasker() {
                     <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <div><span className="text-gray-400">Service Role</span><p className="font-semibold text-gray-800">{formData.serviceRole || '—'}</p></div>
                       <div><span className="text-gray-400">Availability</span><p className="font-semibold text-gray-800">
-                        {formData.availType === 'Full Time' ? 'Full Time' : formData.availType === 'Part Time' && formData.partTimeShift ? `Part Time - ${formData.partTimeShift}` : '—'}
+                        {formData.availType === 'Full Day' ? 'Full Day' : formData.availType === 'Half Day' && formData.partTimeShift ? `Half Day - ${formData.partTimeShift}` : '—'}
                       </p></div>
                       {formData.experience && <div className="col-span-2"><span className="text-gray-400">Experience</span><p className="font-semibold text-gray-800">{formData.experience}</p></div>}
                     </div>

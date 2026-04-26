@@ -2883,9 +2883,9 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
                 className={inputCls}
               >
                 <option value="">Select availability</option>
-                <option value="Full Time">Full Time</option>
-                <option value="Part Time - AM">Part Time - AM</option>
-                <option value="Part Time - PM">Part Time - PM</option>
+                <option value="Full Day">Full Day</option>
+                <option value="Half Day - AM">Half Day - AM</option>
+                <option value="Half Day - PM">Half Day - PM</option>
               </select>
             ) : (
               <p className="text-sm text-gray-800 font-medium">{profile.availability ? (Array.isArray(profile.availability) ? profile.availability.join(', ') : profile.availability) : 'Not provided'}</p>
