@@ -1490,7 +1490,7 @@ function BookingCard({ booking, userId, onCancel }) {
               })}
               className="text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg transition-colors"
             >
-              Complete Payment
+              Continue
             </button>
           </div>
         )}
