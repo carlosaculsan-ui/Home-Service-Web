@@ -3324,8 +3324,8 @@ function Dashboard() {
         if (payload.eventType === 'INSERT' && 'Notification' in window && Notification.permission === 'granted') {
           const n = new Notification(payload.new.title ?? 'New Notification', {
             body: payload.new.message ?? '',
-            icon: '/vite.svg',
-            badge: '/vite.svg',
+            icon: '/LOGO.svg',
+            badge: '/LOGO.svg',
             tag: payload.new.id,
           })
           n.onclick = () => {
@@ -3360,6 +3360,15 @@ function Dashboard() {
       prev.map((n) => n.id === id ? { ...n, is_read: true } : n)
     )
     setUnreadNotifCount((c) => Math.max(0, c - 1))
+  }
+
+  async function deleteNotif(id) {
+    await supabase.from('notifications').delete().eq('id', id)
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.id === id)
+      if (target && !target.is_read) setUnreadNotifCount((c) => Math.max(0, c - 1))
+      return prev.filter((n) => n.id !== id)
+    })
   }
 
   async function handleLogout() {
@@ -3635,10 +3644,14 @@ function Dashboard() {
               ) : (
                 <div className="space-y-2">
                   {notifications.map((n) => (
-                    <button
+                    <div
                       key={n.id}
-                      onClick={() => { if (!n.is_read) markOneNotifRead(n.id) }}
-                      className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors ${
+                      onClick={() => {
+                        if (!n.is_read) markOneNotifRead(n.id)
+                        const isStay = (n.title ?? '').includes('📢') || (n.title ?? '').includes('Interview Scheduled') || (n.title ?? '').includes('Welcome')
+                        if (!isStay) setTab('bookings')
+                      }}
+                      className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors cursor-pointer ${
                         n.is_read
                           ? 'bg-white border-gray-100 hover:bg-gray-50'
                           : 'bg-orange-50 border-orange-100 hover:bg-orange-100'
@@ -3651,12 +3664,19 @@ function Dashboard() {
                             <p className="text-gray-500 text-sm mt-0.5 leading-relaxed">{n.message}</p>
                           )}
                         </div>
-                        {!n.is_read && (
-                          <span className="flex-shrink-0 w-2 h-2 rounded-full bg-orange-500 mt-1.5" />
-                        )}
+                        <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
+                          {!n.is_read && (
+                            <span className="w-2 h-2 rounded-full bg-orange-500" />
+                          )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); deleteNotif(n.id) }}
+                            className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors text-xs font-bold leading-none"
+                            title="Dismiss"
+                          >✕</button>
+                        </div>
                       </div>
                       <p className="text-xs text-gray-400 mt-1.5">{timeAgo(n.created_at)}</p>
-                    </button>
+                    </div>
                   ))}
                 </div>
               )}
