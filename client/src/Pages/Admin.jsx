@@ -365,6 +365,8 @@ function TaskerAccountsPanel() {
   const [showTaskerModal, setShowTaskerModal] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [showcaseToast, setShowcaseToast] = useState('')
+  const [actionError, setActionError] = useState('')
+  const [photoError, setPhotoError] = useState('')
   const [confirmState, setConfirmState] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
@@ -441,11 +443,11 @@ function TaskerAccountsPanel() {
   function handleArchiveTasker(tasker) {
     openConfirm('Archive this employee?', async () => {
       const profileId = tasker.user_id || tasker.id
-      if (!profileId) { alert('Cannot archive: missing user_id'); return }
+      if (!profileId) return
       const { data, error } = await supabase
         .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
-      if (error) { alert('Failed: ' + error.message); return }
-      if (!data || data.length === 0) { alert('No rows updated'); return }
+      if (error) { setActionError('Failed to archive: ' + error.message); setTimeout(() => setActionError(''), 4000); return }
+      if (!data || data.length === 0) { setActionError('Archive failed: tasker not found.'); setTimeout(() => setActionError(''), 4000); return }
       setTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
       setArchivedTaskers((prev) => [...prev, tasker])
     })
@@ -456,8 +458,8 @@ function TaskerAccountsPanel() {
       const profileId = tasker.user_id
       const { data, error } = await supabase
         .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
-      if (error) { alert('Failed: ' + error.message); return }
-      if (!data || data.length === 0) { alert('No rows updated'); return }
+      if (error) { setActionError('Failed to restore: ' + error.message); setTimeout(() => setActionError(''), 4000); return }
+      if (!data || data.length === 0) { setActionError('Restore failed: tasker not found.'); setTimeout(() => setActionError(''), 4000); return }
       setArchivedTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
       setTaskers((prev) => [...prev, tasker])
     })
@@ -470,7 +472,7 @@ function TaskerAccountsPanel() {
     const { error: uploadError } = await supabase.storage
       .from('tasker-files')
       .upload(filePath, file, { upsert: true })
-    if (uploadError) { alert('Upload failed: ' + uploadError.message); return }
+    if (uploadError) { setPhotoError('Upload failed: ' + uploadError.message); return }
     const { data: urlData } = supabase.storage.from('tasker-files').getPublicUrl(filePath)
     const photoUrl = urlData.publicUrl
     const { data: updateData, error } = await supabase
@@ -478,11 +480,8 @@ function TaskerAccountsPanel() {
       .update({ profile_photo: photoUrl })
       .eq('user_id', tasker.user_id)
       .select()
-    if (error) { alert('Failed to save photo: ' + error.message); return }
-    if (!updateData || updateData.length === 0) {
-      alert('Photo uploaded but could not save URL — tasker row not found. Check if tasker.user_id is correct.')
-      return
-    }
+    if (error) { setPhotoError('Failed to save photo.'); return }
+    if (!updateData || updateData.length === 0) { setPhotoError('Photo uploaded but could not save URL.'); return }
     setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: photoUrl } : t))
     setSelectedTasker(prev => ({ ...prev, profile_photo: photoUrl }))
   }
@@ -490,7 +489,7 @@ function TaskerAccountsPanel() {
   function handleRemoveTaskerPhoto(tasker) {
     openConfirm("Remove this tasker's showcase photo?", async () => {
       const { error } = await supabase.from('taskers').update({ profile_photo: null }).eq('user_id', tasker.user_id)
-      if (error) { alert('Failed: ' + error.message); return }
+      if (error) { setActionError('Failed to remove photo.'); setTimeout(() => setActionError(''), 4000); return }
       setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: null } : t))
       setSelectedTasker(prev => ({ ...prev, profile_photo: null }))
     })
@@ -570,6 +569,11 @@ function TaskerAccountsPanel() {
           {showcaseToast}
         </div>
       )}
+      {actionError && (
+        <div className="mb-4 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm font-medium text-red-600">
+          {actionError}
+        </div>
+      )}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-2 gap-4 mb-6">
@@ -634,17 +638,16 @@ function TaskerAccountsPanel() {
         <>
           {/* Active — Desktop Table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                    <th className="px-4 py-3 font-medium">Status</th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time In</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">Time Out</th>
-                    <th className="px-4 py-3 font-medium">Showcase</th>
-                    <th className="px-4 py-3 font-medium">Details</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Status</th>
+                    <th className="px-3 py-3 font-medium">Name</th>
+                    <th className="px-3 py-3 font-medium">Email</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Time In</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-3 py-3 font-medium text-center">Showcase</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">Details</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -653,40 +656,40 @@ function TaskerAccountsPanel() {
                     const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
                     return (
                       <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
                           <div className="flex items-center gap-2">
-                            <span className={`w-3 h-3 rounded-full ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
-                            <span className={`text-xs font-semibold ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
+                            <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${isOnline ? 'bg-green-400 animate-pulse' : 'bg-gray-300'}`} />
+                            <span className={`text-xs font-semibold whitespace-nowrap ${isOnline ? 'text-green-600' : 'text-gray-400'}`}>
                               {isOnline ? 'Online' : 'Offline'}
                             </span>
                           </div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
                             {t.profile_photo
-                              ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
+                              ? <img src={t.profile_photo} alt={t.name} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                              : <div className={`w-8 h-8 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-xs font-semibold shrink-0`}>{getInitials(t.name)}</div>
                             }
-                            <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
+                            <span className="font-medium text-gray-800 whitespace-nowrap text-xs">{t.name || '—'}</span>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        <td className="px-3 py-3 text-xs text-gray-500">{t.email || '—'}</td>
+                        <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {isOnline && onlineInfo?.online_at
                             ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : t.last_time_in
                             ? new Date(t.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
+                        <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {!isOnline && t.last_time_out
                             ? new Date(t.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3 text-center">
                           <button
                             onClick={() => handleToggleFeature(t)}
-                            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors whitespace-nowrap ${
+                            className={`text-xs font-semibold px-2.5 py-1 rounded-lg border transition-colors whitespace-nowrap ${
                               t.is_featured
                                 ? 'bg-green-50 border-green-300 text-green-700 hover:bg-green-100'
                                 : 'bg-gray-50 border-gray-200 text-gray-400 hover:border-orange-300 hover:text-orange-500'
@@ -695,10 +698,10 @@ function TaskerAccountsPanel() {
                             {t.is_featured ? '✓ In Showcase' : 'Add to Showcase'}
                           </button>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-3 py-3">
                           <button
                             onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
-                            className="text-orange-500 text-sm font-medium hover:underline"
+                            className="text-orange-500 text-xs font-medium hover:underline whitespace-nowrap"
                           >
                             View Details →
                           </button>
@@ -708,12 +711,11 @@ function TaskerAccountsPanel() {
                   })}
                 </tbody>
               </table>
-            </div>
           </div>
 
           {/* Active — Mobile Cards */}
           <div className="block md:hidden space-y-3">
-            {sortedTaskers.map((t) => {
+            {filteredTaskers.map((t) => {
               const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
               const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
               const timeIn = isOnline && onlineInfo?.online_at
@@ -902,9 +904,13 @@ function TaskerAccountsPanel() {
 
             {/* Header */}
             <div className="flex items-center gap-4 mb-6">
-              <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedTasker.name)} flex items-center justify-center text-white text-xl font-bold`}>
-                {getInitials(selectedTasker.name)}
-              </div>
+              {selectedTasker.profile_photo ? (
+                <img src={selectedTasker.profile_photo} alt={selectedTasker.name} className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
+              ) : (
+                <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedTasker.name)} flex items-center justify-center text-white text-xl font-bold flex-shrink-0`}>
+                  {getInitials(selectedTasker.name)}
+                </div>
+              )}
               <div>
                 <h2 className="text-lg font-bold text-gray-800">{selectedTasker.name || '—'}</h2>
                 <p className="text-sm text-gray-500">{selectedTasker.email || '—'}</p>
@@ -979,10 +985,11 @@ function TaskerAccountsPanel() {
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => handleUploadTaskerPhoto(e, selectedTasker)}
+                    onChange={(e) => { setPhotoError(''); handleUploadTaskerPhoto(e, selectedTasker) }}
                   />
                 </label>
               </div>
+              {photoError && <p className="text-xs text-red-500 mt-2">{photoError}</p>}
             </div>
 
             {/* Archive Button */}
