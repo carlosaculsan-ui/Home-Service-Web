@@ -35,6 +35,7 @@ const SHORT_MONTHS = [
 const TIME_SLOTS = ['07:00','08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00']
 const BUFFER_HOURS = 1
 const END_OF_DAY = 17
+const SAME_DAY_CUTOFF_HOUR = 16
 
 function formatTimeSlot(slot) {
   const h = parseInt(slot.split(':')[0])
@@ -158,6 +159,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const isUrgentPlumbing = taskOptions?.is_urgent === true
   const currentHour = now.getHours()
   const isOutsideHours = isUrgentPlumbing && (currentHour < 7 || currentHour >= 17)
+  const isSameDayCutoffPassed = !isUrgentPlumbing && currentHour >= SAME_DAY_CUTOFF_HOUR
   const urgentTargetDate = isOutsideHours
     ? new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
     : todayStart
@@ -244,7 +246,12 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   }
 
   const getDateObj = (d) => new Date(viewYear, viewMonth, d)
-  const isPast = (d) => isUrgentPlumbing ? getDateObj(d) < urgentTargetDate : getDateObj(d) <= todayStart
+  const isPast = (d) => {
+    if (isUrgentPlumbing) return getDateObj(d) < urgentTargetDate
+    const dateObj = getDateObj(d)
+    if (dateObj.getTime() === todayStart.getTime()) return isSameDayCutoffPassed
+    return dateObj < todayStart
+  }
   const isToday = (d) => getDateObj(d).getTime() === todayStart.getTime()
   const isUrgentTarget = (d) => getDateObj(d).getTime() === urgentTargetDate.getTime()
 
@@ -412,6 +419,14 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
               </div>
             )}
 
+            {/* Same-day cutoff notice */}
+            {isSameDayCutoffPassed && viewMonth === now.getMonth() && viewYear === now.getFullYear() && (
+              <div className="mb-3 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-xs text-amber-700 flex items-start gap-2">
+                <span>🕐</span>
+                <span>Same-day bookings are only available until <strong>4:00 PM</strong>. Today is no longer available — please select a future date.</span>
+              </div>
+            )}
+
             {/* Time slots */}
             {selectedDate && (
               <div className="mb-4">
@@ -426,8 +441,10 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
                       : false
                     const selectedIsToday = selectedDate && selectedDate.getTime() === todayStart.getTime()
                     const isPastSlotToday = isUrgentPlumbing && selectedIsToday && h <= now.getHours() + 1
+                    const isSameDayPastSlot = !isUrgentPlumbing && selectedIsToday && h <= currentHour + BUFFER_HOURS
+                    const isSameDayOver4PM = !isUrgentPlumbing && selectedIsToday && h > SAME_DAY_CUTOFF_HOUR
                     const isPickedSlot = selectedSlot === slot
-                    const isDisabled = !available || blockedByAvail || isPastSlotToday
+                    const isDisabled = !available || blockedByAvail || isPastSlotToday || isSameDayPastSlot || isSameDayOver4PM
                     return (
                       <button
                         key={slot}

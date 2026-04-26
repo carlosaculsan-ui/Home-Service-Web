@@ -9,7 +9,14 @@
       "Bash(xargs ls *)",
       "Bash(awk '{print $9, $5}')",
       "Bash(awk '{print $3}')",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(nslookup github.com)",
+      "Bash(ping -n 1 github.com)",
+      "Bash(git config *)",
+      "Bash(ipconfig /all)",
+      "Read(//c/Windows/System32/drivers/etc/**)",
+      "Bash(curl -v --connect-timeout 5 https://github.com)",
+      "PowerShell(ipconfig /flushdns)"
     ]
   }
 }

@@ -398,7 +398,7 @@ export default function BookingConfirmation() {
                       <>
                         <span className="text-gray-800">{fmtPaymentMethod(method)}</span>
                         {['gcash', 'paymaya', 'maya'].includes(method.toLowerCase()) && booking?.customer_phone && (
-                          <p className="text-gray-400 text-xs mt-0.5">{booking.customer_phone}</p>
+                          <p className="text-gray-400 text-xs mt-0.5">{maskPhone(booking.customer_phone)}</p>
                         )}
                       </>
                     )
