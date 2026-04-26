@@ -8,7 +8,7 @@ import {
   LayoutDashboard, Users, UserCheck, ClipboardList,
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
-  TrendingUp, DollarSign, Calendar, ChevronRight, Megaphone,
+  TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
   CreditCard, RefreshCw, Search, Smile,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
@@ -3751,6 +3751,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [platformEarnings, setPlatformEarnings] = useState(0)
   const [monthlyPlatformEarnings, setMonthlyPlatformEarnings] = useState(0)
   const [helperFeesCollected, setHelperFeesCollected] = useState(0)
+  const [totalRefunded, setTotalRefunded] = useState(0)
   const [recentBookings, setRecentBookings] = useState([])
   const [allBookings, setAllBookings] = useState([])
   const [topServices, setTopServices] = useState([])
@@ -3785,11 +3786,15 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear
       }).reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+      const { data: refundedRows } = await supabase.from('bookings').select('estimated_total').eq('is_refunded', true)
+      const allRefundedTotal = (refundedRows ?? []).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
+
       setStats({ customers: customers ?? 0, taskers: taskers ?? 0, bookings: bookings ?? 0 })
       setTotalRevenue(allRevenue)
       setPlatformEarnings(allPlatformEarnings)
       setHelperFeesCollected(allHelperFees)
       setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
+      setTotalRefunded(allRefundedTotal)
 
       // Recent Bookings
       const { data: recentData } = await supabase
@@ -3872,11 +3877,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               const d = new Date((b.scheduled_date ?? b.created_at) + (b.scheduled_date ? 'T00:00:00' : ''))
               return d.getMonth() === currentMonth && d.getFullYear() === currentYear
             }).reduce((sum, b) => sum + (Number(b.platform_fee) || 0), 0)
+            const { data: refundedRowsRT } = await supabase.from('bookings').select('estimated_total').eq('is_refunded', true)
+            const allRefundedTotalRT = (refundedRowsRT ?? []).reduce((sum, b) => sum + (Number(b.estimated_total) || 0), 0)
             setStats((prev) => ({ ...prev, bookings: bookings ?? 0 }))
             setTotalRevenue(allRevenue)
             setPlatformEarnings(allPlatformEarnings)
             setHelperFeesCollected(allHelperFees)
             setMonthlyPlatformEarnings(thisMonthPlatformEarnings)
+            setTotalRefunded(allRefundedTotalRT)
             setAllBookings(yearBookings ?? [])
             const { data: recentData } = await supabase
               .from('bookings')
@@ -4082,6 +4090,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="text-2xl md:text-4xl font-bold" style={{ color: '#0d9488' }}>{'₱' + helperFeesCollected.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Helper Fees Collected</div>
           <div className="text-xs text-gray-400 mt-1">Paid out to helpers</div>
+        </div>
+
+        {/* Total Refunded card */}
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 border-red-400">
+          <div className="mb-2"><TrendingDown className="w-8 h-8 text-red-400" /></div>
+          <div className="text-2xl md:text-4xl font-bold text-red-500">{'₱' + totalRefunded.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Refunded</div>
+          <div className="text-xs text-gray-400 mt-1">Returned to customers</div>
         </div>
       </div>
 
@@ -5408,6 +5424,7 @@ function TransactionsPanel() {
   const [limit, setLimit] = useState(20)
   const limitRef = useRef(20)
   const [allTimeTotal, setAllTimeTotal] = useState(null)
+  const [allTimeRefunded, setAllTimeRefunded] = useState(null)
   const [allTimeMethodCounts, setAllTimeMethodCounts] = useState({ gcash: null, maya: null, card: null })
 
   useEffect(() => {
@@ -5515,14 +5532,15 @@ function TransactionsPanel() {
   }
 
   async function fetchAllTimeTotal() {
-    const { data } = await supabase
-      .from('bookings')
-      .select('estimated_total, payment_method')
-      .not('paymongo_payment_id', 'is', null)
-      .eq('is_refunded', false)
+    const [{ data }, { data: refundedData }] = await Promise.all([
+      supabase.from('bookings').select('estimated_total, payment_method').not('paymongo_payment_id', 'is', null).eq('is_refunded', false),
+      supabase.from('bookings').select('estimated_total').eq('is_refunded', true),
+    ])
     const rows = data ?? []
     const total = rows.reduce((sum, b) => sum + Number(b.estimated_total ?? 0), 0)
+    const refundedTotal = (refundedData ?? []).reduce((sum, b) => sum + Number(b.estimated_total ?? 0), 0)
     setAllTimeTotal(total)
+    setAllTimeRefunded(refundedTotal)
     setAllTimeMethodCounts({
       gcash: rows.filter((b) => b.payment_method === 'gcash').length,
       maya:  rows.filter((b) => b.payment_method === 'paymaya' || b.payment_method === 'maya').length,
@@ -5663,6 +5681,7 @@ function TransactionsPanel() {
     setRefundNotes('')
     setRefundReasonError('')
     showToast(`Refund of ${formatAmount(amountCentavos)} successfully processed.`, 'success')
+    fetchAllTimeTotal()
   }
 
   const StatusBadge = ({ status, paymentId }) => {
@@ -5990,7 +6009,7 @@ function TransactionsPanel() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-emerald-500">
           <div className="mb-2"><span className="text-3xl font-bold text-emerald-500">₱</span></div>
           <div className="text-2xl md:text-3xl font-bold text-emerald-600">
@@ -5999,6 +6018,15 @@ function TransactionsPanel() {
               : allTimeTotal.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Total Collected (All-Time)</div>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-red-400">
+          <div className="mb-2"><TrendingDown className="w-8 h-8 text-red-400" /></div>
+          <div className="text-2xl md:text-3xl font-bold text-red-500">
+            {allTimeRefunded === null
+              ? '...'
+              : allTimeRefunded.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <div className="text-xs md:text-sm text-gray-500 mt-1">Total Refunded (All-Time)</div>
         </div>
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-5 border-l-4 border-blue-500">
           <div className="mb-2"><img src={GCashLogo} alt="GCash" className="h-8 object-contain" /></div>

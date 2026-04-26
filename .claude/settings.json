@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(git restore *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\server\" -Depth 1 | Where-Object { -not $_.Name -like 'node_modules' })"
     ]
   }
 }
