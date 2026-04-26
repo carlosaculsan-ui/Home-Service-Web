@@ -671,16 +671,16 @@ function TaskerAccountsPanel() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {isOnline && onlineInfo?.online_at
-                            ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : t.last_time_in
-                            ? new Date(t.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(t.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {!isOnline && t.last_time_out
-                            ? new Date(t.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(t.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
                         <td className="px-4 py-3">
@@ -717,12 +717,12 @@ function TaskerAccountsPanel() {
               const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
               const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
               const timeIn = isOnline && onlineInfo?.online_at
-                ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : t.last_time_in
-                ? new Date(t.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(t.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               const timeOut = !isOnline && t.last_time_out
-                ? new Date(t.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(t.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               return (
                 <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1251,11 +1251,11 @@ function CustomerAccountsPanel() {
                           <td className="py-2.5 pr-4 text-gray-500 whitespace-nowrap">{b.scheduled_date ?? '—'}</td>
                           <td className="py-2.5 pr-4">
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                              {b.status?.replace('_', ' ') ?? '—'}
+                              {b.status?.replaceAll('_', ' ') ?? '—'}
                             </span>
                           </td>
                           <td className="py-2.5 text-gray-700">
-                            {b.total_price ? `₱${Number(b.total_price).toLocaleString()}` : '—'}
+                            {b.estimated_total ? `₱${Number(b.estimated_total).toLocaleString()}` : '—'}
                           </td>
                         </tr>
                       ))}
@@ -1399,16 +1399,16 @@ function CustomerAccountsPanel() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {isOnline && onlineInfo?.online_at
-                            ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : c.last_time_in
-                            ? new Date(c.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(c.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {!isOnline && c.last_time_out
-                            ? new Date(c.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(c.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
                         <td className="px-4 py-3">
@@ -1433,12 +1433,12 @@ function CustomerAccountsPanel() {
               const isOnline = onlineCustomers.some(o => o.user_id === c.id)
               const onlineInfo = onlineCustomers.find(o => o.user_id === c.id)
               const timeIn = isOnline && onlineInfo?.online_at
-                ? new Date(onlineInfo.online_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : c.last_time_in
-                ? new Date(c.last_time_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(c.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               const timeOut = !isOnline && c.last_time_out
-                ? new Date(c.last_time_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(c.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               return (
                 <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1608,6 +1608,7 @@ const formatBookingDate = (date, time) => {
 
 const getStatusBadge = (status) => {
   const styles = {
+    pending_payment: 'bg-pink-100 text-pink-700',
     confirmed:   'bg-blue-100 text-blue-700',
     accepted:    'bg-yellow-100 text-yellow-700',
     on_the_way:  'bg-purple-100 text-purple-700',
@@ -1616,6 +1617,7 @@ const getStatusBadge = (status) => {
     cancelled:   'bg-red-100 text-red-700',
   }
   const labels = {
+    pending_payment: 'Pending Payment',
     confirmed:   'Awaiting Tasker',
     accepted:    'Accepted',
     on_the_way:  'On The Way',
@@ -1967,6 +1969,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ['Service',   b.service],
                   ['Tasker',    b.taskerName],
                   ['Client',    b.customer_name || b.clientEmail],
+                  ['Contact',   b.customer_phone || null],
                   ['Task',      getTaskLabel(b)],
                   ...(b.task_options?.service === 'Carpentry' && b.task_options?.category
                     ? [['Furniture Category', b.task_options.category]]
@@ -2063,22 +2066,20 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
               </button>
             </div>
           )}
-          {b.status === 'completed' && (
-            <div className="mt-3 border-t border-gray-100 pt-3">
-              {deleteErrors[b.id] && (
-                <p className="text-xs text-red-500 mb-2">{deleteErrors[b.id]}</p>
-              )}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => handleDeleteBooking(b.id)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
-                >
-                  <Trash2 size={13} />
-                  Delete Record
-                </button>
-              </div>
+          <div className="mt-3 border-t border-gray-100 pt-3">
+            {deleteErrors[b.id] && (
+              <p className="text-xs text-red-500 mb-2">{deleteErrors[b.id]}</p>
+            )}
+            <div className="flex justify-end">
+              <button
+                onClick={() => handleDeleteBooking(b.id)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+              >
+                <Trash2 size={13} />
+                Delete Record
+              </button>
             </div>
-          )}
+          </div>
         </div>
       )})}
     </div>
@@ -2924,6 +2925,7 @@ function ReviewsPanel() {
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('all')
   const [reviewServiceFilter, setReviewServiceFilter] = useState('all')
+  const [ratingFilter, setRatingFilter] = useState('all')
   const [toast, setToast] = useState('')
   const [deleteErrors, setDeleteErrors] = useState({})
   const [lightboxSrc, setLightboxSrc] = useState(null)
@@ -2985,19 +2987,23 @@ function ReviewsPanel() {
   const allCount      = reviews.length
   const featuredCount = reviews.filter(r => r.featured).length
   const hiddenCount   = reviews.filter(r => r.is_hidden).length
+  const flaggedCount  = reviews.filter(r => r.is_flagged).length
 
   const visible = reviews
     .filter(r => {
       if (filter === 'featured') return r.featured
       if (filter === 'hidden')   return r.is_hidden
+      if (filter === 'flagged')  return r.is_flagged
       return true
     })
     .filter(r => reviewServiceFilter === 'all' || r.service === reviewServiceFilter)
+    .filter(r => ratingFilter === 'all' || r.rating === Number(ratingFilter))
 
   const filterTabs = [
     { key: 'all',      label: 'All',      count: allCount },
     { key: 'featured', label: 'Featured', count: featuredCount },
     { key: 'hidden',   label: 'Hidden',   count: hiddenCount },
+    { key: 'flagged',  label: 'Flagged',  count: flaggedCount },
   ]
 
   if (loading) {
@@ -3036,6 +3042,24 @@ function ReviewsPanel() {
         </select>
       </div>
 
+      {/* Rating filter */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <label className="text-sm font-semibold text-gray-600">Filter by Rating:</label>
+        {['all', '5', '4', '3', '2', '1'].map((val) => (
+          <button
+            key={val}
+            onClick={() => setRatingFilter(val)}
+            className={`px-3 py-1 rounded-full text-sm font-semibold border transition-colors ${
+              ratingFilter === val
+                ? 'bg-orange-500 text-white border-orange-500'
+                : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300 hover:text-orange-500'
+            }`}
+          >
+            {val === 'all' ? 'All' : <span className="text-yellow-400">{`${'★'.repeat(Number(val))}${'☆'.repeat(5 - Number(val))}`}</span>}
+          </button>
+        ))}
+      </div>
+
       {/* Filter tabs */}
       <div className="flex gap-2 mb-5 flex-wrap">
         {filterTabs.map(({ key, label, count }) => (
@@ -3066,7 +3090,10 @@ function ReviewsPanel() {
                 <div className="flex-1 min-w-0 space-y-1.5">
                   <div className="flex items-center gap-2 flex-wrap">
                     <p className="font-bold text-gray-800 text-base">{r.reviewer_name ?? 'Anonymous'}</p>
-                    <span className="text-yellow-400 text-sm">{'★'.repeat(r.rating ?? 5)}</span>
+                    <span className="text-sm">
+                      <span className="text-yellow-400">{'★'.repeat(r.rating ?? 5)}</span>
+                      <span className="text-gray-300">{'★'.repeat(5 - (r.rating ?? 5))}</span>
+                    </span>
                     {r.featured && (
                       <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full font-semibold">Featured</span>
                     )}
@@ -3167,7 +3194,7 @@ function LeaveRequestsPanel() {
   async function fetchLeaves() {
     const { data } = await supabase
       .from('tasker_leaves')
-      .select('*, taskers(name)')
+      .select('*, taskers(name, user_id)')
       .order('created_at', { ascending: false })
     setLeaves(data ?? [])
     setLoading(false)
@@ -3175,9 +3202,18 @@ function LeaveRequestsPanel() {
 
   useEffect(() => { fetchLeaves() }, [])
 
-  async function updateStatus(id, status) {
-    setActionLoading(id + status)
-    await supabase.from('tasker_leaves').update({ status }).eq('id', id)
+  async function updateStatus(leave, status) {
+    setActionLoading(leave.id + status)
+    await supabase.from('tasker_leaves').update({ status }).eq('id', leave.id)
+    const taskerUserId = leave.taskers?.user_id
+    if (taskerUserId) {
+      const firstName = leave.taskers?.name?.split(' ')[0] || 'Tasker'
+      const title = status === 'approved' ? 'Leave Request Approved' : 'Leave Request Rejected'
+      const message = status === 'approved'
+        ? `Hi ${firstName}, your leave request has been approved.`
+        : `Hi ${firstName}, your leave request has been rejected. Please contact admin for more details.`
+      await supabase.from('notifications').insert({ user_id: taskerUserId, title, message, is_read: false })
+    }
     setActionLoading(null)
     fetchLeaves()
   }
@@ -3230,6 +3266,9 @@ function LeaveRequestsPanel() {
             : `${filteredLeaves.length} found`}
         </span>
       </div>
+      {filteredLeaves.length === 0 && (
+        <p className="text-center text-gray-400 mt-16">No {leaveFilter === 'all' ? '' : leaveFilter} leave requests found.</p>
+      )}
       {filteredLeaves.map((leave) => {
         const dates = (() => { try { return JSON.parse(leave.leave_dates) } catch { return [] } })()
         const statusClass = TASKER_STATUS_STYLES[leave.status] ?? 'bg-gray-100 text-gray-600'
@@ -3261,19 +3300,23 @@ function LeaveRequestsPanel() {
                   <span className="text-gray-400 font-medium">Reason: </span>
                   {leave.reason}
                 </p>
+                <p className="text-sm text-gray-500">
+                  <span className="text-gray-400 font-medium">Submitted on: </span>
+                  {leave.created_at ? formatLeaveDate(leave.created_at) : '—'}
+                </p>
               </div>
 
               {leave.status === 'pending' && (
                 <div className="flex md:flex-col gap-2 md:flex-shrink-0">
                   <button
-                    onClick={() => updateStatus(leave.id, 'approved')}
+                    onClick={() => updateStatus(leave, 'approved')}
                     disabled={actionLoading !== null}
                     className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
                     {actionLoading === leave.id + 'approved' ? 'Approving…' : 'Approve'}
                   </button>
                   <button
-                    onClick={() => updateStatus(leave.id, 'rejected')}
+                    onClick={() => updateStatus(leave, 'rejected')}
                     disabled={actionLoading !== null}
                     className="flex-1 md:flex-none px-4 py-2 md:py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
                   >
@@ -3380,6 +3423,7 @@ function HelperPayrollModal({ period, onClose }) {
                   <th className="pb-2 text-left">Helper Name</th>
                   <th className="pb-2 text-right">Jobs Assisted</th>
                   <th className="pb-2 text-right">Total Earned</th>
+                  <th className="pb-2 text-center pl-6">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -3388,6 +3432,9 @@ function HelperPayrollModal({ period, onClose }) {
                     <td className="py-2.5 font-medium text-gray-800">{r.name}</td>
                     <td className="py-2.5 text-right text-gray-600">{r.jobs}</td>
                     <td className="py-2.5 text-right font-semibold" style={{ color: '#0d9488' }}>₱{r.total.toLocaleString()}</td>
+                    <td className="py-2.5 text-center pl-6">
+                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
+                    </td>
                   </tr>
                 ))}
                 <tr className="border-t-2 border-gray-200 bg-gray-50">
@@ -3409,10 +3456,8 @@ function PayrollPanel() {
   const [period, setPeriod] = useState(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   )
-  const [rows, setRows] = useState([])       // per-tasker aggregated rows
-  const [payRecords, setPayRecords] = useState({}) // { tasker_id: payroll_record }
+  const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(false)
-  const [toast, setToast] = useState('')
   const [showHelperPayroll, setShowHelperPayroll] = useState(false)
 
   useEffect(() => { fetchPayroll() }, [period])
@@ -3467,41 +3512,10 @@ function PayrollPanel() {
       agg[b.tasker_id].payout       += taskerPayout
     }
 
-    // Fetch existing payroll_records for this period
-    const { data: records } = await supabase
-      .from('payroll_records')
-      .select('*')
-      .eq('period', period)
-      .in('tasker_id', taskerIds)
-    const recMap = Object.fromEntries((records ?? []).map(r => [r.tasker_id, r]))
-
     setRows(Object.values(agg).sort((a, b) => a.name.localeCompare(b.name)))
-    setPayRecords(recMap)
     setLoading(false)
   }
 
-  async function markAsPaid(row) {
-    const { data, error } = await supabase
-      .from('payroll_records')
-      .upsert({
-        tasker_id:    row.tasker_id,
-        period,
-        total_jobs:   row.jobs,
-        gross_amount: row.gross,
-        platform_cut: row.platform_cut,
-        tasker_payout: row.payout,
-        is_paid:      true,
-        paid_at:      new Date().toISOString(),
-      }, { onConflict: 'tasker_id,period' })
-      .select()
-      .single()
-
-    if (error) { setToast('Failed to mark as paid.'); setTimeout(() => setToast(''), 3000); return }
-
-    setPayRecords(prev => ({ ...prev, [row.tasker_id]: data }))
-    setToast(`${row.name} marked as paid.`)
-    setTimeout(() => setToast(''), 3000)
-  }
 
   const totalJobs     = rows.reduce((s, r) => s + r.jobs, 0)
   const totalGross    = rows.reduce((s, r) => s + r.gross, 0)
@@ -3531,13 +3545,6 @@ function PayrollPanel() {
           View Helper Payroll
         </button>
       </div>
-
-      {/* Toast */}
-      {toast && (
-        <div className="px-4 py-2 rounded-lg text-sm font-medium bg-green-50 border border-green-200 text-green-700">
-          {toast}
-        </div>
-      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -4442,6 +4449,21 @@ function AdminMessagesPanel({ adminUserId }) {
 
   useEffect(() => { fetchConversations() }, [adminUserId])
 
+  async function openConversation(c) {
+    setSelectedTasker(c)
+    if (c.unreadCount > 0) {
+      await supabase
+        .from('messages')
+        .update({ is_read: true })
+        .eq('sender_id', c.userId)
+        .eq('receiver_id', adminUserId)
+        .eq('is_read', false)
+      setConversations(prev => prev.map(conv =>
+        conv.userId === c.userId ? { ...conv, unreadCount: 0 } : conv
+      ))
+    }
+  }
+
   // Realtime: refresh conversation list on new messages
   useEffect(() => {
     if (!adminUserId) return
@@ -4492,7 +4514,7 @@ function AdminMessagesPanel({ adminUserId }) {
             conversations.map((c) => (
               <button
                 key={c.userId}
-                onClick={() => setSelectedTasker(c)}
+                onClick={() => openConversation(c)}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 ${
                   selectedTasker?.userId === c.userId ? 'bg-orange-50' : ''
                 }`}
@@ -5091,6 +5113,21 @@ function AnnouncementsPanel() {
         .from('announcements')
         .insert({ title: title.trim(), message: message.trim() })
       if (err) { setError('Failed to post.'); setSaving(false); return }
+
+      const { data: taskerProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('role', 'tasker')
+      if (taskerProfiles?.length > 0) {
+        await supabase.from('notifications').insert(
+          taskerProfiles.map(p => ({
+            user_id: p.id,
+            title: `📢 ${title.trim()}`,
+            message: message.trim(),
+            is_read: false,
+          }))
+        )
+      }
     }
 
     setSaving(false)
@@ -5195,6 +5232,9 @@ function AnnouncementsPanel() {
               </div>
             )}
           </div>
+          <p className={`text-xs text-right ${message.length > 500 ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>
+            {message.length} / 500
+          </p>
           {error && <p className="text-xs text-red-500">{error}</p>}
           <div className="flex gap-3">
             <button
@@ -6331,37 +6371,47 @@ function Admin() {
   const [approvedLeaves, setApprovedLeaves] = useState([])
   const [calendarDate, setCalendarDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
-  const [events, setEvents] = useState(() => {
-    const saved = localStorage.getItem('admin_calendar_events')
-    return saved ? JSON.parse(saved) : {}
-  })
+  const [reminders, setReminders] = useState({})
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventInput, setEventInput] = useState('')
   const [eventDate, setEventDate] = useState('')
   const navigate = useNavigate()
 
-  const saveEvent = () => {
+  async function fetchReminders() {
+    const { data } = await supabase.from('admin_reminders').select('id, date, text').order('created_at')
+    const map = {}
+    for (const r of data ?? []) {
+      if (!map[r.date]) map[r.date] = []
+      map[r.date].push({ id: r.id, text: r.text })
+    }
+    setReminders(map)
+  }
+
+  const saveEvent = async () => {
     if (!eventInput.trim() || !eventDate) return
-    const updated = { ...events, [eventDate]: [...(events[eventDate] || []), eventInput.trim()] }
-    setEvents(updated)
-    localStorage.setItem('admin_calendar_events', JSON.stringify(updated))
+    const { data, error } = await supabase.from('admin_reminders').insert({ date: eventDate, text: eventInput.trim() }).select().single()
+    if (error) return
+    setReminders(prev => ({ ...prev, [eventDate]: [...(prev[eventDate] || []), { id: data.id, text: data.text }] }))
     setEventInput('')
     setShowEventModal(false)
   }
 
-  const deleteEvent = (date, index) => {
-    const updated = { ...events }
-    updated[date] = updated[date].filter((_, i) => i !== index)
-    if (updated[date].length === 0) delete updated[date]
-    setEvents(updated)
-    localStorage.setItem('admin_calendar_events', JSON.stringify(updated))
+  const deleteEvent = async (date, id) => {
+    await supabase.from('admin_reminders').delete().eq('id', id)
+    setReminders(prev => {
+      const updated = { ...prev }
+      updated[date] = updated[date].filter(r => r.id !== id)
+      if (updated[date].length === 0) delete updated[date]
+      return updated
+    })
   }
 
   useEffect(() => {
     if (tab !== 'calendar') return
+    fetchReminders()
     supabase
       .from('bookings')
-      .select('id, customer_name, service, scheduled_date, scheduled_time, status, tasker_id')
+      .select('id, customer_name, service, scheduled_date, scheduled_time, status, tasker_id, taskers(name)')
       .order('scheduled_date', { ascending: true })
       .then(({ data }) => setCalendarBookings(data || []))
     supabase
@@ -6545,6 +6595,14 @@ function Admin() {
                   <div className="flex items-center gap-1 sm:gap-2 shrink-0">
                     <button
                       onClick={() => {
+                        const today = new Date()
+                        setCalendarDate(today)
+                        setSelectedDate(today.toISOString().split('T')[0])
+                      }}
+                      className="text-xs px-2 py-1.5 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-100 transition whitespace-nowrap"
+                    >Today</button>
+                    <button
+                      onClick={() => {
                         setEventDate(selectedDate || new Date().toISOString().split('T')[0])
                         setShowEventModal(true)
                       }}
@@ -6591,12 +6649,12 @@ function Admin() {
                             `}
                           >
                             <span className="text-xs sm:text-base">{day}</span>
-                            {(dayBookings.length > 0 || events[dateStr]?.length > 0 || approvedLeaves.some(l => l.leave_dates?.includes(dateStr))) && (
+                            {(dayBookings.length > 0 || reminders[dateStr]?.length > 0 || approvedLeaves.some(l => l.leave_dates?.includes(dateStr))) && (
                               <div className="flex justify-center gap-1 mt-1">
                                 {dayBookings.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
                                 )}
-                                {events[dateStr]?.length > 0 && (
+                                {reminders[dateStr]?.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-500'}`} />
                                 )}
                                 {approvedLeaves.some(l => l.leave_dates?.includes(dateStr)) && (
@@ -6644,9 +6702,16 @@ function Admin() {
                           <div key={booking.id} className="border border-gray-100 rounded-lg p-3">
                             <p className="text-sm font-semibold text-gray-800">{booking.customer_name || 'Customer'}</p>
                             <p className="text-xs text-gray-500">{booking.service}</p>
-                            <p className="text-xs text-gray-400">{booking.scheduled_time}</p>
+                            {booking.taskers?.name && (
+                              <p className="text-xs text-gray-400">Tasker: {booking.taskers.name}</p>
+                            )}
+                            <p className="text-xs text-gray-400">
+                              {booking.scheduled_time
+                                ? new Date(`1970-01-01T${booking.scheduled_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                                : '—'}
+                            </p>
                             <span className={`text-xs font-semibold px-2 py-1 rounded-full mt-1 inline-block ${BOOKING_STATUS_STYLES[booking.status] ?? 'bg-gray-100 text-gray-500'}`}>
-                              {booking.status?.replace('_', ' ') ?? '—'}
+                              {booking.status?.replaceAll('_', ' ') ?? '—'}
                             </span>
                           </div>
                         ))
@@ -6678,15 +6743,15 @@ function Admin() {
                 })()}
 
                 {/* Reminders for selected date */}
-                {selectedDate && events[selectedDate]?.length > 0 && (
+                {selectedDate && reminders[selectedDate]?.length > 0 && (
                   <div className="mt-4">
                     <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Reminders</h4>
                     <div className="space-y-2">
-                      {events[selectedDate].map((event, i) => (
-                        <div key={i} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
-                          <span className="text-sm text-blue-700">📌 {event}</span>
+                      {reminders[selectedDate].map((r) => (
+                        <div key={r.id} className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+                          <span className="text-sm text-blue-700">📌 {r.text}</span>
                           <button
-                            onClick={() => deleteEvent(selectedDate, i)}
+                            onClick={() => deleteEvent(selectedDate, r.id)}
                             className="text-red-400 hover:text-red-600 text-xs ml-2"
                           >✕</button>
                         </div>
