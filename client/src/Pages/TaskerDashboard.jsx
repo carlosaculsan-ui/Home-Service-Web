@@ -2577,9 +2577,10 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
   async function handlePasswordReset() {
     setPwResetLoading(true)
-    await supabase.auth.resetPasswordForEmail(profile.email, { redirectTo: window.location.origin })
+    await supabase.auth.resetPasswordForEmail(profile.email, { redirectTo: `${window.location.origin}/reset-password` })
     setPwResetLoading(false)
     setPwResetSent(true)
+    setTimeout(() => setPwResetSent(false), 20000)
   }
 
   async function handleSavePersonal() {
@@ -2943,6 +2944,9 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         >
           {pwResetSent ? 'Reset email sent!' : pwResetLoading ? 'Sending…' : 'Send Reset Email'}
         </button>
+        {pwResetSent && (
+          <p className="text-xs text-green-600 mt-3">Check your email inbox and click the link to set a new password.</p>
+        )}
       </div>
 
       {/* Deactivate Account */}

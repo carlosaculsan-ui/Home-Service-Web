@@ -2064,9 +2064,10 @@ function CustomerProfile({ userId, userEmail }) {
 
   async function handlePasswordReset() {
     setPwResetLoading(true)
-    await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo: window.location.origin })
+    await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo: `${window.location.origin}/reset-password` })
     setPwResetLoading(false)
     setPwResetSent(true)
+    setTimeout(() => setPwResetSent(false), 20000)
   }
 
   async function handleDeactivate() {
@@ -2242,6 +2243,9 @@ function CustomerProfile({ userId, userEmail }) {
         >
           {pwResetSent ? 'Reset email sent!' : pwResetLoading ? 'Sending…' : 'Send Reset Email'}
         </button>
+        {pwResetSent && (
+          <p className="text-xs text-green-600 mt-3">Check your email inbox and click the link to set a new password.</p>
+        )}
       </div>
 
       {/* Section 5 — Deactivate */}
