@@ -960,7 +960,7 @@ function TaskerAccountsPanel() {
             <div>
               <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Resume</h4>
               {selectedTasker.resume_url
-                ? <a href={selectedTasker.resume_url} target="_blank" rel="noopener noreferrer" className="text-orange-500 text-sm underline">View Resume</a>
+                ? <button onClick={() => setLightboxSrc(selectedTasker.resume_url)} className="text-orange-500 text-sm underline text-left">View Resume</button>
                 : <p className="text-gray-400 text-sm">No resume uploaded</p>
               }
             </div>
