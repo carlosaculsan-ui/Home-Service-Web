@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import ConfirmModal from '../Components/ConfirmModal'
 import confetti from 'canvas-confetti'
 import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
@@ -645,7 +646,9 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [showImageModal, setShowImageModal] = useState(false)
   const [completionPhotoFile, setCompletionPhotoFile] = useState(null)
   const [completionPhotoPreview, setCompletionPhotoPreview] = useState(null)
-  const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(false)
+  const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
   const watchIdRef = useRef(null)
   const locationChannelRef = useRef(null)
 
@@ -734,8 +737,13 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
   async function handleAction(newStatus) {
     if (newStatus === 'pending_confirmation') {
-      if (!window.confirm('Mark this job as complete? The customer will be asked to confirm.')) return
+      openConfirm('Mark this job as complete? The customer will be asked to confirm.', () => doAction(newStatus))
+      return
     }
+    doAction(newStatus)
+  }
+
+  async function doAction(newStatus) {
     setActionLoading(newStatus)
     setStatusError('')
     const updatePayload = { status: newStatus }
@@ -838,6 +846,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
   return (
     <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {showChat && booking.client_id && (
         <ChatModal
           bookingId={booking.id}
@@ -1060,31 +1069,30 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       )}
 
       {booking.completion_photo_url && (
-        <>
-          <button
-            onClick={() => setShowCompletionPhotoModal(true)}
-            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
-          >
-            <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
-            View completion photo
-          </button>
-          {showCompletionPhotoModal && (
-            <div
-              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-              onClick={() => setShowCompletionPhotoModal(false)}
+        <button
+          onClick={() => setShowCompletionPhotoModal(booking.completion_photo_url)}
+          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+        >
+          <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+          View completion photo
+        </button>
+      )}
+
+      {showCompletionPhotoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowCompletionPhotoModal(null)}
+        >
+          <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowCompletionPhotoModal(null)}
+              className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
             >
-              <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-                <button
-                  onClick={() => setShowCompletionPhotoModal(false)}
-                  className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
-                >
-                  ×
-                </button>
-                <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
-              </div>
-            </div>
-          )}
-        </>
+              ×
+            </button>
+            <img src={showCompletionPhotoModal} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+          </div>
+        </div>
       )}
 
       {booking.status === 'cancelled' && booking.cancellation_reason && (
@@ -1196,7 +1204,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
             <p className="text-xs text-gray-400 mb-1">Completion photo (optional)</p>
             {completionPhotoPreview ? (
               <div className="flex items-center gap-2">
-                <img src={completionPhotoPreview} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                <img src={completionPhotoPreview} alt="Preview" onClick={() => setShowCompletionPhotoModal(completionPhotoPreview)} className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0 cursor-pointer" />
                 <button
                   onClick={() => { setCompletionPhotoFile(null); setCompletionPhotoPreview(null) }}
                   className="text-xs text-red-400 hover:text-red-600"
@@ -1328,18 +1336,21 @@ function LeaveRequestSection({ taskerId }) {
   const [leavesLoading, setLeavesLoading] = useState(true)
   const [cancellingId, setCancellingId] = useState(null)
   const [cancelError, setCancelError] = useState('')
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
-  async function handleCancelLeave(id) {
-    if (!window.confirm('Are you sure you want to cancel this leave request?')) return
-    setCancellingId(id)
-    setCancelError('')
-    const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
-    setCancellingId(null)
-    if (error) {
-      setCancelError('Failed to cancel. Please try again.')
-      return
-    }
-    setLeaves((prev) => prev.filter((l) => l.id !== id))
+  function handleCancelLeave(id) {
+    openConfirm('Are you sure you want to cancel this leave request?', async () => {
+      setCancellingId(id)
+      setCancelError('')
+      const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
+      setCancellingId(null)
+      if (error) {
+        setCancelError('Failed to cancel. Please try again.')
+        return
+      }
+      setLeaves((prev) => prev.filter((l) => l.id !== id))
+    })
   }
 
   async function loadLeaves() {
@@ -1427,6 +1438,7 @@ function LeaveRequestSection({ taskerId }) {
 
   return (
     <div className="space-y-6">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       <div className="bg-white rounded-2xl shadow-sm p-6">
         <h3 className="font-bold text-gray-800 text-lg mb-4">Select Leave Dates</h3>
 

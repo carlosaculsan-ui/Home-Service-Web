@@ -16,7 +16,13 @@
       "Bash(ipconfig /all)",
       "Read(//c/Windows/System32/drivers/etc/**)",
       "Bash(curl -v --connect-timeout 5 https://github.com)",
-      "PowerShell(ipconfig /flushdns)"
+      "PowerShell(ipconfig /flushdns)",
+      "Bash(awk 'NR>=4680 && NR<=4720' client/src/pages/Admin.jsx)",
+      "Bash(awk 'NR>=5080 && NR<=5110' client/src/pages/Admin.jsx)",
+      "Bash(awk 'NR>=1290 && NR<=1330' client/src/pages/TaskerDashboard.jsx)",
+      "Bash(awk 'NR>=1240 && NR<=1280' client/src/pages/TaskerDashboard.jsx)",
+      "Bash(awk 'NR>=1490 && NR<=1548' client/src/pages/TaskerDashboard.jsx)",
+      "Bash(awk 'NR>=780 && NR<=810' client/src/pages/TaskerDashboard.jsx)"
     ]
   }
 }

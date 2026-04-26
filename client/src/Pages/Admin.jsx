@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import ConfirmModal from '../Components/ConfirmModal'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
 import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
@@ -67,6 +68,8 @@ function TaskerApplications() {
   const [deleteSuccess, setDeleteSuccess] = useState({}) // { [id]: bool }
   const [lightboxSrc, setLightboxSrc] = useState(null)
   const [interviewModal, setInterviewModal] = useState(null)   // { tasker, date }
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   const todayPlus = (n) => {
     const d = new Date()
@@ -138,18 +141,16 @@ function TaskerApplications() {
     setExpandedDocs((prev) => ({ ...prev, [id]: !prev[id] }))
   }
 
-  async function handleDeleteTasker(tasker) {
-    if (!window.confirm(
-      'Are you sure you want to remove this applicant? This cannot be undone.'
-    )) return
-
-    try {
-      const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
-      if (error) throw error
-      setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
-    } catch {
-      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete. Please try again.' }))
-    }
+  function handleDeleteTasker(tasker) {
+    openConfirm('Are you sure you want to remove this applicant? This cannot be undone.', async () => {
+      try {
+        const { error } = await supabase.from('taskers').delete().eq('id', tasker.id)
+        if (error) throw error
+        setTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
+      } catch {
+        setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to delete. Please try again.' }))
+      }
+    }, true)
   }
 
   if (loading) {
@@ -166,6 +167,7 @@ function TaskerApplications() {
 
   return (
     <div className="space-y-4">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {taskers.map((t) => {
         const docs = DOC_FIELDS.filter(({ key }) => t[key])
         return (
@@ -363,6 +365,8 @@ function TaskerAccountsPanel() {
   const [showTaskerModal, setShowTaskerModal] = useState(false)
   const [employeeSearch, setEmployeeSearch] = useState('')
   const [showcaseToast, setShowcaseToast] = useState('')
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function handleToggleFeature(tasker) {
     const next = !tasker.is_featured
@@ -434,27 +438,29 @@ function TaskerAccountsPanel() {
     fetchTaskers()
   }
 
-  async function handleArchiveTasker(tasker) {
-    if (!window.confirm('Archive this employee?')) return
-    const profileId = tasker.user_id || tasker.id
-    if (!profileId) { alert('Cannot archive: missing user_id'); return }
-    const { data, error } = await supabase
-      .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
-    if (error) { alert('Failed: ' + error.message); return }
-    if (!data || data.length === 0) { alert('No rows updated'); return }
-    setTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
-    setArchivedTaskers((prev) => [...prev, tasker])
+  function handleArchiveTasker(tasker) {
+    openConfirm('Archive this employee?', async () => {
+      const profileId = tasker.user_id || tasker.id
+      if (!profileId) { alert('Cannot archive: missing user_id'); return }
+      const { data, error } = await supabase
+        .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
+      if (error) { alert('Failed: ' + error.message); return }
+      if (!data || data.length === 0) { alert('No rows updated'); return }
+      setTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
+      setArchivedTaskers((prev) => [...prev, tasker])
+    })
   }
 
-  async function handleRestoreTasker(tasker) {
-    if (!window.confirm('Restore this employee?')) return
-    const profileId = tasker.user_id
-    const { data, error } = await supabase
-      .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
-    if (error) { alert('Failed: ' + error.message); return }
-    if (!data || data.length === 0) { alert('No rows updated'); return }
-    setArchivedTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
-    setTaskers((prev) => [...prev, tasker])
+  function handleRestoreTasker(tasker) {
+    openConfirm('Restore this employee?', async () => {
+      const profileId = tasker.user_id
+      const { data, error } = await supabase
+        .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
+      if (error) { alert('Failed: ' + error.message); return }
+      if (!data || data.length === 0) { alert('No rows updated'); return }
+      setArchivedTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
+      setTaskers((prev) => [...prev, tasker])
+    })
   }
 
   async function handleUploadTaskerPhoto(e, tasker) {
@@ -481,12 +487,13 @@ function TaskerAccountsPanel() {
     setSelectedTasker(prev => ({ ...prev, profile_photo: photoUrl }))
   }
 
-  async function handleRemoveTaskerPhoto(tasker) {
-    if (!window.confirm("Remove this tasker's showcase photo?")) return
-    const { error } = await supabase.from('taskers').update({ profile_photo: null }).eq('user_id', tasker.user_id)
-    if (error) { alert('Failed: ' + error.message); return }
-    setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: null } : t))
-    setSelectedTasker(prev => ({ ...prev, profile_photo: null }))
+  function handleRemoveTaskerPhoto(tasker) {
+    openConfirm("Remove this tasker's showcase photo?", async () => {
+      const { error } = await supabase.from('taskers').update({ profile_photo: null }).eq('user_id', tasker.user_id)
+      if (error) { alert('Failed: ' + error.message); return }
+      setTaskers(prev => prev.map(t => t.user_id === tasker.user_id ? { ...t, profile_photo: null } : t))
+      setSelectedTasker(prev => ({ ...prev, profile_photo: null }))
+    })
   }
 
   async function handleDeleteTasker(tasker) {
@@ -506,24 +513,26 @@ function TaskerAccountsPanel() {
       return
     }
 
-    if (!window.confirm(
-      'Remove this tasker? Their account will be converted back to a regular customer. Their booking history will be preserved.'
-    )) return
+    openConfirm(
+      'Remove this tasker? Their account will be converted back to a regular customer. Their booking history will be preserved.',
+      async () => {
+        try {
+          await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
+          await supabase.from('taskers').delete().eq('id', tasker.id)
 
-    try {
-      await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
-      await supabase.from('taskers').delete().eq('id', tasker.id)
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({ role: 'customer', is_archived: false })
+            .eq('id', tasker.user_id)
+          if (profileError) throw profileError
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ role: 'customer', is_archived: false })
-        .eq('id', tasker.user_id)
-      if (profileError) throw profileError
-
-      setArchivedTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
-    } catch (err) {
-      setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to remove tasker: ' + (err?.message || 'Please try again.') }))
-    }
+          setArchivedTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
+        } catch (err) {
+          setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to remove tasker: ' + (err?.message || 'Please try again.') }))
+        }
+      },
+      true
+    )
   }
 
   if (loading) {
@@ -554,6 +563,7 @@ function TaskerAccountsPanel() {
 
   return (
     <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {/* Showcase Toast */}
       {showcaseToast && (
         <div className="mb-4 bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm font-medium text-green-700">
@@ -1048,6 +1058,8 @@ function CustomerAccountsPanel() {
   const [selectedCustomer, setSelectedCustomer] = useState(null)
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function fetchCustomers() {
     const { data: customersData } = await supabase
@@ -1120,73 +1132,48 @@ function CustomerAccountsPanel() {
     setBookingsLoading(false)
   }
 
-  async function handleArchiveCustomer(customer) {
-    if (!window.confirm('Archive this customer?')) return
-
-    const profileId = customer.id || customer.user_id || customer.profile_id
-
-    if (!profileId) {
-      alert('Cannot archive: missing customer ID')
-      return
-    }
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ is_archived: true })
-      .eq('id', profileId)
-      .select()
-
-    if (error) {
-      alert('Failed: ' + error.message)
-      return
-    }
-
-    if (!data || data.length === 0) {
-      alert('No rows updated — id may not match profiles table')
-      return
-    }
-
-    setCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
-    setArchivedCustomers(prev => [...prev, customer])
+  function handleArchiveCustomer(customer) {
+    openConfirm('Archive this customer?', async () => {
+      const profileId = customer.id || customer.user_id || customer.profile_id
+      if (!profileId) { alert('Cannot archive: missing customer ID'); return }
+      const { data, error } = await supabase
+        .from('profiles').update({ is_archived: true }).eq('id', profileId).select()
+      if (error) { alert('Failed: ' + error.message); return }
+      if (!data || data.length === 0) { alert('No rows updated — id may not match profiles table'); return }
+      setCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
+      setArchivedCustomers(prev => [...prev, customer])
+    })
   }
 
-  async function handleRestoreCustomer(customer) {
-    if (!window.confirm('Restore this customer?')) return
-
-    const profileId = customer.id || customer.user_id || customer.profile_id
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .update({ is_archived: false })
-      .eq('id', profileId)
-      .select()
-
-    if (error) { alert('Failed: ' + error.message); return }
-    if (!data || data.length === 0) { alert('No rows updated'); return }
-
-    setArchivedCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
-    setCustomers(prev => [...prev, customer])
+  function handleRestoreCustomer(customer) {
+    openConfirm('Restore this customer?', async () => {
+      const profileId = customer.id || customer.user_id || customer.profile_id
+      const { data, error } = await supabase
+        .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
+      if (error) { alert('Failed: ' + error.message); return }
+      if (!data || data.length === 0) { alert('No rows updated'); return }
+      setArchivedCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
+      setCustomers(prev => [...prev, customer])
+    })
   }
 
-  async function handleDeleteCustomer(id) {
+  function handleDeleteCustomer(id) {
     setDeleteErrors((prev) => ({ ...prev, [id]: '' }))
-    const customer = archivedCustomers.find(c => c.id === id)
-
-    if (!window.confirm(
-      'Are you sure you want to permanently delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.'
-    )) return
-
-    try {
-      await supabase.from('reviews').delete().eq('client_id', id)
-      await supabase.from('bookings').delete().eq('client_id', id)
-      const { error } = await supabase.from('profiles').delete().eq('id', id)
-      if (error) {
-        throw error
-      }
-      setArchivedCustomers((prev) => prev.filter((c) => c.id !== id))
-    } catch (err) {
-      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
-    }
+    openConfirm(
+      'Are you sure you want to permanently delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.',
+      async () => {
+        try {
+          await supabase.from('reviews').delete().eq('client_id', id)
+          await supabase.from('bookings').delete().eq('client_id', id)
+          const { error } = await supabase.from('profiles').delete().eq('id', id)
+          if (error) throw error
+          setArchivedCustomers((prev) => prev.filter((c) => c.id !== id))
+        } catch (err) {
+          setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
+        }
+      },
+      true
+    )
   }
 
   if (loading) {
@@ -1214,6 +1201,7 @@ function CustomerAccountsPanel() {
 
   return (
     <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {/* Bookings Modal */}
       {viewingCustomer && (
         <div
@@ -1654,6 +1642,8 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [cancelReasonError, setCancelReasonError] = useState('')
   const [forceCompleteProcessing, setForceCompleteProcessing] = useState(null)
   const [completionPhotoModalUrl, setCompletionPhotoModalUrl] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function fetchBookings() {
     const { data } = await supabase
@@ -1748,8 +1738,8 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
   }
 
-  async function handleForceComplete(b) {
-    if (!window.confirm(`Force-complete booking ${b.reference_number ?? b.id}? This will release the payout to the tasker immediately.`)) return
+  function handleForceComplete(b) {
+    openConfirm(`Force-complete booking ${b.reference_number ?? b.id}? This will release the payout to the tasker immediately.`, async () => {
     setForceCompleteProcessing(b.id)
 
     const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
@@ -1782,6 +1772,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     }
     if (!error) setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: 'completed', platform_fee, tasker_payout } : bk))
     setForceCompleteProcessing(null)
+    })
   }
 
   async function handleConfirmCancel() {
@@ -1852,14 +1843,15 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     setCancelProcessing(false)
   }
 
-  async function handleDeleteBooking(id) {
-    if (!window.confirm('Are you sure you want to delete this completed booking record? This cannot be undone.')) return
-    const { error } = await supabase.from('bookings').delete().eq('id', id)
-    if (error) {
-      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete booking. Please try again.' }))
-    } else {
-      setBookings((prev) => prev.filter((b) => b.id !== id))
-    }
+  function handleDeleteBooking(id) {
+    openConfirm('Are you sure you want to delete this completed booking record? This cannot be undone.', async () => {
+      const { error } = await supabase.from('bookings').delete().eq('id', id)
+      if (error) {
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete booking. Please try again.' }))
+      } else {
+        setBookings((prev) => prev.filter((b) => b.id !== id))
+      }
+    }, true)
   }
 
   if (loading) {
@@ -1890,6 +1882,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
   return (
     <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
     <div className="space-y-4">
       {/* Search bar */}
       <div className="relative">
@@ -2474,6 +2467,8 @@ function ServicesPanel() {
   const [viewTaskersService, setViewTaskersService] = useState(null)
   const [serviceTaskers, setServiceTaskers] = useState([])
   const [serviceTaskersLoading, setServiceTaskersLoading] = useState(false)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function handleViewTaskers(service) {
     setViewTaskersService(service)
@@ -2573,12 +2568,15 @@ function ServicesPanel() {
     fetchServices()
   }
 
-  async function handleDelete(service) {
-    if (!window.confirm(
-      `⚠️ WARNING: Deleting "${service.title}" is permanent and cannot be undone.\n\nThis may affect existing bookings that used this service.\n\nAre you sure you want to delete this service?`
-    )) return
-    await supabase.from('services').delete().eq('id', service.id)
-    fetchServices()
+  function handleDelete(service) {
+    openConfirm(
+      `Deleting "${service.title}" is permanent and cannot be undone. This may affect existing bookings that used this service.`,
+      async () => {
+        await supabase.from('services').delete().eq('id', service.id)
+        fetchServices()
+      },
+      true
+    )
   }
 
   if (loading) {
@@ -2591,6 +2589,7 @@ function ServicesPanel() {
 
   return (
     <div className="space-y-4">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {/* Search + Add Service */}
       <div className="flex items-center justify-between mb-6">
         <input
@@ -2925,6 +2924,8 @@ function ReviewsPanel() {
   const [toast, setToast] = useState('')
   const [deleteErrors, setDeleteErrors] = useState({})
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   function showToast(msg) {
     setToast(msg)
@@ -2967,14 +2968,15 @@ function ReviewsPanel() {
     fetchReviews()
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm('Are you sure you want to delete this review? This cannot be undone.')) return
-    const { error } = await supabase.from('reviews').delete().eq('id', id)
-    if (error) {
-      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete review. Please try again.' }))
-    } else {
-      fetchReviews()
-    }
+  function handleDelete(id) {
+    openConfirm('Are you sure you want to delete this review? This cannot be undone.', async () => {
+      const { error } = await supabase.from('reviews').delete().eq('id', id)
+      if (error) {
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete review. Please try again.' }))
+      } else {
+        fetchReviews()
+      }
+    }, true)
   }
 
   const allCount      = reviews.length
@@ -3005,6 +3007,7 @@ function ReviewsPanel() {
 
   return (
     <div>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {/* Toast */}
       {toast && (
         <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm font-medium px-4 py-2 rounded-lg">
@@ -3155,6 +3158,8 @@ function LeaveRequestsPanel() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState(null)
   const [deleteErrors, setDeleteErrors] = useState({})
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function fetchLeaves() {
     const { data } = await supabase
@@ -3174,14 +3179,15 @@ function LeaveRequestsPanel() {
     fetchLeaves()
   }
 
-  async function handleDeleteLeave(id) {
-    if (!window.confirm('Are you sure you want to delete this leave request? This cannot be undone.')) return
-    const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
-    if (error) {
-      setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete leave request. Please try again.' }))
-    } else {
-      setLeaves((prev) => prev.filter((l) => l.id !== id))
-    }
+  function handleDeleteLeave(id) {
+    openConfirm('Are you sure you want to delete this leave request? This cannot be undone.', async () => {
+      const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
+      if (error) {
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete leave request. Please try again.' }))
+      } else {
+        setLeaves((prev) => prev.filter((l) => l.id !== id))
+      }
+    }, true)
   }
 
   if (loading) {
@@ -3202,6 +3208,7 @@ function LeaveRequestsPanel() {
 
   return (
     <div className="space-y-4">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mb-6">
         <label className="text-sm font-semibold text-gray-600">Filter by Status:</label>
         <select
@@ -4553,6 +4560,8 @@ function HelpersPanel() {
   const [appByPhone, setAppByPhone] = useState({}) // { phone: helper_application_row }
   const [loading, setLoading] = useState(true)
   const [expandedRows, setExpandedRows] = useState({})
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   // Search
   const [search, setSearch] = useState('')
@@ -4631,10 +4640,11 @@ function HelpersPanel() {
     fetchData()
   }
 
-  async function handleDelete(helper) {
-    if (!window.confirm(`Are you sure? This will also remove all tasker assignments for ${helper.name}.`)) return
-    await supabase.from('helpers').delete().eq('id', helper.id)
-    fetchData()
+  function handleDelete(helper) {
+    openConfirm(`Are you sure? This will also remove all tasker assignments for ${helper.name}.`, async () => {
+      await supabase.from('helpers').delete().eq('id', helper.id)
+      fetchData()
+    }, true)
   }
 
   function checkAssignConflict(taskerId, slot) {
@@ -4678,6 +4688,7 @@ function HelpersPanel() {
 
   return (
     <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Helpers</h2>
@@ -5017,6 +5028,8 @@ function AnnouncementsPanel() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
   const pickerRef = useRef(null)
   const messageRef = useRef(null)
   const formRef = useRef(null)
@@ -5051,10 +5064,11 @@ function AnnouncementsPanel() {
     setError('')
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm('Delete this announcement? This cannot be undone.')) return
-    await supabase.from('announcements').delete().eq('id', id)
-    setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+  function handleDelete(id) {
+    openConfirm('Delete this announcement? This cannot be undone.', async () => {
+      await supabase.from('announcements').delete().eq('id', id)
+      setAnnouncements((prev) => prev.filter((a) => a.id !== id))
+    }, true)
   }
 
   async function handleSubmit(e) {
@@ -5099,6 +5113,7 @@ function AnnouncementsPanel() {
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
       <h2 className="text-xl font-bold text-gray-800">Announcements</h2>
 
       {/* List */}
