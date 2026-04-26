@@ -8,7 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
@@ -1676,60 +1676,68 @@ function ReviewStars({ rating }) {
 function CustomerReviews({ userId }) {
   const [reviews, setReviews] = useState([])
   const [revLoading, setRevLoading] = useState(true)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
+
+  async function fetchReviews(showLoading = false) {
+    if (showLoading) setRevLoading(true)
+    const { data: reviewRows } = await supabase
+      .from('reviews')
+      .select('id, booking_id, tasker_id, rating, comment, images, video, created_at, service')
+      .eq('client_id', userId)
+      .order('created_at', { ascending: false })
+
+    if (!reviewRows || reviewRows.length === 0) {
+      setReviews([])
+      setRevLoading(false)
+      return
+    }
+
+    const taskerIds = [...new Set(reviewRows.map((r) => r.tasker_id).filter(Boolean))]
+    let taskerMap = {}
+    if (taskerIds.length > 0) {
+      const { data: taskers } = await supabase
+        .from('taskers')
+        .select('id, name, profile_photo')
+        .in('id', taskerIds)
+      ;(taskers ?? []).forEach((t) => {
+        const photo = t.profile_photo
+          ? (t.profile_photo.startsWith('http')
+              ? t.profile_photo
+              : supabase.storage.from('tasker-files').getPublicUrl(t.profile_photo).data.publicUrl)
+          : null
+        taskerMap[t.id] = { name: t.name, photo }
+      })
+    }
+
+    setReviews(reviewRows.map((r) => ({
+      ...r,
+      taskerName: taskerMap[r.tasker_id]?.name ?? 'Unknown Tasker',
+      taskerPhoto: taskerMap[r.tasker_id]?.photo ?? null,
+      service: r.service || '—',
+    })))
+    setRevLoading(false)
+  }
 
   useEffect(() => {
     if (!userId) return
-    async function fetchReviews() {
-      const { data: reviewRows } = await supabase
-        .from('reviews')
-        .select('id, booking_id, tasker_id, rating, comment, images, video, created_at')
-        .eq('client_id', userId)
-        .order('created_at', { ascending: false })
-
-      if (!reviewRows || reviewRows.length === 0) {
-        setRevLoading(false)
-        return
-      }
-
-      // Fetch tasker names + photos
-      const taskerIds = [...new Set(reviewRows.map((r) => r.tasker_id).filter(Boolean))]
-      let taskerMap = {}
-      if (taskerIds.length > 0) {
-        const { data: taskers } = await supabase
-          .from('taskers')
-          .select('id, name, profile_photo')
-          .in('id', taskerIds)
-        ;(taskers ?? []).forEach((t) => {
-          const photo = t.profile_photo
-            ? (t.profile_photo.startsWith('http')
-                ? t.profile_photo
-                : supabase.storage.from('tasker-files').getPublicUrl(t.profile_photo).data.publicUrl)
-            : null
-          taskerMap[t.id] = { name: t.name, photo }
-        })
-      }
-
-      // Fetch service types from bookings
-      const bookingIds = [...new Set(reviewRows.map((r) => r.booking_id).filter(Boolean))]
-      let serviceMap = {}
-      if (bookingIds.length > 0) {
-        const { data: bkgs } = await supabase
-          .from('bookings')
-          .select('id, service')
-          .in('id', bookingIds)
-        ;(bkgs ?? []).forEach((b) => { serviceMap[b.id] = b.service })
-      }
-
-      setReviews(reviewRows.map((r) => ({
-        ...r,
-        taskerName: taskerMap[r.tasker_id]?.name ?? 'Unknown Tasker',
-        taskerPhoto: taskerMap[r.tasker_id]?.photo ?? null,
-        service: serviceMap[r.booking_id] ?? '—',
-      })))
-      setRevLoading(false)
-    }
-    fetchReviews()
+    fetchReviews(true)
   }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`customer-reviews-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews', filter: `client_id=eq.${userId}` },
+        () => { fetchReviews(false) }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  async function deleteReview(reviewId) {
+    await supabase.from('reviews').delete().eq('id', reviewId)
+    setReviews((prev) => prev.filter((r) => r.id !== reviewId))
+  }
 
   if (revLoading) {
     return (
@@ -1759,6 +1767,16 @@ function CustomerReviews({ userId }) {
 
   return (
     <div className="space-y-5">
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center px-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <img src={lightboxSrc} alt="Review photo" className="max-w-full max-h-[90vh] rounded-xl object-contain" />
+        </div>
+      )}
 
       {/* Section 1 — Summary */}
       <div className="bg-white rounded-2xl shadow-sm p-5 flex items-center gap-6 flex-wrap">
@@ -1802,7 +1820,16 @@ function CustomerReviews({ userId }) {
                   <p className="font-semibold text-gray-800 text-sm leading-tight">{r.taskerName}</p>
                   <p className="text-xs text-gray-400 capitalize">{r.service}</p>
                 </div>
-                <p className="text-xs text-gray-400 ml-auto flex-shrink-0">{dateStr}</p>
+                <div className="ml-auto flex items-center gap-3 flex-shrink-0">
+                  <p className="text-xs text-gray-400">{dateStr}</p>
+                  <button
+                    onClick={() => deleteReview(r.id)}
+                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    title="Delete review"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
 
               {/* Stars */}
@@ -1818,7 +1845,8 @@ function CustomerReviews({ userId }) {
                 <div className="flex flex-wrap gap-2">
                   {images.map((src, i) => (
                     <img key={i} src={src} alt={`Review photo ${i + 1}`}
-                      className="w-16 h-16 object-cover rounded-lg border border-gray-100" />
+                      onClick={() => setLightboxSrc(src)}
+                      className="w-24 h-24 object-cover rounded-lg border border-gray-100 cursor-pointer hover:opacity-90 transition-opacity" />
                   ))}
                 </div>
               )}
@@ -1828,7 +1856,7 @@ function CustomerReviews({ userId }) {
                 <video
                   src={r.video}
                   controls
-                  className="w-full rounded-xl border border-gray-100 max-h-48"
+                  className="w-full max-w-xs rounded-xl border border-gray-100 max-h-48"
                 />
               )}
             </div>
@@ -1958,6 +1986,8 @@ function CustomerProfile({ userId, userEmail }) {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false)
   const [deactivating, setDeactivating] = useState(false)
   const [deactivateError, setDeactivateError] = useState('')
+  const [pwResetSent, setPwResetSent] = useState(false)
+  const [pwResetLoading, setPwResetLoading] = useState(false)
 
   useEffect(() => {
     if (!userId) return
@@ -2014,6 +2044,11 @@ function CustomerProfile({ userId, userEmail }) {
   }
 
   async function handleSave() {
+    if (!fullName.trim()) { showToast('error', 'Full name is required.'); return }
+    if (phone.trim() && !/^09\d{9}$/.test(phone.trim())) {
+      showToast('error', 'Phone must be a valid PH number (e.g. 09171234567).')
+      return
+    }
     setSaving(true)
     const { error } = await supabase
       .from('profiles')
@@ -2025,6 +2060,13 @@ function CustomerProfile({ userId, userEmail }) {
     } else {
       showToast('success', 'Profile updated successfully!')
     }
+  }
+
+  async function handlePasswordReset() {
+    setPwResetLoading(true)
+    await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo: window.location.origin })
+    setPwResetLoading(false)
+    setPwResetSent(true)
   }
 
   async function handleDeactivate() {
@@ -2074,30 +2116,30 @@ function CustomerProfile({ userId, userEmail }) {
       )}
 
       {/* Section 1 — Avatar */}
-      <div className="bg-white rounded-2xl shadow-sm p-6" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ position: 'relative' }}>
+      <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center gap-4">
+        <div className="relative">
           {avatarUrl ? (
             <img
               src={avatarUrl}
               alt="Profile"
-              style={{ width: 120, height: 120, borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3f4f6' }}
+              className="w-[120px] h-[120px] rounded-full object-cover border-2 border-gray-100"
             />
           ) : (
-            <div style={{ width: 120, height: 120, borderRadius: '50%', background: '#f3f4f6', border: '2px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: '2.5rem', fontWeight: 700, color: '#f97316' }}>{initials}</span>
+            <div className="w-[120px] h-[120px] rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+              <span className="text-[2.5rem] font-bold text-orange-500">{initials}</span>
             </div>
           )}
           {avatarUrl && !uploading && (
             <button
               onClick={handleRemoveAvatar}
-              style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
+              className="absolute top-1 right-1 w-[22px] h-[22px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer"
               title="Remove photo"
             >
-              <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>✕</span>
+              <span className="text-white text-[0.65rem] font-bold leading-none">✕</span>
             </button>
           )}
           {uploading && (
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
             </div>
           )}
@@ -2119,10 +2161,10 @@ function CustomerProfile({ userId, userEmail }) {
       </div>
 
       {/* Section 2 — Personal Information */}
-      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
         <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-4">Personal Information</h4>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
 
           {/* Full Name */}
           <div>
@@ -2172,14 +2214,9 @@ function CustomerProfile({ userId, userEmail }) {
           </div>
 
           {/* Joined Date — full width */}
-          <div style={{ gridColumn: 'span 2' }}>
+          <div className="sm:col-span-2">
             <label className="block text-xs font-semibold text-gray-500 mb-1">Member Since</label>
-            <input
-              type="text"
-              value={joinedDate}
-              readOnly
-              className="w-full border border-gray-100 rounded-lg px-3 py-2.5 text-sm text-gray-400 bg-gray-50 cursor-not-allowed"
-            />
+            <p className="text-sm text-gray-400 py-1">{joinedDate}</p>
           </div>
 
         </div>
@@ -2194,7 +2231,20 @@ function CustomerProfile({ userId, userEmail }) {
         {saving ? 'Saving…' : 'Save Changes'}
       </button>
 
-      {/* Section 4 — Deactivate */}
+      {/* Section 4 — Change Password */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Change Password</h4>
+        <p className="text-xs text-gray-400 mb-4">We'll send a password reset link to <span className="text-gray-500 font-medium">{userEmail}</span>.</p>
+        <button
+          onClick={handlePasswordReset}
+          disabled={pwResetSent || pwResetLoading}
+          className="text-sm font-medium px-4 py-2 rounded-lg border border-orange-300 text-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {pwResetSent ? 'Reset email sent!' : pwResetLoading ? 'Sending…' : 'Send Reset Email'}
+        </button>
+      </div>
+
+      {/* Section 5 — Deactivate */}
       <div className="border border-gray-200 rounded-2xl p-5">
         <p className="text-sm font-semibold text-gray-700 mb-1">Deactivate Account</p>
         <p className="text-xs text-gray-400 mb-4">Once deactivated, you will be logged out and your account will be disabled.</p>
@@ -2818,7 +2868,7 @@ function EWalletTab({ userId }) {
     if (!cashoutName.trim()) errors.name = 'Account name is required.'
     const amt = parseFloat(cashoutAmount)
     if (!cashoutAmount || isNaN(amt)) errors.amount = 'Please enter an amount.'
-    else if (amt < 100) errors.amount = 'Minimum cashout amount is ₱100.'
+    else if (amt < 80) errors.amount = 'Minimum cashout amount is ₱80.'
     else if (amt > balance) errors.amount = 'Amount exceeds your available balance.'
     if (Object.keys(errors).length > 0) { setCashoutErrors(errors); return }
 
@@ -2892,7 +2942,7 @@ function EWalletTab({ userId }) {
           </div>
           <button
             onClick={openCashout}
-            disabled={loading || balance === null || balance < 100}
+            disabled={loading || balance === null || balance < 80}
             className="flex items-center gap-2 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-xl border border-white/30 transition-colors"
           >
             Withdraw
@@ -2904,8 +2954,8 @@ function EWalletTab({ userId }) {
           <p className="text-white text-4xl font-bold tracking-tight">₱{formatAmount(balance)}</p>
         )}
         <p className="text-orange-100 text-sm mt-2">Use your balance on your next booking</p>
-        {!loading && balance !== null && balance < 100 && (
-          <p className="text-orange-200 text-xs mt-1">Minimum ₱100 balance required to withdraw</p>
+        {!loading && balance !== null && balance < 80 && (
+          <p className="text-orange-200 text-xs mt-1">Minimum ₱80 balance required to withdraw</p>
         )}
       </div>
 
@@ -3052,7 +3102,7 @@ function EWalletTab({ userId }) {
                       className={`w-full border rounded-lg pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 ${cashoutErrors.amount ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Available balance: ₱{formatAmount(balance ?? 0)} · Min ₱100</p>
+                  <p className="text-xs text-gray-400 mt-1">Available balance: ₱{formatAmount(balance ?? 0)} · Min ₱80</p>
                   {cashoutErrors.amount && <p className="text-red-500 text-xs mt-1">{cashoutErrors.amount}</p>}
                 </div>
 

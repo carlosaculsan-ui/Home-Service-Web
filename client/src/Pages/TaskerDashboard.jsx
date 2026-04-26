@@ -2003,7 +2003,7 @@ function TaskerEWallet({ userId }) {
     if (!cashoutName.trim()) errors.name = 'Account name is required.'
     const amt = parseFloat(cashoutAmount)
     if (!cashoutAmount || isNaN(amt)) errors.amount = 'Please enter an amount.'
-    else if (amt < 100) errors.amount = 'Minimum cashout amount is ₱100.'
+    else if (amt < 80) errors.amount = 'Minimum cashout amount is ₱80.'
     else if (amt > balance) errors.amount = 'Amount exceeds your available balance.'
     if (Object.keys(errors).length > 0) { setCashoutErrors(errors); return }
 
@@ -2075,7 +2075,7 @@ function TaskerEWallet({ userId }) {
           </div>
           <button
             onClick={openCashout}
-            disabled={loading || balance === null || balance < 100}
+            disabled={loading || balance === null || balance < 80}
             className="flex items-center gap-2 bg-white/20 hover:bg-white/30 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold px-4 py-2 rounded-xl border border-white/30 transition-colors"
           >
             Withdraw
@@ -2087,8 +2087,8 @@ function TaskerEWallet({ userId }) {
           <p className="text-white text-4xl font-bold tracking-tight">₱{formatAmount(balance)}</p>
         )}
         <p className="text-orange-100 text-sm mt-2">Your earnings from completed bookings</p>
-        {!loading && balance !== null && balance < 100 && (
-          <p className="text-orange-200 text-xs mt-1">Minimum ₱100 balance required to withdraw</p>
+        {!loading && balance !== null && balance < 80 && (
+          <p className="text-orange-200 text-xs mt-1">Minimum ₱80 balance required to withdraw</p>
         )}
       </div>
 
@@ -2229,7 +2229,7 @@ function TaskerEWallet({ userId }) {
                       className={`w-full border rounded-lg pl-7 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300 ${cashoutErrors.amount ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
                     />
                   </div>
-                  <p className="text-xs text-gray-400 mt-1">Available balance: ₱{formatAmount(balance ?? 0)} · Min ₱100</p>
+                  <p className="text-xs text-gray-400 mt-1">Available balance: ₱{formatAmount(balance ?? 0)} · Min ₱80</p>
                   {cashoutErrors.amount && <p className="text-red-500 text-xs mt-1">{cashoutErrors.amount}</p>}
                 </div>
 
