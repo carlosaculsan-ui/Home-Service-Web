@@ -4367,8 +4367,9 @@ function Booking() {
           <ProgressTracker step={step} />
         </div>
 
-        <div className="mb-5 flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 font-medium">
-          📍 We currently only serve <span className="font-bold">Metro Manila (NCR)</span>. Please make sure your address is within the area.
+        <div className="mb-5 flex items-start gap-2 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-700 font-medium">
+          <span className="flex-shrink-0">📍</span>
+          <span>We currently only serve <span className="font-bold">Metro Manila (NCR)</span>. Please make sure your address is within the area.</span>
         </div>
 
         {isRebook && (
