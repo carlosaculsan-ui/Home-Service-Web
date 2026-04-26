@@ -1652,6 +1652,8 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [cancelNote, setCancelNote] = useState('')
   const [cancelProcessing, setCancelProcessing] = useState(false)
   const [cancelReasonError, setCancelReasonError] = useState('')
+  const [forceCompleteProcessing, setForceCompleteProcessing] = useState(null)
+  const [completionPhotoModalUrl, setCompletionPhotoModalUrl] = useState(null)
 
   async function fetchBookings() {
     const { data } = await supabase
@@ -1744,6 +1746,42 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   async function updateBookingStatus(id, status) {
     await supabase.from('bookings').update({ status }).eq('id', id)
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status } : b))
+  }
+
+  async function handleForceComplete(b) {
+    if (!window.confirm(`Force-complete booking ${b.reference_number ?? b.id}? This will release the payout to the tasker immediately.`)) return
+    setForceCompleteProcessing(b.id)
+
+    const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
+    const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+    const updatePayload = { status: 'completed' }
+    if (platform_fee != null) {
+      updatePayload.platform_fee = platform_fee
+      updatePayload.tasker_payout = tasker_payout
+    }
+    const { error } = await supabase.from('bookings').update(updatePayload).eq('id', b.id)
+    if (!error && tasker_payout && b.tasker_id) {
+      const { data: taskerRow } = await supabase.from('taskers').select('user_id').eq('id', b.tasker_id).single()
+      const taskerUserId = taskerRow?.user_id
+      if (taskerUserId) {
+        await supabase.rpc('increment_wallet_balance', { target_user_id: taskerUserId, increment_amount: tasker_payout })
+        await supabase.from('wallet_transactions').insert({
+          user_id: taskerUserId,
+          booking_id: b.id,
+          amount: tasker_payout,
+          type: 'credit',
+          description: `Admin force-completed earnings from booking ${b.reference_number ?? b.id}`,
+        })
+        await supabase.from('notifications').insert({
+          user_id: taskerUserId,
+          title: 'Job Confirmed by Admin',
+          message: 'An admin has confirmed your job as complete. Your earnings have been added to your wallet.',
+          is_read: false,
+        })
+      }
+    }
+    if (!error) setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: 'completed', platform_fee, tasker_payout } : bk))
+    setForceCompleteProcessing(null)
   }
 
   async function handleConfirmCancel() {
@@ -1875,13 +1913,14 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {[
-          { value: 'pending_payment', label: 'Pending Payment' },
-          { value: 'confirmed',       label: 'Pending Booking' },
-          { value: 'accepted',        label: 'Accepted' },
-          { value: 'on_the_way',      label: 'On The Way' },
-          { value: 'in_progress',     label: 'In Progress' },
-          { value: 'completed',       label: 'Completed' },
-          { value: 'cancelled',       label: 'Cancelled' },
+          { value: 'pending_payment',      label: 'Pending Payment' },
+          { value: 'confirmed',            label: 'Pending Booking' },
+          { value: 'accepted',             label: 'Accepted' },
+          { value: 'on_the_way',           label: 'On The Way' },
+          { value: 'in_progress',          label: 'In Progress' },
+          { value: 'pending_confirmation', label: 'Awaiting Confirmation' },
+          { value: 'completed',            label: 'Completed' },
+          { value: 'cancelled',            label: 'Cancelled' },
         ].map(({ value, label }) => (
           <button
             key={value}
@@ -1969,6 +2008,15 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   Cancel Booking
                 </button>
               )}
+              {b.status === 'pending_confirmation' && (
+                <button
+                  onClick={() => handleForceComplete(b)}
+                  disabled={forceCompleteProcessing === b.id}
+                  className="text-xs border border-green-500 text-green-600 px-3 py-1 rounded-lg hover:bg-green-50 transition disabled:opacity-50"
+                >
+                  {forceCompleteProcessing === b.id ? 'Processing…' : 'Force Complete'}
+                </button>
+              )}
             </div>
           </div>
           {(b.platform_fee != null || b.tasker_payout != null) && (() => {
@@ -2008,6 +2056,17 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
               <span className="font-semibold flex items-center gap-1"><Bot size={14} /> AI Analysis: </span>{b.ai_image_analysis}
             </div>
           )}
+          {b.completion_photo_url && (
+            <div className="mt-3">
+              <button
+                onClick={() => setCompletionPhotoModalUrl(b.completion_photo_url)}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+              >
+                <img src={b.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                View completion photo
+              </button>
+            </div>
+          )}
           {b.status === 'completed' && (
             <div className="mt-3 border-t border-gray-100 pt-3">
               {deleteErrors[b.id] && (
@@ -2027,6 +2086,24 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
         </div>
       )})}
     </div>
+
+    {/* Completion Photo Modal */}
+    {completionPhotoModalUrl && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        onClick={() => setCompletionPhotoModalUrl(null)}
+      >
+        <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => setCompletionPhotoModalUrl(null)}
+            className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+          >
+            ×
+          </button>
+          <img src={completionPhotoModalUrl} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+        </div>
+      </div>
+    )}
 
     {/* Cancel Booking Modal */}
     {cancelModal && (

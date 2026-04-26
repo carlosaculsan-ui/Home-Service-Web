@@ -643,6 +643,9 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [sharingLocation, setSharingLocation] = useState(false)
   const [showNav, setShowNav] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [completionPhotoFile, setCompletionPhotoFile] = useState(null)
+  const [completionPhotoPreview, setCompletionPhotoPreview] = useState(null)
+  const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(false)
   const watchIdRef = useRef(null)
   const locationChannelRef = useRef(null)
 
@@ -735,7 +738,21 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     }
     setActionLoading(newStatus)
     setStatusError('')
-    const { error } = await supabase.from('bookings').update({ status: newStatus }).eq('id', booking.id)
+    const updatePayload = { status: newStatus }
+    if (newStatus === 'pending_confirmation') {
+      updatePayload.pending_confirmation_at = new Date().toISOString()
+      if (completionPhotoFile) {
+        const ext = completionPhotoFile.name.split('.').pop() || 'jpg'
+        const path = `completion-photos/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+        const { error: uploadError } = await supabase.storage
+          .from('tasker-files')
+          .upload(path, completionPhotoFile, { contentType: completionPhotoFile.type })
+        if (!uploadError) {
+          updatePayload.completion_photo_url = supabase.storage.from('tasker-files').getPublicUrl(path).data.publicUrl
+        }
+      }
+    }
+    const { error } = await supabase.from('bookings').update(updatePayload).eq('id', booking.id)
     setActionLoading(null)
     if (error) {
       setStatusError('Failed to update status. Try again.')
@@ -1042,6 +1059,34 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
       )}
 
+      {booking.completion_photo_url && (
+        <>
+          <button
+            onClick={() => setShowCompletionPhotoModal(true)}
+            className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+          >
+            <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+            View completion photo
+          </button>
+          {showCompletionPhotoModal && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+              onClick={() => setShowCompletionPhotoModal(false)}
+            >
+              <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={() => setShowCompletionPhotoModal(false)}
+                  className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+                >
+                  ×
+                </button>
+                <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
       {booking.status === 'cancelled' && booking.cancellation_reason && (
         <div className="text-sm bg-red-50 border border-red-100 rounded-lg px-3 py-2 space-y-1">
           <p className="text-gray-700">❌ <span className="font-medium">Reason:</span> {booking.cancellation_reason}</p>
@@ -1106,18 +1151,30 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
       )}
 
-      {/* I'm On My Way — accepted only */}
-      {booking.status === 'accepted' && (
-        <div className="pt-1">
-          <button
-            onClick={() => handleAction('on_the_way')}
-            disabled={actionLoading !== null}
-            className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-          >
-            {actionLoading === 'on_the_way' ? 'Updating…' : <span className="flex items-center gap-1"><Car size={15} />I'm On My Way</span>}
-          </button>
-        </div>
-      )}
+      {/* I'm On My Way — accepted only, unlocks at 7:00 AM PHT on the scheduled date */}
+      {booking.status === 'accepted' && (() => {
+        const unlockAt = booking.scheduled_date
+          ? new Date(`${booking.scheduled_date}T07:00:00+08:00`)
+          : null
+        const isUnlocked = !unlockAt || new Date() >= unlockAt
+        const dateLabel = unlockAt
+          ? unlockAt.toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric', timeZone: 'Asia/Manila' })
+          : ''
+        return (
+          <div className="pt-1 space-y-1">
+            <button
+              onClick={() => handleAction('on_the_way')}
+              disabled={actionLoading !== null || !isUnlocked}
+              className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {actionLoading === 'on_the_way' ? 'Updating…' : <span className="flex items-center gap-1"><Car size={15} />I'm On My Way</span>}
+            </button>
+            {!isUnlocked && (
+              <p className="text-xs text-gray-400">Available on {dateLabel} at 7:00 AM</p>
+            )}
+          </div>
+        )
+      })()}
 
       {/* Start Job — on_the_way only */}
       {booking.status === 'on_the_way' && (
@@ -1134,7 +1191,36 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
       {/* Complete Job — in_progress only */}
       {booking.status === 'in_progress' && (
-        <div className="pt-1">
+        <div className="pt-1 space-y-2">
+          <div>
+            <p className="text-xs text-gray-400 mb-1">Completion photo (optional)</p>
+            {completionPhotoPreview ? (
+              <div className="flex items-center gap-2">
+                <img src={completionPhotoPreview} alt="Preview" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                <button
+                  onClick={() => { setCompletionPhotoFile(null); setCompletionPhotoPreview(null) }}
+                  className="text-xs text-red-400 hover:text-red-600"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <label className="flex items-center gap-1 text-sm text-blue-600 cursor-pointer w-fit">
+                <span className="underline underline-offset-2">Add photo</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={e => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setCompletionPhotoFile(file)
+                    setCompletionPhotoPreview(URL.createObjectURL(file))
+                  }}
+                />
+              </label>
+            )}
+          </div>
           <button
             onClick={() => handleAction('pending_confirmation')}
             disabled={actionLoading !== null}

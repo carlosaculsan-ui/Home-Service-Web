@@ -1070,6 +1070,7 @@ function BookingCard({ booking, userId, onCancel }) {
   const [toast, setToast] = useState('')
   const [showTrackModal, setShowTrackModal] = useState(false)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
+  const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(false)
 
   const proposedDates = (() => {
     try { return JSON.parse(booking.proposed_dates) } catch { return [] }
@@ -1494,6 +1495,33 @@ function BookingCard({ booking, userId, onCancel }) {
             <p className="text-sm text-gray-600">
               Your tasker has marked this job as complete. Please confirm to finalize the booking.
             </p>
+            {booking.completion_photo_url && (
+              <>
+                <button
+                  onClick={() => setShowCompletionPhotoModal(true)}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                >
+                  <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                  View completion photo
+                </button>
+                {showCompletionPhotoModal && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                    onClick={() => setShowCompletionPhotoModal(false)}
+                  >
+                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setShowCompletionPhotoModal(false)}
+                        className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                      <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <button
               onClick={handleConfirmComplete}
               disabled={confirming}
@@ -1510,6 +1538,33 @@ function BookingCard({ booking, userId, onCancel }) {
               Thank you for using Hanap.ph! We hope you're happy with the service.
               Leave a review to help others find great taskers.
             </p>
+            {booking.completion_photo_url && (
+              <>
+                <button
+                  onClick={() => setShowCompletionPhotoModal(true)}
+                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+                >
+                  <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                  View completion photo
+                </button>
+                {showCompletionPhotoModal && (
+                  <div
+                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                    onClick={() => setShowCompletionPhotoModal(false)}
+                  >
+                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+                      <button
+                        onClick={() => setShowCompletionPhotoModal(false)}
+                        className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+                      >
+                        ×
+                      </button>
+                      <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
             <div className="flex items-center gap-3 flex-wrap">
               {!hasReview && !reviewSubmitted && (
                 <button
@@ -3106,11 +3161,47 @@ function Dashboard() {
       taskers?.forEach((t) => { taskerMap[t.id] = { name: t.name, user_id: t.user_id } })
     }
 
-    setBookings(data.map((b) => ({
+    const mapped = data.map((b) => ({
       ...b,
       taskerName: taskerMap[b.tasker_id]?.name ?? '—',
       taskerUserId: taskerMap[b.tasker_id]?.user_id ?? null,
-    })))
+    }))
+
+    // Auto-complete any pending_confirmation booking that has been waiting > 24 hours
+    const overdue = mapped.filter(b =>
+      b.status === 'pending_confirmation' &&
+      b.pending_confirmation_at &&
+      new Date(b.pending_confirmation_at) < new Date(Date.now() - 24 * 60 * 60 * 1000)
+    )
+    for (const b of overdue) {
+      const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
+      const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+      const updatePayload = { status: 'completed' }
+      if (platform_fee != null) {
+        updatePayload.platform_fee = platform_fee
+        updatePayload.tasker_payout = tasker_payout
+      }
+      const { error } = await supabase.from('bookings').update(updatePayload).eq('id', b.id)
+      if (!error && tasker_payout && b.taskerUserId) {
+        await supabase.rpc('increment_wallet_balance', { target_user_id: b.taskerUserId, increment_amount: tasker_payout })
+        await supabase.from('wallet_transactions').insert({
+          user_id: b.taskerUserId,
+          booking_id: b.id,
+          amount: tasker_payout,
+          type: 'credit',
+          description: `Auto-completed earnings from booking ${b.reference_number ?? b.id}`,
+        })
+        await supabase.from('notifications').insert({
+          user_id: b.taskerUserId,
+          title: 'Job Auto-Confirmed',
+          message: 'Your job has been automatically confirmed after 24 hours. Your earnings have been added to your wallet.',
+          is_read: false,
+        })
+      }
+    }
+    if (overdue.length > 0) { load(uid); return }
+
+    setBookings(mapped)
   }
 
   useEffect(() => {
