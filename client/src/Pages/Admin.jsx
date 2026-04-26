@@ -1685,6 +1685,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     const { data } = await supabase
       .from('bookings')
       .select('*')
+      .neq('status', 'pending_payment')
       .order('created_at', { ascending: false })
 
     if (!data) { setLoading(false); return }
@@ -1989,7 +1990,6 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
         {[
-          { value: 'pending_payment',      label: 'Pending Payment' },
           { value: 'confirmed',            label: 'Pending Booking' },
           { value: 'accepted',             label: 'Accepted' },
           { value: 'on_the_way',           label: 'On The Way' },

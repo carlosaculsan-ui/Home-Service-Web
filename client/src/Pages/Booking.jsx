@@ -3369,7 +3369,7 @@ function Step1({ service, onContinue, initialState }) {
   )
 }
 
-function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, bookingImagePreview, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, travelFee = 0, isRebook, rebookOriginalId, onBack }) {
+function Step4({ service, tasker, date, time, taskSize, taskAddress, taskLandmark, taskDetails, aiImageAnalysis, bookingImagePreview, taskOptions, taskersNeeded, taskDuration, estimatedTotal: estimatedTotalProp, travelFee = 0, isRebook, rebookOriginalId, isContinuePayment, continueBookingId, continueBookingRef, onBack }) {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [cardDetails, setCardDetails] = useState('')
   const [cardErrors, setCardErrors] = useState({})
@@ -3819,7 +3819,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 customerPhone = profileData?.phone ?? null
               }
 
-              const ref = 'VE-' + Date.now()
+              const ref = isContinuePayment && continueBookingRef ? continueBookingRef : 'VE-' + Date.now()
               const finalAmount = rawFinalAmount
               const baseServicePrice = taskOptions?.final_price ?? estimatedTotal
               const helperFeeAmount = taskOptions?.helper_fee ?? 0
@@ -3857,38 +3857,51 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 } catch {}
               }
 
-              const { error: insertError } = await supabase.from('bookings').insert({
-                client_id,
-                tasker_id: tasker?.id,
-                service,
-                task_size: taskOptions
-                  ? (taskOptions.furniture_category
-                      ? `${taskOptions.what_to_paint} — ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
-                      : (taskOptions.area || taskOptions.type || taskOptions.problem || taskOptions.what_to_paint || taskOptions.aircon_type || taskOptions.service_type || 'N/A'))
-                  : taskSize,
-                task_description: taskDetails,
-                address: taskAddress,
-                landmark: taskLandmark || null,
-                scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
-                scheduled_time: time,
-                payment_method: paymentMethod,
-                reference_number: ref,
-                ai_image_analysis: aiImageAnalysis ?? null,
-                booking_image_url: bookingImageUrl,
-                customer_name: customerName,
-                customer_phone: customerPhone,
-                task_options: taskOptions ? JSON.stringify(taskOptions) : null,
-                taskers_needed: taskersNeeded,
-                estimated_total: finalAmount,
-                platform_fee: platformFee,
-                tasker_payout: taskerPayout,
-                helper_fee: helperFeeAmount,
-                helper_names: helperNames.length > 0 ? JSON.stringify(helperNames) : null,
-                duration_hours: taskDuration ?? 8,
-                wallet_amount_used: useWallet ? walletDeduction : 0,
-                status: 'pending_payment',
-                ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
-              })
+              let insertError = null
+              if (isContinuePayment && continueBookingId) {
+                const { error: updateErr } = await supabase.from('bookings').update({
+                  payment_method: paymentMethod,
+                  wallet_amount_used: useWallet ? walletDeduction : 0,
+                  estimated_total: finalAmount,
+                  platform_fee: platformFee,
+                  tasker_payout: taskerPayout,
+                }).eq('id', continueBookingId)
+                insertError = updateErr
+              } else {
+                const { error: err } = await supabase.from('bookings').insert({
+                  client_id,
+                  tasker_id: tasker?.id,
+                  service,
+                  task_size: taskOptions
+                    ? (taskOptions.furniture_category
+                        ? `${taskOptions.what_to_paint} — ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
+                        : (taskOptions.area || taskOptions.type || taskOptions.problem || taskOptions.what_to_paint || taskOptions.aircon_type || taskOptions.service_type || 'N/A'))
+                    : taskSize,
+                  task_description: taskDetails,
+                  address: taskAddress,
+                  landmark: taskLandmark || null,
+                  scheduled_date: date ? `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}` : null,
+                  scheduled_time: time,
+                  payment_method: paymentMethod,
+                  reference_number: ref,
+                  ai_image_analysis: aiImageAnalysis ?? null,
+                  booking_image_url: bookingImageUrl,
+                  customer_name: customerName,
+                  customer_phone: customerPhone,
+                  task_options: taskOptions ? JSON.stringify(taskOptions) : null,
+                  taskers_needed: taskersNeeded,
+                  estimated_total: finalAmount,
+                  platform_fee: platformFee,
+                  tasker_payout: taskerPayout,
+                  helper_fee: helperFeeAmount,
+                  helper_names: helperNames.length > 0 ? JSON.stringify(helperNames) : null,
+                  duration_hours: taskDuration ?? 8,
+                  wallet_amount_used: useWallet ? walletDeduction : 0,
+                  status: 'pending_payment',
+                  ...(isRebook ? { is_rebook: true, original_booking_id: rebookOriginalId } : {}),
+                })
+                insertError = err
+              }
               if (insertError) {
                 setSaveError(`Error saving booking: ${insertError.message}`)
                 setSaving(false)
@@ -4113,6 +4126,9 @@ function Booking() {
   const [step, setStep] = useState(0)
   const [isRebook, setIsRebook] = useState(false)
   const [rebookOriginalId, setRebookOriginalId] = useState(null)
+  const [isContinuePayment, setIsContinuePayment] = useState(false)
+  const [continueBookingId, setContinueBookingId] = useState(null)
+  const [continueBookingRef, setContinueBookingRef] = useState(null)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -4174,6 +4190,50 @@ function Booking() {
           })
           setStep(1)
         })
+    }
+  }, [])
+
+  // Continue payment init — runs once on mount if navigated here from Dashboard "Complete Payment"
+  useEffect(() => {
+    const state = location.state
+    if (!state?.is_continue_payment) return
+    setIsContinuePayment(true)
+    setContinueBookingId(state.booking_id ?? null)
+    setContinueBookingRef(state.booking_ref ?? null)
+    if (state.taskers_needed) setTaskersNeeded(state.taskers_needed)
+    if (state.prefill_address) setTaskAddress(state.prefill_address)
+    if (state.prefill_landmark) setTaskLandmark(state.prefill_landmark)
+    if (state.prefill_details) setTaskDetails(state.prefill_details)
+    if (state.prefill_size) setTaskSize(state.prefill_size)
+    if (state.prefill_duration) setTaskDuration(state.prefill_duration)
+    if (state.prefill_estimated_total) setEstimatedTotal(state.prefill_estimated_total)
+    try {
+      const opts = typeof state.task_options === 'string' ? JSON.parse(state.task_options) : state.task_options
+      if (opts) setTaskOptions(opts)
+    } catch {}
+    if (state.prefill_time) setSelectedTime(state.prefill_time)
+    if (state.prefill_date) {
+      const [y, m, d] = state.prefill_date.split('-').map(Number)
+      setSelectedDate(new Date(y, m - 1, d))
+    }
+    if (state.tasker_id) {
+      supabase.from('taskers').select('*').eq('id', state.tasker_id).single()
+        .then(({ data: t }) => {
+          if (!t) return
+          setSelectedTasker({
+            id: t.id,
+            name: t.name,
+            role: t.role,
+            rating: t.rating,
+            reviews: t.reviews_count,
+            tasks: 0,
+            price: `₱${t.hourly_rate}/hr`,
+            bio: t.bio,
+          })
+          setStep(3)
+        })
+    } else {
+      setStep(3)
     }
   }, [])
 
@@ -4380,6 +4440,9 @@ function Booking() {
             travelFee={travelFee}
             isRebook={isRebook}
             rebookOriginalId={rebookOriginalId}
+            isContinuePayment={isContinuePayment}
+            continueBookingId={continueBookingId}
+            continueBookingRef={continueBookingRef}
             onBack={() => setStep(2)}
           />
         )}

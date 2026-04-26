@@ -15,10 +15,11 @@ import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
 const STATUS_STYLES = {
-  pending:     'bg-yellow-100 text-yellow-700',
-  confirmed:   'bg-amber-100 text-amber-700',
-  accepted:    'bg-green-100 text-green-700',
-  on_the_way:  'bg-blue-100 text-blue-700',
+  pending:          'bg-yellow-100 text-yellow-700',
+  pending_payment:  'bg-pink-100 text-pink-700',
+  confirmed:        'bg-amber-100 text-amber-700',
+  accepted:         'bg-green-100 text-green-700',
+  on_the_way:       'bg-blue-100 text-blue-700',
   in_progress:          'bg-orange-100 text-orange-700',
   pending_confirmation: 'bg-purple-100 text-purple-700',
   completed:            'bg-green-100 text-green-700',
@@ -27,9 +28,10 @@ const STATUS_STYLES = {
 }
 
 const STATUS_LABELS = {
-  confirmed:   'Awaiting Tasker',
-  accepted:    'Accepted',
-  on_the_way:  'Tasker On The Way',
+  pending_payment:  'Payment Incomplete',
+  confirmed:        'Awaiting Tasker',
+  accepted:         'Accepted',
+  on_the_way:       'Tasker On The Way',
   in_progress:          'In Progress',
   pending_confirmation: 'Confirm Completion',
   completed:            'Completed',
@@ -1462,6 +1464,37 @@ function BookingCard({ booking, userId, onCancel }) {
           )
         })()}
 
+        {booking.status === 'pending_payment' && (
+          <div className="space-y-2 pt-1">
+            <p className="text-sm text-pink-600 bg-pink-50 border border-pink-100 rounded-lg px-3 py-2">
+              Your payment was not completed. This booking is incomplete and has not been submitted to a tasker.
+            </p>
+            <button
+              onClick={() => navigate(`/booking/${booking.service}`, {
+                state: {
+                  is_continue_payment: true,
+                  booking_id: booking.id,
+                  booking_ref: booking.reference_number,
+                  tasker_id: booking.tasker_id,
+                  taskers_needed: booking.taskers_needed,
+                  task_options: booking.task_options,
+                  prefill_address: booking.address ?? '',
+                  prefill_landmark: booking.landmark ?? '',
+                  prefill_details: booking.task_description ?? '',
+                  prefill_size: booking.task_size ?? '',
+                  prefill_duration: booking.duration_hours ?? 8,
+                  prefill_estimated_total: booking.estimated_total ?? 0,
+                  prefill_date: booking.scheduled_date ?? null,
+                  prefill_time: booking.scheduled_time ?? null,
+                },
+              })}
+              className="text-sm font-semibold text-white bg-orange-500 hover:bg-orange-600 px-4 py-1.5 rounded-lg transition-colors"
+            >
+              Complete Payment
+            </button>
+          </div>
+        )}
+
         {booking.status === 'on_the_way' && (
           <div className="flex items-center justify-between gap-3 text-sm text-blue-600 bg-blue-50 rounded-lg px-3 py-2 flex-wrap">
             <div className="flex items-center gap-2">
@@ -1625,7 +1658,7 @@ function BookingCard({ booking, userId, onCancel }) {
           </div>
         )}
 
-        {booking.reference_number && (
+        {booking.reference_number && booking.status !== 'pending_payment' && (
           <div className="pt-1">
             <button
               onClick={() => setShowReceiptModal(true)}
@@ -1637,7 +1670,7 @@ function BookingCard({ booking, userId, onCancel }) {
           </div>
         )}
 
-        {booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.taskerUserId && (
+        {booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.status !== 'pending_payment' && booking.taskerUserId && (
           <div className="pt-1">
             <button
               onClick={() => setShowChat(true)}
@@ -3691,13 +3724,14 @@ function Dashboard() {
                   {/* Status filter toggles */}
                   <div className="flex gap-2 mb-5 overflow-x-auto pb-1 scrollbar-hide">
                     {[
-                      { value: 'all',         label: 'All' },
-                      { value: 'confirmed',   label: 'Pending' },
-                      { value: 'accepted',    label: 'Accepted' },
-                      { value: 'on_the_way',  label: 'On The Way' },
-                      { value: 'in_progress', label: 'In Progress' },
-                      { value: 'completed',   label: 'Completed' },
-                      { value: 'cancelled',   label: 'Cancelled' },
+                      { value: 'all',             label: 'All' },
+                      { value: 'pending_payment', label: 'Payment Incomplete' },
+                      { value: 'confirmed',       label: 'Pending Booking' },
+                      { value: 'accepted',        label: 'Accepted' },
+                      { value: 'on_the_way',      label: 'On The Way' },
+                      { value: 'in_progress',     label: 'In Progress' },
+                      { value: 'completed',       label: 'Completed' },
+                      { value: 'cancelled',       label: 'Cancelled' },
                     ].map(({ value, label }) => (
                       <button
                         key={value}
