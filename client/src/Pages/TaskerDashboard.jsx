@@ -2529,6 +2529,8 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [showDeactivateModal, setShowDeactivateModal] = useState(false)
   const [deactivating, setDeactivating] = useState(false)
   const [deactivateError, setDeactivateError] = useState('')
+  const [pwResetSent, setPwResetSent] = useState(false)
+  const [pwResetLoading, setPwResetLoading] = useState(false)
 
   const showToast = (message, type = 'success') => {
     setToast({ message, type })
@@ -2573,7 +2575,18 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
     fetchProfile()
   }, [taskerId, taskerUserId])
 
+  async function handlePasswordReset() {
+    setPwResetLoading(true)
+    await supabase.auth.resetPasswordForEmail(profile.email, { redirectTo: window.location.origin })
+    setPwResetLoading(false)
+    setPwResetSent(true)
+  }
+
   async function handleSavePersonal() {
+    if (personalFields.phone.trim() && !/^09\d{9}$/.test(personalFields.phone.trim())) {
+      showToast('Phone must be a valid PH number (e.g. 09171234567).', 'error')
+      return
+    }
     setSaving(true)
     const [taskerRes, profileRes] = await Promise.all([
       supabase.from('taskers').update({
@@ -2696,7 +2709,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
       {/* Section 1 — Profile Header */}
       <div className="bg-white rounded-2xl shadow-sm p-6 flex flex-col items-center text-center gap-3">
-        <div style={{ position: 'relative' }}>
+        <div className="relative">
           {photoUrl ? (
             <img src={photoUrl} alt={fullName} className="w-28 h-28 rounded-full object-cover border-4 border-orange-100" />
           ) : (
@@ -2707,14 +2720,14 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
           {photoUrl && !photoUploading && (
             <button
               onClick={handleRemovePhoto}
-              style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', background: '#ef4444', border: '2px solid #fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', lineHeight: 1 }}
+              className="absolute top-1 right-1 w-[22px] h-[22px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer"
               title="Remove photo"
             >
-              <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 700 }}>✕</span>
+              <span className="text-white text-[0.65rem] font-bold leading-none">✕</span>
             </button>
           )}
           {photoUploading && (
-            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center">
               <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
             </div>
           )}
@@ -2756,7 +2769,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
       </div>
 
       {/* Section 2 — Personal Information */}
-      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide">Personal Information</h4>
           {!editingPersonal && (
@@ -2768,7 +2781,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             </button>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
           <InfoField label="Age"    value={profile.age} />
           <InfoField label="Gender" value={profile.gender} />
           <InfoField label="Email"  value={profile.email} />
@@ -2845,7 +2858,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
       </div>
 
       {/* Section 3 — Work Information */}
-      <div className="bg-white rounded-2xl shadow-sm p-6 pl-8">
+      <div className="bg-white rounded-2xl shadow-sm p-6">
         <div className="flex items-center justify-between mb-4">
           <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide">Work Information</h4>
           {!editingWork && (
@@ -2857,7 +2870,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             </button>
           )}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem 2rem' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
 
           {/* Availability */}
           <div className="w-full">
@@ -2917,6 +2930,19 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-white rounded-2xl shadow-sm p-6">
+        <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-1">Change Password</h4>
+        <p className="text-xs text-gray-400 mb-4">We'll send a password reset link to <span className="text-gray-500 font-medium">{profile.email}</span>.</p>
+        <button
+          onClick={handlePasswordReset}
+          disabled={pwResetSent || pwResetLoading}
+          className="text-sm font-medium px-4 py-2 rounded-lg border border-orange-300 text-orange-500 hover:bg-orange-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {pwResetSent ? 'Reset email sent!' : pwResetLoading ? 'Sending…' : 'Send Reset Email'}
+        </button>
       </div>
 
       {/* Deactivate Account */}
