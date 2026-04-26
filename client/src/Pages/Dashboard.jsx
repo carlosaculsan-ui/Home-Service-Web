@@ -2749,6 +2749,7 @@ function EWalletTab({ userId }) {
   const [cashoutRef, setCashoutRef] = useState('')
   const [cashoutTimestamp, setCashoutTimestamp] = useState('')
   const [cashoutFinalAmount, setCashoutFinalAmount] = useState(0)
+  const [txnFilter, setTxnFilter] = useState('all')
 
   useEffect(() => {
     if (!userId) return
@@ -2756,13 +2757,31 @@ function EWalletTab({ userId }) {
       setLoading(true)
       const [{ data: profile }, { data: txns }] = await Promise.all([
         supabase.from('profiles').select('wallet_balance').eq('id', userId).single(),
-        supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
       ])
       setBalance(Number(profile?.wallet_balance) || 0)
       setTransactions(txns ?? [])
       setLoading(false)
     }
     fetchWallet()
+  }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`customer-wallet-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions', filter: `user_id=eq.${userId}` },
+        async () => {
+          const [{ data: profile }, { data: txns }] = await Promise.all([
+            supabase.from('profiles').select('wallet_balance').eq('id', userId).single(),
+            supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(50),
+          ])
+          setBalance(Number(profile?.wallet_balance) || 0)
+          setTransactions(txns ?? [])
+        }
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
   }, [userId])
 
   const formatAmount = (amount) =>
@@ -2885,12 +2904,26 @@ function EWalletTab({ userId }) {
           <p className="text-white text-4xl font-bold tracking-tight">₱{formatAmount(balance)}</p>
         )}
         <p className="text-orange-100 text-sm mt-2">Use your balance on your next booking</p>
+        {!loading && balance !== null && balance < 100 && (
+          <p className="text-orange-200 text-xs mt-1">Minimum ₱100 balance required to withdraw</p>
+        )}
       </div>
 
       {/* Transaction History */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
           <h3 className="text-base font-bold text-gray-800">Transaction History</h3>
+          <div className="flex gap-2">
+            {['all', 'credit', 'debit'].map((f) => (
+              <button
+                key={f}
+                onClick={() => setTxnFilter(f)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold border transition-colors ${txnFilter === f ? 'bg-orange-500 text-white border-orange-500' : 'bg-white text-gray-500 border-gray-200 hover:border-orange-300'}`}
+              >
+                {f === 'all' ? 'All' : f === 'credit' ? 'Credits' : 'Debits'}
+              </button>
+            ))}
+          </div>
         </div>
 
         {loading ? (
@@ -2900,11 +2933,15 @@ function EWalletTab({ userId }) {
         ) : transactions.length === 0 ? (
           <div className="text-center py-12 px-6">
             <Wallet className="w-10 h-10 text-gray-200 mx-auto mb-3" />
-            <p className="text-gray-400 text-sm">No wallet transactions yet. Cancel a booking to receive your refund.</p>
+            <p className="text-gray-400 text-sm">No wallet activity yet. Refunds and credits will appear here.</p>
           </div>
-        ) : (
+        ) : (() => {
+          const filtered = txnFilter === 'all' ? transactions : transactions.filter((t) => t.type === txnFilter)
+          return filtered.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-10">No {txnFilter === 'credit' ? 'credit' : 'debit'} transactions found.</p>
+          ) : (
           <div className="divide-y divide-gray-100">
-            {transactions.map((txn) => (
+            {filtered.map((txn) => (
               <div key={txn.id} className="flex items-center justify-between px-5 py-4 gap-4">
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-gray-700 leading-snug">{txn.description}</p>
@@ -2921,7 +2958,8 @@ function EWalletTab({ userId }) {
               </div>
             ))}
           </div>
-        )}
+          )
+        })()}
       </div>
 
       {/* ── Cashout Modal ─────────────────────────────────────────────── */}
