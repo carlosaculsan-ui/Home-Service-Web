@@ -3731,8 +3731,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       bookingsData?.forEach((b) => {
         if (b.service) serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1
       })
-      const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
-      setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
+      setTopServices(Object.entries(serviceCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count))
 
       // Top Taskers leaderboard
       const { data: approvedTaskers } = await supabase
@@ -3814,8 +3813,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             bookingsData?.forEach((b) => {
               if (b.service) serviceCounts[b.service] = (serviceCounts[b.service] || 0) + 1
             })
-            const allServices = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
-            setTopServices(allServices.map((name) => ({ name, count: serviceCounts[name] || 0 })))
+            setTopServices(Object.entries(serviceCounts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count))
             const { data: approvedTaskers } = await supabase
               .from('taskers').select('id, name, role, profile_photo').eq('status', 'approved')
             const [
@@ -3868,9 +3866,51 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       )
       .subscribe()
 
+    const reviewsChannel = supabase
+      .channel('admin-dashboard-reviews')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reviews' },
+        () => {
+          async function refetchLeaderboard() {
+            const { data: approvedTaskers } = await supabase
+              .from('taskers').select('id, name, role, profile_photo').eq('status', 'approved')
+            const [
+              { data: allCompletedBookings },
+              { data: allRejectedBookings },
+              { data: allReviews },
+            ] = await Promise.all([
+              supabase.from('bookings').select('tasker_id').eq('status', 'completed'),
+              supabase.from('bookings').select('tasker_id').eq('status', 'rejected'),
+              supabase.from('reviews').select('tasker_id, rating'),
+            ])
+            const jobCounts = {}
+            allCompletedBookings?.forEach((b) => {
+              if (b.tasker_id) jobCounts[b.tasker_id] = (jobCounts[b.tasker_id] || 0) + 1
+            })
+            const rejectedCounts = {}
+            allRejectedBookings?.forEach((b) => {
+              if (b.tasker_id) rejectedCounts[b.tasker_id] = (rejectedCounts[b.tasker_id] || 0) + 1
+            })
+            const ratingMap = {}
+            allReviews?.forEach((r) => {
+              if (!ratingMap[r.tasker_id]) ratingMap[r.tasker_id] = []
+              ratingMap[r.tasker_id].push(r.rating ?? 0)
+            })
+            const leaderboard = (approvedTaskers ?? []).map((t) => {
+              const ratings = ratingMap[t.id] ?? []
+              const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
+              return { ...t, jobs: jobCounts[t.id] || 0, rejected: rejectedCounts[t.id] || 0, avgRating }
+            }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
+            setTopTaskers(leaderboard)
+          }
+          refetchLeaderboard()
+        }
+      )
+      .subscribe()
+
     return () => {
       supabase.removeChannel(bookingsChannel)
       supabase.removeChannel(profilesChannel)
+      supabase.removeChannel(reviewsChannel)
     }
   }, [])
 
@@ -3928,7 +3968,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
       <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Dashboard Overview</h2>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
         {statCards.map(({ label, value, icon, accent, num, onClick }) => (
           <div key={label} onClick={onClick} className={`bg-white rounded-xl shadow-sm p-4 md:p-5 py-5 md:py-6 border-l-4 ${accent} cursor-pointer hover:shadow-lg hover:scale-[1.02] transition-all duration-200`}>
             <div className="mb-2">{icon}</div>
@@ -4016,7 +4056,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
                     </p>
                   </div>
                   <span className={`text-xs font-semibold px-2 py-1 rounded-full whitespace-nowrap capitalize ${BOOKING_STATUS_STYLES[booking.status] ?? BOOKING_STATUS_STYLES.pending}`}>
-                    {booking.status?.replace('_', ' ')}
+                    {booking.status?.replaceAll('_', ' ')}
                   </span>
                 </div>
               ))}
@@ -4084,11 +4124,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           </div>
         </div>
 
-        {loading ? (
-          <div className="flex justify-center py-8">
-            <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : topTaskers.length === 0 ? (
+        {topTaskers.length === 0 ? (
           <p className="text-center text-gray-400 py-8 text-sm">No taskers yet</p>
         ) : (() => {
           const sorted = [...topTaskers].sort(
