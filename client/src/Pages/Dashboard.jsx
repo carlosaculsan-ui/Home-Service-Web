@@ -1382,10 +1382,10 @@ function BookingCard({ booking, userId, onCancel }) {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-          {[
-            ['Tasker',     booking.taskerName ?? '—'],
-            ['Date & Time', (() => {
+        <div className="space-y-1 text-sm">
+          <div className="flex gap-2 items-start">
+            <span className="text-gray-400 w-28 flex-shrink-0">Task Schedule</span>
+            <span className="font-semibold text-blue-600">{(() => {
               if (!booking.scheduled_date) return '—'
               const d = new Date(booking.scheduled_date + 'T00:00:00')
               const datePart = d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
@@ -1393,7 +1393,15 @@ function BookingCard({ booking, userId, onCancel }) {
               const [h, m] = booking.scheduled_time.split(':')
               const t = new Date(); t.setHours(+h, +m)
               return `${datePart} at ${t.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}`
-            })()],
+            })()}</span>
+          </div>
+          {[
+            ['Booked on',  booking.created_at
+              ? new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
+                ' at ' +
+                new Date(booking.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+              : '—'],
+            ['Tasker',     booking.taskerName ?? '—'],
             ['Task Size',  booking.task_size ?? '—'],
             ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
               ? [['Furniture Category', booking.task_options.category]]
@@ -1411,18 +1419,16 @@ function BookingCard({ booking, userId, onCancel }) {
               ? [['Specify Work', booking.task_options.sub_option]]
               : []),
             ['Address',    booking.address ?? '—'],
-            ['Booked on',  booking.created_at
-              ? new Date(booking.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) +
-                ' At ' +
-                new Date(booking.created_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-              : '—'],
-            ['Reference',  booking.reference_number ?? '—'],
           ].map(([label, val]) => (
-            <div key={label} className="flex gap-2">
+            <div key={label} className="flex gap-2 items-start">
               <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
               <span className="text-gray-700">{val}</span>
             </div>
           ))}
+          <div className="flex gap-2 items-start pt-1">
+            <span className="text-gray-400 w-28 flex-shrink-0">Reference</span>
+            <span className="text-gray-700">{booking.reference_number ?? '—'}</span>
+          </div>
         </div>
 
         {/* Price breakdown */}

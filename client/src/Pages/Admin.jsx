@@ -1957,13 +1957,16 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   </span>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-0.5 text-sm">
+              <div className="space-y-1 text-sm">
+                <div className="flex gap-2 items-start">
+                  <span className="text-gray-400 w-28 flex-shrink-0">Task Schedule</span>
+                  <span className="font-semibold text-blue-600">{formatBookingDate(b.scheduled_date, b.scheduled_time)}</span>
+                </div>
                 {[
+                  ['Booked on', b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ['Service',   b.service],
                   ['Tasker',    b.taskerName],
                   ['Client',    b.customer_name || b.clientEmail],
-                  ['Date',      formatBookingDate(b.scheduled_date, b.scheduled_time)],
-                  ['Booked on', b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'],
                   ['Task',      getTaskLabel(b)],
                   ...(b.task_options?.service === 'Carpentry' && b.task_options?.category
                     ? [['Furniture Category', b.task_options.category]]
@@ -1983,9 +1986,9 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                   ['Address',   b.address],
                   ...(b.landmark ? [['Landmark', b.landmark]] : []),
                 ].map(([label, val]) => (
-                  <div key={label} className="flex gap-2">
-                    <span className="text-gray-400 w-20 flex-shrink-0">{label}</span>
-                    <span className="text-gray-700 capitalize">{val ?? '—'}</span>
+                  <div key={label} className="flex gap-2 items-start">
+                    <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
+                    <span className="text-gray-700">{val ?? '—'}</span>
                   </div>
                 ))}
               </div>
@@ -6167,7 +6170,6 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
                   onClick={() => {
                     setTab('tasker-accounts')
                     setEmpSubtab(key)
-                    setEmpSubOpen(false)
                     if (key === 'applicants') setPendingCountAtView(pendingCount)
                     onClose?.()
                   }}
@@ -6215,7 +6217,7 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             ].map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => { setTab('services'); setSvcSubtab(key); setSvcSubOpen(false); onClose?.() }}
+                onClick={() => { setTab('services'); setSvcSubtab(key); onClose?.() }}
                 className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                   tab === 'services' && svcSubtab === key
                     ? 'bg-white/20 text-white font-semibold'
@@ -6259,7 +6261,7 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
             ].map(({ key, label }) => (
               <button
                 key={key}
-                onClick={() => { setTab('messages'); setMsgSubtab(key); setMsgSubOpen(false); onClose?.() }}
+                onClick={() => { setTab('messages'); setMsgSubtab(key); onClose?.() }}
                 className={`w-full flex items-center pl-10 pr-4 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                   tab === 'messages' && msgSubtab === key
                     ? 'bg-white/20 text-white font-semibold'
