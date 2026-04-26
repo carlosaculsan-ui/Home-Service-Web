@@ -1689,12 +1689,13 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
 
     if (!data) { setLoading(false); return }
 
-    // Fetch tasker names
+    // Fetch tasker names and user IDs
     const taskerIds = [...new Set(data.map((b) => b.tasker_id).filter(Boolean))]
     let taskerMap = {}
+    let taskerUserMap = {}
     if (taskerIds.length > 0) {
-      const { data: taskers } = await supabase.from('taskers').select('id, name').in('id', taskerIds)
-      taskers?.forEach((t) => { taskerMap[t.id] = t.name })
+      const { data: taskers } = await supabase.from('taskers').select('id, name, user_id').in('id', taskerIds)
+      taskers?.forEach((t) => { taskerMap[t.id] = t.name; taskerUserMap[t.id] = t.user_id })
     }
 
     // Fetch client names from profiles
@@ -1705,11 +1706,57 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
       profiles?.forEach((p) => { clientMap[p.id] = p.full_name || p.email || '—' })
     }
 
-    setBookings(data.map((b) => ({
+    const mapped = data.map((b) => ({
       ...b,
       taskerName: taskerMap[b.tasker_id] ?? '—',
       clientEmail: clientMap[b.client_id] ?? '—',
-    })))
+    }))
+
+    // Auto-cancel confirmed bookings where tasker didn't respond within 30 minutes
+    const autoCancel = mapped.filter(b =>
+      b.status === 'confirmed' &&
+      b.confirmed_at &&
+      new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
+    )
+    for (const b of autoCancel) {
+      const refundAmount = Number(b.estimated_total) || 0
+      const { error: cancelErr } = await supabase.from('bookings').update({
+        status: 'cancelled',
+        cancellation_reason: 'Tasker did not respond within 30 minutes',
+        ...(refundAmount > 0 ? { is_refunded: true } : {}),
+      }).eq('id', b.id)
+      if (!cancelErr) {
+        if (refundAmount > 0 && b.client_id) {
+          await supabase.rpc('increment_wallet_balance', { target_user_id: b.client_id, increment_amount: refundAmount })
+          await supabase.from('wallet_transactions').insert({
+            user_id: b.client_id,
+            booking_id: b.id,
+            amount: refundAmount,
+            type: 'credit',
+            description: `Auto-refund — tasker did not respond within 30 minutes (Booking ${b.reference_number ?? b.id})`,
+          })
+        }
+        if (b.client_id) {
+          await supabase.from('notifications').insert({
+            user_id: b.client_id,
+            title: 'Booking Auto-Cancelled',
+            message: `Your booking (${b.reference_number ?? b.id}) was automatically cancelled because the tasker did not respond within 30 minutes.${refundAmount > 0 ? ` A full refund of ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your Hanap.ph E-wallet.` : ''}`,
+            is_read: false,
+          })
+        }
+        if (b.tasker_id && taskerUserMap[b.tasker_id]) {
+          await supabase.from('notifications').insert({
+            user_id: taskerUserMap[b.tasker_id],
+            title: 'Booking Auto-Cancelled',
+            message: `Booking ${b.reference_number ?? b.id} (${b.service ?? ''}) was automatically cancelled because you did not respond within 30 minutes.`,
+            is_read: false,
+          })
+        }
+      }
+    }
+    if (autoCancel.length > 0) { fetchBookings(); return }
+
+    setBookings(mapped)
     setLoading(false)
   }
 
@@ -1721,7 +1768,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
       .from('bookings')
       .select('id, tasker_id')
       .eq('status', 'confirmed')
-      .lt('created_at', cutoff12h)
+      .lt('confirmed_at', cutoff12h)
 
     if (!stale?.length) return
 
@@ -1980,16 +2027,16 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
         </span>
       </div>
       {filteredBookings.map((b) => {
-        const isOverdue24h = b.status === 'confirmed' && new Date(b.created_at) < new Date(Date.now() - 24 * 60 * 60 * 1000)
+        const isOverdue30m = b.status === 'confirmed' && b.confirmed_at && new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
         return (
-        <div key={b.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${isOverdue24h ? 'border-red-300' : 'border-gray-100'}`}>
+        <div key={b.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${isOverdue30m ? 'border-red-300' : 'border-gray-100'}`}>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-3">
                 <p className="font-bold text-orange-500 text-sm tracking-wide">{b.reference_number ?? '—'}</p>
-                {isOverdue24h && (
+                {isOverdue30m && (
                   <span className="text-xs font-semibold bg-red-100 text-red-600 border border-red-200 px-2 py-0.5 rounded-full">
-                    No response · 24h+
+                    No response · 30min+
                   </span>
                 )}
               </div>

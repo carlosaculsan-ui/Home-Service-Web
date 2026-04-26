@@ -234,7 +234,7 @@ export default function BookingConfirmation() {
           return
         }
 
-        await supabase.from('bookings').update({ status: 'confirmed', paymongo_payment_id: paymentId }).eq('id', bookingRow.id)
+        await supabase.from('bookings').update({ status: 'confirmed', paymongo_payment_id: paymentId, confirmed_at: new Date().toISOString() }).eq('id', bookingRow.id)
 
         if (bookingRow.tasker_id) {
           const { data: taskerData } = await supabase

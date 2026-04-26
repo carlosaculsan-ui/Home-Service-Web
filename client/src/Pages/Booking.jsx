@@ -3917,7 +3917,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
               // Full wallet payment — skip PayMongo entirely
               if (useWallet && remainingAmount === 0) {
-                await supabase.from('bookings').update({ status: 'confirmed' }).eq('reference_number', ref)
+                await supabase.from('bookings').update({ status: 'confirmed', confirmed_at: new Date().toISOString() }).eq('reference_number', ref)
                 window.location.href = `${window.location.origin}/booking-confirmation?wallet_payment=true&booking_ref=${ref}`
                 return
               }

@@ -3265,6 +3265,49 @@ function Dashboard() {
       taskerUserId: taskerMap[b.tasker_id]?.user_id ?? null,
     }))
 
+    // Auto-cancel confirmed bookings where tasker didn't respond within 30 minutes
+    const noResponseOverdue = mapped.filter(b =>
+      b.status === 'confirmed' &&
+      b.confirmed_at &&
+      new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
+    )
+    for (const b of noResponseOverdue) {
+      const refundAmount = Number(b.estimated_total) || 0
+      const updatePayload = {
+        status: 'cancelled',
+        cancellation_reason: 'Tasker did not respond within 30 minutes',
+        ...(refundAmount > 0 ? { is_refunded: true } : {}),
+      }
+      const { error: cancelErr } = await supabase.from('bookings').update(updatePayload).eq('id', b.id)
+      if (!cancelErr) {
+        if (refundAmount > 0) {
+          await supabase.rpc('increment_wallet_balance', { target_user_id: uid, increment_amount: refundAmount })
+          await supabase.from('wallet_transactions').insert({
+            user_id: uid,
+            booking_id: b.id,
+            amount: refundAmount,
+            type: 'credit',
+            description: `Auto-refund — tasker did not respond within 30 minutes (Booking ${b.reference_number ?? b.id})`,
+          })
+        }
+        await supabase.from('notifications').insert({
+          user_id: uid,
+          title: 'Booking Auto-Cancelled',
+          message: `Your booking (${b.reference_number ?? b.id}) was automatically cancelled because the tasker did not respond within 30 minutes.${refundAmount > 0 ? ` A full refund of ₱${refundAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} has been credited to your Hanap.ph E-wallet.` : ''}`,
+          is_read: false,
+        })
+        if (b.taskerUserId) {
+          await supabase.from('notifications').insert({
+            user_id: b.taskerUserId,
+            title: 'Booking Auto-Cancelled',
+            message: `Booking ${b.reference_number ?? b.id} (${b.service ?? ''}) was automatically cancelled because you did not respond within 30 minutes.`,
+            is_read: false,
+          })
+        }
+      }
+    }
+    if (noResponseOverdue.length > 0) { load(uid); return }
+
     // Auto-complete any pending_confirmation booking that has been waiting > 24 hours
     const overdue = mapped.filter(b =>
       b.status === 'pending_confirmation' &&
