@@ -3269,7 +3269,7 @@ function Dashboard() {
     const noResponseOverdue = mapped.filter(b =>
       b.status === 'confirmed' &&
       b.confirmed_at &&
-      new Date(b.confirmed_at) < new Date(Date.now() - 2 * 60 * 1000)
+      new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
     )
     for (const b of noResponseOverdue) {
       const refundAmount = Number(b.estimated_total) || 0

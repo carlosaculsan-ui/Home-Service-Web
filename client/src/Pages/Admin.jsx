@@ -1716,7 +1716,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     const autoCancel = mapped.filter(b =>
       b.status === 'confirmed' &&
       b.confirmed_at &&
-      new Date(b.confirmed_at) < new Date(Date.now() - 2 * 60 * 1000)
+      new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
     )
     for (const b of autoCancel) {
       const refundAmount = Number(b.estimated_total) || 0
@@ -2027,7 +2027,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
         </span>
       </div>
       {filteredBookings.map((b) => {
-        const isOverdue30m = b.status === 'confirmed' && b.confirmed_at && new Date(b.confirmed_at) < new Date(Date.now() - 2 * 60 * 1000)
+        const isOverdue30m = b.status === 'confirmed' && b.confirmed_at && new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
         return (
         <div key={b.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${isOverdue30m ? 'border-red-300' : 'border-gray-100'}`}>
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">

@@ -984,7 +984,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
 
         {/* Reference & Phone — bottom row */}
-        <div className="flex gap-6 pt-1">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-6 pt-1">
           <div className="flex gap-2 items-start">
             <span className="text-gray-400 w-28 flex-shrink-0">Reference</span>
             <span className="text-gray-700">{booking.reference_number ?? '—'}</span>
