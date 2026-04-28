@@ -69,6 +69,8 @@ function TaskerApplications() {
   const [lightboxSrc, setLightboxSrc] = useState(null)
   const [interviewModal, setInterviewModal] = useState(null)   // { tasker, date }
   const [confirmState, setConfirmState] = useState(null)
+  const [applicationSearch, setApplicationSearch] = useState('')
+  const [applicationStatusFilter, setApplicationStatusFilter] = useState('all')
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   const todayPlus = (n) => {
@@ -134,7 +136,18 @@ function TaskerApplications() {
   async function rejectApplicant(tasker) {
     await supabase.from('taskers').update({ status: 'rejected' }).eq('id', tasker.id)
     await supabase.from('profiles').update({ role: 'customer' }).eq('id', tasker.user_id)
+    const firstName = tasker.name?.split(' ')[0] || 'Applicant'
+    await supabase.from('notifications').insert({
+      user_id: tasker.user_id,
+      title: 'Tasker Application Update',
+      message: `Hi ${firstName}, thank you for applying to be a Hanap.ph Tasker. After careful review, we regret to inform you that your application was not successful at this time. You're welcome to reapply in the future.`,
+      is_read: false,
+    })
     fetchTaskers()
+  }
+
+  function handleRejectApplicant(tasker) {
+    openConfirm(`Reject ${tasker.name || 'this applicant'}? They will be notified.`, () => rejectApplicant(tasker), true)
   }
 
   function toggleDocs(id) {
@@ -161,14 +174,41 @@ function TaskerApplications() {
     )
   }
 
-  if (taskers.length === 0) {
-    return <p className="text-center text-gray-400 mt-16">No pending or rejected applications.</p>
-  }
+  const filteredApplications = taskers.filter((t) => {
+    const matchesSearch = !applicationSearch.trim() || t.name?.toLowerCase().includes(applicationSearch.toLowerCase())
+    const matchesStatus = applicationStatusFilter === 'all' || t.status === applicationStatusFilter
+    return matchesSearch && matchesStatus
+  })
 
   return (
     <div className="space-y-4">
       {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
-      {taskers.map((t) => {
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={applicationSearch}
+          onChange={(e) => setApplicationSearch(e.target.value)}
+          placeholder="Search by name..."
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400"
+        />
+        <select
+          value={applicationStatusFilter}
+          onChange={(e) => setApplicationStatusFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400 bg-white"
+        >
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="interview_scheduled">Interview Scheduled</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      {filteredApplications.length === 0 && (
+        <p className="text-center text-gray-400 mt-16">No applications found.</p>
+      )}
+
+      {filteredApplications.map((t) => {
         const docs = DOC_FIELDS.filter(({ key }) => t[key])
         return (
           <div key={t.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
@@ -188,7 +228,7 @@ function TaskerApplications() {
                       className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
                     >Approve for Interview</button>
                     <button
-                      onClick={() => rejectApplicant(t)}
+                      onClick={() => handleRejectApplicant(t)}
                       className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                     >Reject</button>
                   </>
@@ -200,7 +240,7 @@ function TaskerApplications() {
                       className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
                     >Approve as Tasker</button>
                     <button
-                      onClick={() => rejectApplicant(t)}
+                      onClick={() => handleRejectApplicant(t)}
                       className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
                     >Reject</button>
                   </>
@@ -318,7 +358,7 @@ function TaskerApplications() {
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
               >
                 <Trash2 size={13} />
-                Delete Tasker
+                Delete Applicant
               </button>
             </div>
           </div>
