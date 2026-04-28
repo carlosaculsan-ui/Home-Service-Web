@@ -1560,6 +1560,7 @@ function Step1({ service, onContinue, initialState }) {
 
   const [error, setError] = useState('')
   const [imagePreview, setImagePreview] = useState(initialState?.imagePreview ?? null)
+  const [imageModalOpen, setImageModalOpen] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [validating, setValidating] = useState(false)
   const [validatingDescription, setValidatingDescription] = useState(false)
@@ -3348,7 +3349,8 @@ function Step1({ service, onContinue, initialState }) {
               <img
                 src={imagePreview}
                 alt="Uploaded preview"
-                className="w-full max-h-48 object-cover rounded-lg border border-gray-200"
+                onClick={() => setImageModalOpen(true)}
+                className="w-full max-h-48 object-cover rounded-lg border border-gray-200 cursor-zoom-in"
               />
               <button
                 onClick={handleRemoveImage}
@@ -3356,6 +3358,23 @@ function Step1({ service, onContinue, initialState }) {
               >
                 ✕
               </button>
+            </div>
+          )}
+
+          {imageModalOpen && (
+            <div
+              className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+              onClick={() => setImageModalOpen(false)}
+            >
+              <div className="relative max-w-3xl w-full" onClick={e => e.stopPropagation()}>
+                <img src={imagePreview} alt="Full preview" className="w-full max-h-[80vh] object-contain rounded-xl" />
+                <button
+                  onClick={() => setImageModalOpen(false)}
+                  className="absolute top-2 right-2 bg-black/60 hover:bg-black/80 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm font-bold"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
           )}
 
@@ -3388,6 +3407,7 @@ function Step1({ service, onContinue, initialState }) {
           {aiResult && !analyzing && aiResult !== 'error' && (
             <div className="mt-3 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-green-800">
               <span className="font-semibold">AI Suggestion: </span>{aiResult}
+              <p className="text-xs text-green-600 mt-1">AI suggestions may not always be accurate. Please review before continuing.</p>
             </div>
           )}
 
