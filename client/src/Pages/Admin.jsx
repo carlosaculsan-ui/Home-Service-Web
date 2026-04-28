@@ -420,8 +420,6 @@ const getAvatarColor = (name) => {
 
 function TaskerAccountsPanel() {
   const [taskers, setTaskers] = useState([])
-  const [archivedTaskers, setArchivedTaskers] = useState([])
-  const [employeeSubTab, setEmployeeSubTab] = useState('active')
   const [onlineTaskers, setOnlineTaskers] = useState([])
   const [loading, setLoading] = useState(true)
   const [editingRate, setEditingRate] = useState({})
@@ -455,14 +453,12 @@ function TaskerAccountsPanel() {
     const rows = data ?? []
     const userIds = rows.map((t) => t.user_id).filter(Boolean)
 
-    let archivedSet = new Set()
     let profileMap = {}
     if (userIds.length > 0) {
       const { data: profileData } = await supabase
         .from('profiles')
         .select('id, is_archived, last_time_in, last_time_out')
         .in('id', userIds)
-      archivedSet = new Set(profileData?.filter((p) => p.is_archived).map((p) => p.id) ?? [])
       profileData?.forEach((p) => { profileMap[p.id] = p })
     }
 
@@ -470,8 +466,7 @@ function TaskerAccountsPanel() {
       const { id: _pid, ...profileRest } = profileMap[t.user_id] ?? {}
       return { ...t, ...profileRest }
     })
-    setTaskers(enriched.filter((t) => !archivedSet.has(t.user_id)))
-    setArchivedTaskers(enriched.filter((t) => archivedSet.has(t.user_id)))
+    setTaskers(enriched.filter((t) => !profileMap[t.user_id]?.is_archived))
     setLoading(false)
   }
 
@@ -516,19 +511,6 @@ function TaskerAccountsPanel() {
       if (error) { setActionError('Failed to archive: ' + error.message); setTimeout(() => setActionError(''), 4000); return }
       if (!data || data.length === 0) { setActionError('Archive failed: tasker not found.'); setTimeout(() => setActionError(''), 4000); return }
       setTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
-      setArchivedTaskers((prev) => [...prev, tasker])
-    })
-  }
-
-  function handleRestoreTasker(tasker) {
-    openConfirm('Restore this employee?', async () => {
-      const profileId = tasker.user_id
-      const { data, error } = await supabase
-        .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
-      if (error) { setActionError('Failed to restore: ' + error.message); setTimeout(() => setActionError(''), 4000); return }
-      if (!data || data.length === 0) { setActionError('Restore failed: tasker not found.'); setTimeout(() => setActionError(''), 4000); return }
-      setArchivedTaskers((prev) => prev.filter((t) => t.user_id !== profileId))
-      setTaskers((prev) => [...prev, tasker])
     })
   }
 
@@ -562,45 +544,6 @@ function TaskerAccountsPanel() {
     })
   }
 
-  async function handleDeleteTasker(tasker) {
-    setDeleteErrors((prev) => ({ ...prev, [tasker.id]: '' }))
-
-    const { data: activeBookings } = await supabase
-      .from('bookings')
-      .select('id, status')
-      .eq('tasker_id', tasker.id)
-      .in('status', ['confirmed', 'accepted', 'on_the_way', 'in_progress'])
-
-    if (activeBookings && activeBookings.length > 0) {
-      setDeleteErrors((prev) => ({
-        ...prev,
-        [tasker.id]: 'This tasker has ongoing bookings and cannot be removed. Please wait until all active bookings are completed or cancelled before deleting.',
-      }))
-      return
-    }
-
-    openConfirm(
-      'Remove this tasker? Their account will be converted back to a regular customer. Their booking history will be preserved.',
-      async () => {
-        try {
-          await supabase.from('tasker_leaves').delete().eq('tasker_id', tasker.id)
-          await supabase.from('taskers').delete().eq('id', tasker.id)
-
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({ role: 'customer', is_archived: false })
-            .eq('id', tasker.user_id)
-          if (profileError) throw profileError
-
-          setArchivedTaskers((prev) => prev.filter((t) => t.id !== tasker.id))
-        } catch (err) {
-          setDeleteErrors((prev) => ({ ...prev, [tasker.id]: 'Failed to remove tasker: ' + (err?.message || 'Please try again.') }))
-        }
-      },
-      true
-    )
-  }
-
   if (loading) {
     return (
       <div className="flex justify-center mt-16">
@@ -609,8 +552,6 @@ function TaskerAccountsPanel() {
     )
   }
 
-  const displayList = employeeSubTab === 'active' ? taskers : archivedTaskers
-
   const sortedTaskers = [...taskers].sort((a, b) => {
     const aOnline = onlineTaskers.some(o => o.user_id === a.user_id) ? 1 : 0
     const bOnline = onlineTaskers.some(o => o.user_id === b.user_id) ? 1 : 0
@@ -618,11 +559,6 @@ function TaskerAccountsPanel() {
   })
 
   const filteredTaskers = sortedTaskers.filter(t =>
-    t.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
-    t.email?.toLowerCase().includes(employeeSearch.toLowerCase())
-  )
-
-  const filteredArchivedTaskers = archivedTaskers.filter(t =>
     t.name?.toLowerCase().includes(employeeSearch.toLowerCase()) ||
     t.email?.toLowerCase().includes(employeeSearch.toLowerCase())
   )
@@ -673,35 +609,11 @@ function TaskerAccountsPanel() {
         />
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => { setEmployeeSubTab('active'); setEmployeeSearch('') }}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            employeeSubTab === 'active'
-              ? 'bg-orange-500 text-white'
-              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-          }`}
-        >
-          Active ({taskers.length})
-        </button>
-        <button
-          onClick={() => { setEmployeeSubTab('archived'); setEmployeeSearch('') }}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
-            employeeSubTab === 'archived'
-              ? 'bg-orange-500 text-white'
-              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-          }`}
-        >
-          Archived ({archivedTaskers.length})
-        </button>
-      </div>
-
-      {(employeeSubTab === 'active' ? filteredTaskers : filteredArchivedTaskers).length === 0 ? (
+      {filteredTaskers.length === 0 ? (
         <p className="text-center text-gray-400 mt-16">
-          {employeeSearch ? 'No employees match your search.' : employeeSubTab === 'active' ? 'No approved taskers yet.' : 'No archived employees.'}
+          {employeeSearch ? 'No employees match your search.' : 'No approved taskers yet.'}
         </p>
-      ) : employeeSubTab === 'active' ? (
+      ) : (
         <>
           {/* Active — Desktop Table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -838,124 +750,6 @@ function TaskerAccountsPanel() {
                 </div>
               )
             })}
-          </div>
-        </>
-      ) : (
-        <>
-          {/* Archived — Desktop Table */}
-          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                    <th className="px-4 py-3 font-medium w-8">#</th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium">Phone</th>
-                    <th className="px-4 py-3 font-medium">Service</th>
-                    <th className="px-4 py-3 font-medium">Area</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredArchivedTaskers.map((t, idx) => (
-                    <>
-                      <tr key={t.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            {t.profile_photo
-                              ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
-                            }
-                            <span className="font-medium text-gray-800 whitespace-nowrap">{t.name || '—'}</span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{t.email || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{t.phone || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500">{t.role || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500" title={t.service_area || ''}>
-                          {t.service_area
-                            ? t.service_area.length > 20 ? t.service_area.slice(0, 20) + '…' : t.service_area
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {t.created_at
-                            ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
-                            : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-2">
-                            <button
-                              onClick={() => handleRestoreTasker(t)}
-                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
-                            >
-                              <RotateCcw size={12} />
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => handleDeleteTasker(t)}
-                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
-                            >
-                              <Trash2 size={12} />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {deleteErrors[t.id] && (
-                        <tr key={`${t.id}-err`}>
-                          <td colSpan={8} className="px-4 pb-3 pt-0">
-                            <p className="text-xs text-red-500">{deleteErrors[t.id]}</p>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Archived — Mobile Cards */}
-          <div className="block md:hidden space-y-3">
-            {filteredArchivedTaskers.map((t, idx) => (
-              <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-3">
-                    {t.profile_photo
-                      ? <img src={t.profile_photo} alt={t.name} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                      : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.name)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.name)}</div>
-                    }
-                    <div>
-                      <p className="font-semibold text-gray-800">{t.name || '—'}</p>
-                      <p className="text-sm text-gray-500">{t.email || '—'}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">#{idx + 1}</span>
-                </div>
-                <div className="text-sm text-gray-500 space-y-1">
-                  <p>📞 {t.phone || '—'}</p>
-                  <p>🔧 {t.role || '—'}</p>
-                  <p>📍 {t.service_area ? (t.service_area.length > 30 ? t.service_area.slice(0, 30) + '…' : t.service_area) : '—'}</p>
-                  <p>📅 Joined: {t.created_at ? new Date(t.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
-                </div>
-                {deleteErrors[t.id] && (
-                  <p className="text-xs text-red-500 mt-2">{deleteErrors[t.id]}</p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => handleRestoreTasker(t)}
-                    className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg"
-                  >Restore</button>
-                  <button
-                    onClick={() => handleDeleteTasker(t)}
-                    className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg"
-                  >Delete</button>
-                </div>
-              </div>
-            ))}
           </div>
         </>
       )}
@@ -1121,8 +915,6 @@ function TaskerAccountsPanel() {
 
 function CustomerAccountsPanel() {
   const [customers, setCustomers] = useState([])
-  const [archivedCustomers, setArchivedCustomers] = useState([])
-  const [customerSubTab, setCustomerSubTab] = useState('active')
   const [onlineCustomers, setOnlineCustomers] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
@@ -1153,7 +945,6 @@ function CustomerAccountsPanel() {
     }
     const enriched = rows.map(c => ({ ...c, ...profileMap[c.id] }))
     setCustomers(enriched.filter(c => !c.is_archived))
-    setArchivedCustomers(enriched.filter(c => c.is_archived))
     setLoading(false)
   }
 
@@ -1215,39 +1006,7 @@ function CustomerAccountsPanel() {
       if (error) { alert('Failed: ' + error.message); return }
       if (!data || data.length === 0) { alert('No rows updated — id may not match profiles table'); return }
       setCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
-      setArchivedCustomers(prev => [...prev, customer])
     })
-  }
-
-  function handleRestoreCustomer(customer) {
-    openConfirm('Restore this customer?', async () => {
-      const profileId = customer.id || customer.user_id || customer.profile_id
-      const { data, error } = await supabase
-        .from('profiles').update({ is_archived: false }).eq('id', profileId).select()
-      if (error) { alert('Failed: ' + error.message); return }
-      if (!data || data.length === 0) { alert('No rows updated'); return }
-      setArchivedCustomers(prev => prev.filter(c => (c.id || c.user_id) !== profileId))
-      setCustomers(prev => [...prev, customer])
-    })
-  }
-
-  function handleDeleteCustomer(id) {
-    setDeleteErrors((prev) => ({ ...prev, [id]: '' }))
-    openConfirm(
-      'Are you sure you want to permanently delete this customer account? All their bookings and reviews will also be deleted. This cannot be undone.',
-      async () => {
-        try {
-          await supabase.from('reviews').delete().eq('client_id', id)
-          await supabase.from('bookings').delete().eq('client_id', id)
-          const { error } = await supabase.from('profiles').delete().eq('id', id)
-          if (error) throw error
-          setArchivedCustomers((prev) => prev.filter((c) => c.id !== id))
-        } catch (err) {
-          setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete customer: ' + (err?.message || 'Please try again.') }))
-        }
-      },
-      true
-    )
   }
 
   if (loading) {
@@ -1262,11 +1021,6 @@ function CustomerAccountsPanel() {
     c.full_name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.email?.toLowerCase().includes(customerSearch.toLowerCase())
   )
-  const filteredArchivedCustomers = archivedCustomers.filter(c =>
-    c.full_name?.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.email?.toLowerCase().includes(customerSearch.toLowerCase())
-  )
-
   const sortedCustomers = [...filteredCustomers].sort((a, b) => {
     const aOnline = onlineCustomers.some(o => o.user_id === a.id) ? 1 : 0
     const bOnline = onlineCustomers.some(o => o.user_id === b.id) ? 1 : 0
@@ -1411,27 +1165,11 @@ function CustomerAccountsPanel() {
         />
       </div>
 
-      {/* Sub-tabs */}
-      <div className="flex gap-2 mb-4">
-        <button
-          onClick={() => { setCustomerSubTab('active'); setCustomerSearch('') }}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'active' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-        >
-          Active ({customers.length})
-        </button>
-        <button
-          onClick={() => { setCustomerSubTab('archived'); setCustomerSearch('') }}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${customerSubTab === 'archived' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-        >
-          Archived ({archivedCustomers.length})
-        </button>
-      </div>
-
-      {(customerSubTab === 'active' ? filteredCustomers : filteredArchivedCustomers).length === 0 ? (
+      {filteredCustomers.length === 0 ? (
         <p className="text-center text-gray-400 mt-8">
-          {customerSearch ? 'No customers match your search.' : customerSubTab === 'active' ? 'No active customers.' : 'No archived customers.'}
+          {customerSearch ? 'No customers match your search.' : 'No active customers.'}
         </p>
-      ) : customerSubTab === 'active' ? (
+      ) : (
         <>
           {/* Active — Desktop Table */}
           <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -1549,111 +1287,6 @@ function CustomerAccountsPanel() {
             })}
           </div>
         </>
-      ) : (
-        <>
-          {/* Archived — Desktop Table */}
-          <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-xs text-gray-400 bg-gray-50 border-b border-gray-100 sticky top-0 z-10">
-                    <th className="px-4 py-3 font-medium w-8">#</th>
-                    <th className="px-4 py-3 font-medium">Name</th>
-                    <th className="px-4 py-3 font-medium">Email</th>
-                    <th className="px-4 py-3 font-medium">Phone</th>
-                    <th className="px-4 py-3 font-medium">Address</th>
-                    <th className="px-4 py-3 font-medium whitespace-nowrap">Joined</th>
-                    <th className="px-4 py-3 font-medium">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filteredArchivedCustomers.map((c, idx) => (
-                    <>
-                      <tr key={c.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 text-gray-400 text-xs">{idx + 1}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            {c.avatar_url
-                              ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
-                            }
-                            <span className="font-medium text-gray-800 whitespace-nowrap">
-                              {c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{c.phone || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 max-w-[160px] truncate">{c.address || '—'}</td>
-                        <td className="px-4 py-3 text-gray-500 whitespace-nowrap">
-                          {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-col gap-2">
-                            <button
-                              onClick={() => handleRestoreCustomer(c)}
-                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-green-600 border border-gray-200 hover:border-green-300 transition-colors whitespace-nowrap"
-                            >
-                              <RotateCcw size={12} />
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => handleDeleteCustomer(c.id)}
-                              className="flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-lg text-gray-400 hover:text-red-500 border border-gray-200 hover:border-red-300 transition-colors whitespace-nowrap"
-                            >
-                              <Trash2 size={12} />
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                      {deleteErrors[c.id] && (
-                        <tr key={`${c.id}-err`}>
-                          <td colSpan={7} className="px-4 pb-3 pt-0">
-                            <p className="text-xs text-red-500">{deleteErrors[c.id]}</p>
-                          </td>
-                        </tr>
-                      )}
-                    </>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Archived — Mobile Cards */}
-          <div className="block md:hidden space-y-3">
-            {filteredArchivedCustomers.map((c, idx) => (
-              <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-3">
-                    {c.avatar_url
-                      ? <img src={c.avatar_url} alt={c.full_name || c.email} className="w-9 h-9 rounded-full object-cover shrink-0" />
-                      : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
-                    }
-                    <div>
-                      <p className="font-semibold text-gray-800">{c.full_name?.trim() ? c.full_name : c.email?.split('@')[0] || '—'}</p>
-                      <p className="text-sm text-gray-500">{c.email}</p>
-                    </div>
-                  </div>
-                  <span className="text-xs text-gray-400">#{idx + 1}</span>
-                </div>
-                <div className="text-sm text-gray-500 space-y-1">
-                  <p>📞 {c.phone || '—'}</p>
-                  <p>📍 {c.address || '—'}</p>
-                  <p>📅 Joined: {c.created_at ? new Date(c.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—'}</p>
-                </div>
-                {deleteErrors[c.id] && (
-                  <p className="text-xs text-red-500 mt-2">{deleteErrors[c.id]}</p>
-                )}
-                <div className="flex gap-2 mt-3">
-                  <button onClick={() => handleRestoreCustomer(c)} className="flex-1 text-sm border border-green-400 text-green-600 py-2 rounded-lg">Restore</button>
-                  <button onClick={() => handleDeleteCustomer(c.id)} className="flex-1 text-sm border border-red-400 text-red-400 py-2 rounded-lg">Delete</button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
       )}
     </>
   )
@@ -1726,6 +1359,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
       .from('bookings')
       .select('*')
       .neq('status', 'pending_payment')
+      .eq('is_archived', false)
       .order('created_at', { ascending: false })
 
     if (!data) { setLoading(false); return }
@@ -1968,10 +1602,10 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   }
 
   function handleDeleteBooking(id) {
-    openConfirm('Are you sure you want to delete this completed booking record? This cannot be undone.', async () => {
-      const { error } = await supabase.from('bookings').delete().eq('id', id)
+    openConfirm('Move this booking to Archive?', async () => {
+      const { error } = await supabase.from('bookings').update({ is_archived: true }).eq('id', id)
       if (error) {
-        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete booking. Please try again.' }))
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to archive booking. Please try again.' }))
       } else {
         setBookings((prev) => prev.filter((b) => b.id !== id))
       }
@@ -2324,6 +1958,7 @@ function ManagePricesPanel() {
     const { data } = await supabase
       .from('task_prices')
       .select('*')
+      .eq('is_archived', false)
       .order('service_name', { ascending: true })
       .order('task_size', { ascending: true })
     setTaskPrices(data ?? [])
@@ -2349,12 +1984,12 @@ function ManagePricesPanel() {
   }
 
   async function handleDelete(id) {
-    const { error } = await supabase.from('task_prices').delete().eq('id', id)
+    const { error } = await supabase.from('task_prices').update({ is_archived: true }).eq('id', id)
     if (error) {
-      showToast('Failed to delete row.', 'error')
+      showToast('Failed to archive row.', 'error')
     } else {
       setTaskPrices((prev) => prev.filter((r) => r.id !== id))
-      showToast('Row deleted.')
+      showToast('Row moved to Archive.')
     }
     setDeleteId(null)
   }
@@ -2621,6 +2256,7 @@ function ServicesPanel() {
     const { data } = await supabase
       .from('services')
       .select('*')
+      .eq('is_archived', false)
       .order('created_at', { ascending: true })
     setServices(data ?? [])
     setLoading(false)
@@ -2695,9 +2331,9 @@ function ServicesPanel() {
 
   function handleDelete(service) {
     openConfirm(
-      `Deleting "${service.title}" is permanent and cannot be undone. This may affect existing bookings that used this service.`,
+      `Move "${service.title}" to Archive?`,
       async () => {
-        await supabase.from('services').delete().eq('id', service.id)
+        await supabase.from('services').update({ is_archived: true }).eq('id', service.id)
         fetchServices()
       },
       true
@@ -3062,6 +2698,7 @@ function ReviewsPanel() {
     const { data } = await supabase
       .from('reviews')
       .select('*')
+      .eq('is_archived', false)
       .order('created_at', { ascending: false })
     const rows = data ?? []
     setReviews(rows)
@@ -3095,10 +2732,10 @@ function ReviewsPanel() {
   }
 
   function handleDelete(id) {
-    openConfirm('Are you sure you want to delete this review? This cannot be undone.', async () => {
-      const { error } = await supabase.from('reviews').delete().eq('id', id)
+    openConfirm('Move this review to Archive?', async () => {
+      const { error } = await supabase.from('reviews').update({ is_archived: true }).eq('id', id)
       if (error) {
-        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete review. Please try again.' }))
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to archive review. Please try again.' }))
       } else {
         fetchReviews()
       }
@@ -3316,6 +2953,7 @@ function LeaveRequestsPanel() {
     const { data } = await supabase
       .from('tasker_leaves')
       .select('*, taskers(name, user_id)')
+      .eq('is_archived', false)
       .order('created_at', { ascending: false })
     setLeaves(data ?? [])
     setLoading(false)
@@ -3340,10 +2978,10 @@ function LeaveRequestsPanel() {
   }
 
   function handleDeleteLeave(id) {
-    openConfirm('Are you sure you want to delete this leave request? This cannot be undone.', async () => {
-      const { error } = await supabase.from('tasker_leaves').delete().eq('id', id)
+    openConfirm('Move this leave request to Archive?', async () => {
+      const { error } = await supabase.from('tasker_leaves').update({ is_archived: true }).eq('id', id)
       if (error) {
-        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to delete leave request. Please try again.' }))
+        setDeleteErrors((prev) => ({ ...prev, [id]: 'Failed to archive leave request. Please try again.' }))
       } else {
         setLeaves((prev) => prev.filter((l) => l.id !== id))
       }
@@ -6275,6 +5913,291 @@ function TransactionsPanel() {
   )
 }
 
+// ─── Archive Tab ─────────────────────────────────────────────────────────────
+
+function ArchivePanel() {
+  const [loading, setLoading] = useState(true)
+  const [confirmState, setConfirmState] = useState(null)
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
+
+  const [archivedTaskers, setArchivedTaskers] = useState([])
+  const [archivedCustomers, setArchivedCustomers] = useState([])
+  const [archivedBookings, setArchivedBookings] = useState([])
+  const [archivedReviews, setArchivedReviews] = useState([])
+  const [archivedLeaves, setArchivedLeaves] = useState([])
+  const [archivedPrices, setArchivedPrices] = useState([])
+  const [archivedServices, setArchivedServices] = useState([])
+
+  const [openSections, setOpenSections] = useState({
+    taskers: true, customers: true, bookings: true, reviews: true,
+    leaves: true, prices: true, services: true,
+  })
+
+  function toggleSection(key) {
+    setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  async function fetchAll() {
+    setLoading(true)
+    const [
+      { data: profiles },
+      { data: taskerRecords },
+      { data: bookings },
+      { data: reviews },
+      { data: leaves },
+      { data: prices },
+      { data: services },
+    ] = await Promise.all([
+      supabase.from('profiles').select('*').eq('is_archived', true),
+      supabase.from('taskers').select('*'),
+      supabase.from('bookings').select('*').eq('is_archived', true).order('created_at', { ascending: false }),
+      supabase.from('reviews').select('*').eq('is_archived', true).order('created_at', { ascending: false }),
+      supabase.from('tasker_leaves').select('*, taskers(name)').eq('is_archived', true).order('created_at', { ascending: false }),
+      supabase.from('task_prices').select('*').eq('is_archived', true),
+      supabase.from('services').select('*').eq('is_archived', true),
+    ])
+
+    const taskerUserIds = new Set((taskerRecords ?? []).map(t => t.user_id))
+    const taskerMap = {}
+    ;(taskerRecords ?? []).forEach(t => { taskerMap[t.user_id] = t })
+
+    const allProfiles = profiles ?? []
+    setArchivedTaskers(allProfiles.filter(p => taskerUserIds.has(p.id)).map(p => ({ ...p, ...taskerMap[p.id] })))
+    setArchivedCustomers(allProfiles.filter(p => !taskerUserIds.has(p.id)))
+    setArchivedBookings(bookings ?? [])
+    setArchivedReviews(reviews ?? [])
+    setArchivedLeaves(leaves ?? [])
+    setArchivedPrices(prices ?? [])
+    setArchivedServices(services ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchAll() }, [])
+
+  async function restoreProfile(id) {
+    await supabase.from('profiles').update({ is_archived: false }).eq('id', id)
+    fetchAll()
+  }
+  async function deleteProfile(id) {
+    await supabase.from('profiles').delete().eq('id', id)
+    fetchAll()
+  }
+  async function restoreItem(table, id) {
+    await supabase.from(table).update({ is_archived: false }).eq('id', id)
+    fetchAll()
+  }
+  async function deleteItem(table, id) {
+    await supabase.from(table).delete().eq('id', id)
+    fetchAll()
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  function ActionButtons({ onRestore, onDelete }) {
+    return (
+      <div className="flex gap-2 shrink-0 ml-3">
+        <button
+          onClick={onRestore}
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-green-300 hover:text-green-600 transition-colors whitespace-nowrap"
+        >
+          <RotateCcw size={12} /> Restore
+        </button>
+        <button
+          onClick={onDelete}
+          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-red-300 hover:text-red-500 transition-colors whitespace-nowrap"
+        >
+          <Trash2 size={12} /> Delete
+        </button>
+      </div>
+    )
+  }
+
+  const sections = [
+    {
+      key: 'taskers',
+      label: 'Taskers',
+      items: archivedTaskers,
+      renderRow: (t) => (
+        <div key={t.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {t.avatar_url
+              ? <img src={t.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.full_name || t.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.full_name || t.email?.split('@')[0])}</div>
+            }
+            <div className="min-w-0">
+              <p className="font-medium text-gray-800 truncate">{t.name || t.full_name || '—'}</p>
+              <p className="text-xs text-gray-400 truncate">{t.service_area || t.email || '—'}</p>
+            </div>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm(`Restore ${t.name || t.full_name}?`, () => restoreProfile(t.id))}
+            onDelete={() => openConfirm(`Permanently delete ${t.name || t.full_name}? This cannot be undone.`, () => deleteProfile(t.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'customers',
+      label: 'Customers',
+      items: archivedCustomers,
+      renderRow: (c) => (
+        <div key={c.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {c.avatar_url
+              ? <img src={c.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
+              : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
+            }
+            <div className="min-w-0">
+              <p className="font-medium text-gray-800 truncate">{c.full_name || c.email?.split('@')[0] || '—'}</p>
+              <p className="text-xs text-gray-400 truncate">{c.email || '—'}</p>
+            </div>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm(`Restore ${c.full_name || c.email}?`, () => restoreProfile(c.id))}
+            onDelete={() => openConfirm(`Permanently delete ${c.full_name || c.email}? This cannot be undone.`, () => deleteProfile(c.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'bookings',
+      label: 'Bookings',
+      items: archivedBookings,
+      renderRow: (b) => (
+        <div key={b.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="font-medium text-gray-800 truncate">{b.service || '—'} · {b.customer_name || '—'}</p>
+            <p className="text-xs text-gray-400">
+              {b.scheduled_date ? new Date(b.scheduled_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+              {b.estimated_total ? ` · ₱${Number(b.estimated_total).toLocaleString()}` : ''}
+            </p>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm('Restore this booking?', () => restoreItem('bookings', b.id))}
+            onDelete={() => openConfirm('Permanently delete this booking? This cannot be undone.', () => deleteItem('bookings', b.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'reviews',
+      label: 'Reviews',
+      items: archivedReviews,
+      renderRow: (r) => (
+        <div key={r.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="font-medium text-gray-800 truncate">
+              {r.reviewer_name || '—'} · <span className="text-yellow-400">{'★'.repeat(r.rating ?? 0)}</span><span className="text-gray-300">{'★'.repeat(5 - (r.rating ?? 0))}</span>
+            </p>
+            <p className="text-xs text-gray-400 truncate">{r.comment?.slice(0, 80) || '—'}</p>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm('Restore this review?', () => restoreItem('reviews', r.id))}
+            onDelete={() => openConfirm('Permanently delete this review? This cannot be undone.', () => deleteItem('reviews', r.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'leaves',
+      label: 'Leave Requests',
+      items: archivedLeaves,
+      renderRow: (l) => {
+        const dates = (() => { try { return JSON.parse(l.leave_dates) } catch { return [] } })()
+        const sorted = [...dates].sort()
+        return (
+          <div key={l.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+            <div className="min-w-0">
+              <p className="font-medium text-gray-800 truncate">{l.taskers?.name || '—'} · <span className="capitalize">{l.status || '—'}</span></p>
+              <p className="text-xs text-gray-400">
+                {dates.length === 0 ? '—' : dates.length === 1
+                  ? new Date(sorted[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : `${dates.length} days · ${new Date(sorted[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${new Date(sorted[sorted.length - 1]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                }
+              </p>
+            </div>
+            <ActionButtons
+              onRestore={() => openConfirm('Restore this leave request?', () => restoreItem('tasker_leaves', l.id))}
+              onDelete={() => openConfirm('Permanently delete this leave request? This cannot be undone.', () => deleteItem('tasker_leaves', l.id), true)}
+            />
+          </div>
+        )
+      },
+    },
+    {
+      key: 'prices',
+      label: 'Prices',
+      items: archivedPrices,
+      renderRow: (p) => (
+        <div key={p.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="font-medium text-gray-800 truncate">{p.service_name || '—'} · {p.task_size || '—'}</p>
+            <p className="text-xs text-gray-400">₱{(p.price ?? 0).toLocaleString()}</p>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm('Restore this price?', () => restoreItem('task_prices', p.id))}
+            onDelete={() => openConfirm('Permanently delete this price? This cannot be undone.', () => deleteItem('task_prices', p.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'services',
+      label: 'Services',
+      items: archivedServices,
+      renderRow: (s) => (
+        <div key={s.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="font-medium text-gray-800 truncate">{s.title || '—'}</p>
+            <p className="text-xs text-gray-400">{s.icon || '—'}</p>
+          </div>
+          <ActionButtons
+            onRestore={() => openConfirm('Restore this service?', () => restoreItem('services', s.id))}
+            onDelete={() => openConfirm('Permanently delete this service? This cannot be undone.', () => deleteItem('services', s.id), true)}
+          />
+        </div>
+      ),
+    },
+  ]
+
+  return (
+    <>
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
+      <div className="space-y-4">
+        {sections.map(({ key, label, items, renderRow }) => (
+          <div key={key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <button
+              onClick={() => toggleSection(key)}
+              className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <Archive size={16} className="text-orange-400" />
+                <span className="font-semibold text-gray-800">{label}</span>
+                <span className="text-xs font-medium bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">{items.length}</span>
+              </div>
+              <ChevronRight size={16} className={`text-gray-400 transition-transform ${openSections[key] ? 'rotate-90' : ''}`} />
+            </button>
+            {openSections[key] && (
+              <div className="px-5 pb-4">
+                {items.length === 0
+                  ? <p className="text-sm text-gray-400 py-2">No archived {label.toLowerCase()}.</p>
+                  : items.map(renderRow)
+                }
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -6285,6 +6208,7 @@ const NAV_ITEMS = [
   { key: 'services',        label: 'Services',            icon: Wrench },
   { key: 'reviews',         label: 'Reviews',             icon: Star },
   { key: 'leave-requests',  label: 'Leave Requests',      icon: Umbrella },
+  { key: 'archive',         label: 'Archive',             icon: Archive },
   { key: 'messages',        label: 'Messages',            icon: MessageSquare },
   { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
@@ -7009,6 +6933,10 @@ function Admin() {
             {tab === 'leave-requests' && <>
               <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Leave Requests</h2>
               <LeaveRequestsPanel />
+            </>}
+            {tab === 'archive' && <>
+              <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Archive</h2>
+              <ArchivePanel />
             </>}
             {tab === 'messages' && msgSubtab === 'inbox' && <>
               <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Inbox</h2>
