@@ -2095,7 +2095,7 @@ function ManagePricesPanel() {
       {deleteId !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
           <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full mx-4">
-            <p className="text-sm text-gray-700 mb-4">Are you sure you want to delete this price row? This cannot be undone.</p>
+            <p className="text-sm text-gray-700 mb-4">Move this price row to Archive?</p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setDeleteId(null)}
@@ -2105,9 +2105,9 @@ function ManagePricesPanel() {
               </button>
               <button
                 onClick={() => handleDelete(deleteId)}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold rounded-lg transition-colors"
+                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors"
               >
-                Delete
+                Move to Archive
               </button>
             </div>
           </div>
@@ -4412,7 +4412,7 @@ function HelpersPanel() {
 
   async function fetchData() {
     const [{ data: helpersData }, { data: assignData }, { data: taskersData }, { data: appsData }] = await Promise.all([
-      supabase.from('helpers').select('*').order('created_at', { ascending: false }),
+      supabase.from('helpers').select('*').eq('is_archived', false).order('created_at', { ascending: false }),
       supabase.from('tasker_helpers').select('helper_id, slot, tasker_id, taskers(id, name)'),
       supabase.from('taskers').select('id, name').eq('status', 'approved').order('name'),
       supabase.from('helper_applications').select('*').eq('status', 'approved'),
@@ -4464,8 +4464,8 @@ function HelpersPanel() {
   }
 
   function handleDelete(helper) {
-    openConfirm(`Are you sure? This will also remove all tasker assignments for ${helper.name}.`, async () => {
-      await supabase.from('helpers').delete().eq('id', helper.id)
+    openConfirm(`Move ${helper.name} to Archive? Their tasker assignments will be kept.`, async () => {
+      await supabase.from('helpers').update({ is_archived: true }).eq('id', helper.id)
       fetchData()
     }, true)
   }
@@ -5946,10 +5946,11 @@ function ArchivePanel() {
   const [archivedLeaves, setArchivedLeaves] = useState([])
   const [archivedPrices, setArchivedPrices] = useState([])
   const [archivedServices, setArchivedServices] = useState([])
+  const [archivedHelpers, setArchivedHelpers] = useState([])
 
   const [openSections, setOpenSections] = useState({
     taskers: false, customers: false, bookings: false, reviews: false,
-    leaves: false, prices: false, services: false,
+    leaves: false, prices: false, services: false, helpers: false,
   })
 
   function toggleSection(key) {
@@ -5967,6 +5968,7 @@ function ArchivePanel() {
       { data: leaves },
       { data: prices },
       { data: services },
+      { data: helpers },
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('is_archived', true),
       supabase.from('taskers').select('*'),
@@ -5976,6 +5978,7 @@ function ArchivePanel() {
       supabase.from('tasker_leaves').select('*, taskers(name)').eq('is_archived', true).order('created_at', { ascending: false }),
       supabase.from('task_prices').select('*').eq('is_archived', true),
       supabase.from('services').select('*').eq('is_archived', true),
+      supabase.from('helpers').select('*').eq('is_archived', true),
     ])
 
     const taskerUserIds = new Set((taskerRecords ?? []).map(t => t.user_id))
@@ -6002,6 +6005,7 @@ function ArchivePanel() {
     setArchivedLeaves(leaves ?? [])
     setArchivedPrices(prices ?? [])
     setArchivedServices(services ?? [])
+    setArchivedHelpers(helpers ?? [])
     setLoading(false)
   }
 
@@ -6214,6 +6218,26 @@ function ArchivePanel() {
           <ArchiveActionButtons
             onRestore={() => openConfirm('Restore this service?', () => restoreItem('services', s.id))}
             onDelete={() => openConfirm('Permanently delete this service? This cannot be undone.', () => deleteItem('services', s.id), true)}
+          />
+        </div>
+      ),
+    },
+    {
+      key: 'helpers',
+      label: 'Helpers',
+      icon: Users,
+      iconColor: 'text-indigo-500',
+      iconBg: 'bg-indigo-50',
+      items: archivedHelpers,
+      renderRow: (h) => (
+        <div key={h.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+          <div className="min-w-0">
+            <p className="font-semibold text-gray-800 truncate">{h.name || '—'}</p>
+            <p className="text-xs text-gray-400">{h.phone || 'No phone'}</p>
+          </div>
+          <ArchiveActionButtons
+            onRestore={() => openConfirm(`Restore ${h.name}?`, () => restoreItem('helpers', h.id))}
+            onDelete={() => openConfirm(`Permanently delete ${h.name}? This cannot be undone.`, () => deleteItem('helpers', h.id), true)}
           />
         </div>
       ),
