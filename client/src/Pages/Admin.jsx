@@ -5915,6 +5915,25 @@ function TransactionsPanel() {
 
 // ─── Archive Tab ─────────────────────────────────────────────────────────────
 
+function ArchiveActionButtons({ onRestore, onDelete }) {
+  return (
+    <div className="flex gap-2 shrink-0 ml-3">
+      <button
+        onClick={onRestore}
+        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-green-300 hover:text-green-600 transition-colors whitespace-nowrap"
+      >
+        <RotateCcw size={12} /> Restore
+      </button>
+      <button
+        onClick={onDelete}
+        className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-red-300 hover:text-red-500 transition-colors whitespace-nowrap"
+      >
+        <Trash2 size={12} /> Delete
+      </button>
+    </div>
+  )
+}
+
 function ArchivePanel() {
   const [loading, setLoading] = useState(true)
   const [confirmState, setConfirmState] = useState(null)
@@ -5929,8 +5948,8 @@ function ArchivePanel() {
   const [archivedServices, setArchivedServices] = useState([])
 
   const [openSections, setOpenSections] = useState({
-    taskers: true, customers: true, bookings: true, reviews: true,
-    leaves: true, prices: true, services: true,
+    taskers: false, customers: false, bookings: false, reviews: false,
+    leaves: false, prices: false, services: false,
   })
 
   function toggleSection(key) {
@@ -5942,6 +5961,7 @@ function ArchivePanel() {
     const [
       { data: profiles },
       { data: taskerRecords },
+      { data: customerProfiles },
       { data: bookings },
       { data: reviews },
       { data: leaves },
@@ -5950,6 +5970,7 @@ function ArchivePanel() {
     ] = await Promise.all([
       supabase.from('profiles').select('*').eq('is_archived', true),
       supabase.from('taskers').select('*'),
+      supabase.from('customer_profiles').select('*'),
       supabase.from('bookings').select('*').eq('is_archived', true).order('created_at', { ascending: false }),
       supabase.from('reviews').select('*').eq('is_archived', true).order('created_at', { ascending: false }),
       supabase.from('tasker_leaves').select('*, taskers(name)').eq('is_archived', true).order('created_at', { ascending: false }),
@@ -5963,8 +5984,20 @@ function ArchivePanel() {
 
     const allProfiles = profiles ?? []
     setArchivedTaskers(allProfiles.filter(p => taskerUserIds.has(p.id)).map(p => ({ ...p, ...taskerMap[p.id] })))
-    setArchivedCustomers(allProfiles.filter(p => !taskerUserIds.has(p.id)))
-    setArchivedBookings(bookings ?? [])
+
+    const archivedCustomerIds = allProfiles.filter(p => !taskerUserIds.has(p.id)).map(p => p.id)
+    const customerMap = {}
+    ;(customerProfiles ?? []).forEach(c => { customerMap[c.id] = c })
+    setArchivedCustomers(archivedCustomerIds.map(id => ({ ...allProfiles.find(p => p.id === id), ...customerMap[id] })).filter(Boolean))
+
+    const bookingRows = bookings ?? []
+    const taskerIds = [...new Set(bookingRows.map(b => b.tasker_id).filter(Boolean))]
+    let taskerNameMap = {}
+    if (taskerIds.length > 0) {
+      const { data: taskerNames } = await supabase.from('taskers').select('id, name').in('id', taskerIds)
+      taskerNames?.forEach(t => { taskerNameMap[t.id] = t.name })
+    }
+    setArchivedBookings(bookingRows.map(b => ({ ...b, taskerName: taskerNameMap[b.tasker_id] ?? null })))
     setArchivedReviews(reviews ?? [])
     setArchivedLeaves(leaves ?? [])
     setArchivedPrices(prices ?? [])
@@ -5999,43 +6032,27 @@ function ArchivePanel() {
     )
   }
 
-  function ActionButtons({ onRestore, onDelete }) {
-    return (
-      <div className="flex gap-2 shrink-0 ml-3">
-        <button
-          onClick={onRestore}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-green-300 hover:text-green-600 transition-colors whitespace-nowrap"
-        >
-          <RotateCcw size={12} /> Restore
-        </button>
-        <button
-          onClick={onDelete}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-red-300 hover:text-red-500 transition-colors whitespace-nowrap"
-        >
-          <Trash2 size={12} /> Delete
-        </button>
-      </div>
-    )
-  }
-
   const sections = [
     {
       key: 'taskers',
       label: 'Taskers',
+      icon: UserCheck,
+      iconColor: 'text-blue-500',
+      iconBg: 'bg-blue-50',
       items: archivedTaskers,
       renderRow: (t) => (
-        <div key={t.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        <div key={t.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
           <div className="flex items-center gap-3 min-w-0">
             {t.avatar_url
               ? <img src={t.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
               : <div className={`w-9 h-9 rounded-full ${getAvatarColor(t.full_name || t.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(t.full_name || t.email?.split('@')[0])}</div>
             }
             <div className="min-w-0">
-              <p className="font-medium text-gray-800 truncate">{t.name || t.full_name || '—'}</p>
+              <p className="font-semibold text-gray-800 truncate">{t.name || t.full_name || '—'}</p>
               <p className="text-xs text-gray-400 truncate">{t.service_area || t.email || '—'}</p>
             </div>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm(`Restore ${t.name || t.full_name}?`, () => restoreProfile(t.id))}
             onDelete={() => openConfirm(`Permanently delete ${t.name || t.full_name}? This cannot be undone.`, () => deleteProfile(t.id), true)}
           />
@@ -6045,20 +6062,23 @@ function ArchivePanel() {
     {
       key: 'customers',
       label: 'Customers',
+      icon: Users,
+      iconColor: 'text-purple-500',
+      iconBg: 'bg-purple-50',
       items: archivedCustomers,
       renderRow: (c) => (
-        <div key={c.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        <div key={c.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
           <div className="flex items-center gap-3 min-w-0">
             {c.avatar_url
               ? <img src={c.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover shrink-0" />
               : <div className={`w-9 h-9 rounded-full ${getAvatarColor(c.full_name || c.email)} flex items-center justify-center text-white text-sm font-semibold shrink-0`}>{getInitials(c.full_name || c.email?.split('@')[0])}</div>
             }
             <div className="min-w-0">
-              <p className="font-medium text-gray-800 truncate">{c.full_name || c.email?.split('@')[0] || '—'}</p>
+              <p className="font-semibold text-gray-800 truncate">{c.full_name || c.email?.split('@')[0] || '—'}</p>
               <p className="text-xs text-gray-400 truncate">{c.email || '—'}</p>
             </div>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm(`Restore ${c.full_name || c.email}?`, () => restoreProfile(c.id))}
             onDelete={() => openConfirm(`Permanently delete ${c.full_name || c.email}? This cannot be undone.`, () => deleteProfile(c.id), true)}
           />
@@ -6068,17 +6088,32 @@ function ArchivePanel() {
     {
       key: 'bookings',
       label: 'Bookings',
+      icon: CalendarDays,
+      iconColor: 'text-orange-500',
+      iconBg: 'bg-orange-50',
       items: archivedBookings,
       renderRow: (b) => (
-        <div key={b.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
-          <div className="min-w-0">
-            <p className="font-medium text-gray-800 truncate">{b.service || '—'} · {b.customer_name || '—'}</p>
+        <div key={b.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-semibold text-gray-800 truncate">{b.service || '—'}</p>
+              {b.status && (
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full capitalize shrink-0 ${BOOKING_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'}`}>
+                  {b.status.replaceAll('_', ' ')}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-gray-400 mt-0.5">
+              <span className="text-gray-500 font-medium">Customer:</span> {b.customer_name || '—'}
+              {b.taskerName ? <> · <span className="text-gray-500 font-medium">Tasker:</span> {b.taskerName}</> : ''}
+            </p>
             <p className="text-xs text-gray-400">
-              {b.scheduled_date ? new Date(b.scheduled_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+              {b.scheduled_date ? new Date(b.scheduled_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+              {b.scheduled_time ? ` at ${new Date(`1970-01-01T${b.scheduled_time}`).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}` : ''}
               {b.estimated_total ? ` · ₱${Number(b.estimated_total).toLocaleString()}` : ''}
             </p>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm('Restore this booking?', () => restoreItem('bookings', b.id))}
             onDelete={() => openConfirm('Permanently delete this booking? This cannot be undone.', () => deleteItem('bookings', b.id), true)}
           />
@@ -6088,16 +6123,23 @@ function ArchivePanel() {
     {
       key: 'reviews',
       label: 'Reviews',
+      icon: Star,
+      iconColor: 'text-yellow-500',
+      iconBg: 'bg-yellow-50',
       items: archivedReviews,
       renderRow: (r) => (
-        <div key={r.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        <div key={r.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
           <div className="min-w-0">
-            <p className="font-medium text-gray-800 truncate">
-              {r.reviewer_name || '—'} · <span className="text-yellow-400">{'★'.repeat(r.rating ?? 0)}</span><span className="text-gray-300">{'★'.repeat(5 - (r.rating ?? 0))}</span>
-            </p>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold text-gray-800 truncate">{r.reviewer_name || '—'}</p>
+              <span className="text-sm shrink-0">
+                <span className="text-yellow-400">{'★'.repeat(r.rating ?? 0)}</span>
+                <span className="text-gray-200">{'★'.repeat(5 - (r.rating ?? 0))}</span>
+              </span>
+            </div>
             <p className="text-xs text-gray-400 truncate">{r.comment?.slice(0, 80) || '—'}</p>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm('Restore this review?', () => restoreItem('reviews', r.id))}
             onDelete={() => openConfirm('Permanently delete this review? This cannot be undone.', () => deleteItem('reviews', r.id), true)}
           />
@@ -6107,14 +6149,20 @@ function ArchivePanel() {
     {
       key: 'leaves',
       label: 'Leave Requests',
+      icon: Umbrella,
+      iconColor: 'text-teal-500',
+      iconBg: 'bg-teal-50',
       items: archivedLeaves,
       renderRow: (l) => {
         const dates = (() => { try { return JSON.parse(l.leave_dates) } catch { return [] } })()
         const sorted = [...dates].sort()
         return (
-          <div key={l.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+          <div key={l.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
             <div className="min-w-0">
-              <p className="font-medium text-gray-800 truncate">{l.taskers?.name || '—'} · <span className="capitalize">{l.status || '—'}</span></p>
+              <div className="flex items-center gap-2">
+                <p className="font-semibold text-gray-800 truncate">{l.taskers?.name || '—'}</p>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize shrink-0 ${l.status === 'approved' ? 'bg-green-100 text-green-600' : l.status === 'rejected' ? 'bg-red-100 text-red-500' : 'bg-yellow-100 text-yellow-600'}`}>{l.status || '—'}</span>
+              </div>
               <p className="text-xs text-gray-400">
                 {dates.length === 0 ? '—' : dates.length === 1
                   ? new Date(sorted[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -6122,7 +6170,7 @@ function ArchivePanel() {
                 }
               </p>
             </div>
-            <ActionButtons
+            <ArchiveActionButtons
               onRestore={() => openConfirm('Restore this leave request?', () => restoreItem('tasker_leaves', l.id))}
               onDelete={() => openConfirm('Permanently delete this leave request? This cannot be undone.', () => deleteItem('tasker_leaves', l.id), true)}
             />
@@ -6133,14 +6181,17 @@ function ArchivePanel() {
     {
       key: 'prices',
       label: 'Prices',
+      icon: CircleDollarSign,
+      iconColor: 'text-green-500',
+      iconBg: 'bg-green-50',
       items: archivedPrices,
       renderRow: (p) => (
-        <div key={p.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        <div key={p.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
           <div className="min-w-0">
-            <p className="font-medium text-gray-800 truncate">{p.service_name || '—'} · {p.task_size || '—'}</p>
-            <p className="text-xs text-gray-400">₱{(p.price ?? 0).toLocaleString()}</p>
+            <p className="font-semibold text-gray-800 truncate">{p.service_name || '—'}</p>
+            <p className="text-xs text-gray-400">{p.task_size || '—'} · ₱{(p.price ?? 0).toLocaleString()}</p>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm('Restore this price?', () => restoreItem('task_prices', p.id))}
             onDelete={() => openConfirm('Permanently delete this price? This cannot be undone.', () => deleteItem('task_prices', p.id), true)}
           />
@@ -6150,14 +6201,17 @@ function ArchivePanel() {
     {
       key: 'services',
       label: 'Services',
+      icon: Wrench,
+      iconColor: 'text-rose-500',
+      iconBg: 'bg-rose-50',
       items: archivedServices,
       renderRow: (s) => (
-        <div key={s.id} className="flex items-center justify-between py-3 border-b border-gray-50 last:border-0">
+        <div key={s.id} className="flex items-center justify-between py-3 px-1 rounded-lg hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
           <div className="min-w-0">
-            <p className="font-medium text-gray-800 truncate">{s.title || '—'}</p>
+            <p className="font-semibold text-gray-800 truncate">{s.title || '—'}</p>
             <p className="text-xs text-gray-400">{s.icon || '—'}</p>
           </div>
-          <ActionButtons
+          <ArchiveActionButtons
             onRestore={() => openConfirm('Restore this service?', () => restoreItem('services', s.id))}
             onDelete={() => openConfirm('Permanently delete this service? This cannot be undone.', () => deleteItem('services', s.id), true)}
           />
@@ -6169,24 +6223,26 @@ function ArchivePanel() {
   return (
     <>
       {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
-      <div className="space-y-4">
-        {sections.map(({ key, label, items, renderRow }) => (
+      <div className="space-y-3">
+        {sections.map(({ key, label, icon: SectionIcon, iconColor, iconBg, items, renderRow }) => (
           <div key={key} className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <button
               onClick={() => toggleSection(key)}
               className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center gap-3">
-                <Archive size={16} className="text-orange-400" />
+                <div className={`w-8 h-8 rounded-lg ${iconBg} flex items-center justify-center shrink-0`}>
+                  <SectionIcon size={15} className={iconColor} />
+                </div>
                 <span className="font-semibold text-gray-800">{label}</span>
-                <span className="text-xs font-medium bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">{items.length}</span>
+                <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${items.length > 0 ? 'bg-orange-100 text-orange-600' : 'bg-gray-100 text-gray-400'}`}>{items.length}</span>
               </div>
-              <ChevronRight size={16} className={`text-gray-400 transition-transform ${openSections[key] ? 'rotate-90' : ''}`} />
+              <ChevronRight size={16} className={`text-gray-400 transition-transform duration-200 ${openSections[key] ? 'rotate-90' : ''}`} />
             </button>
             {openSections[key] && (
-              <div className="px-5 pb-4">
+              <div className="px-5 pb-4 border-t border-gray-50">
                 {items.length === 0
-                  ? <p className="text-sm text-gray-400 py-2">No archived {label.toLowerCase()}.</p>
+                  ? <p className="text-sm text-gray-400 py-4 text-center">No archived {label.toLowerCase()}.</p>
                   : items.map(renderRow)
                 }
               </div>
