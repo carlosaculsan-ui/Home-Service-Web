@@ -4777,6 +4777,10 @@ function HelpersPanel() {
   function handleDelete(helper) {
     openConfirm(`Move ${helper.name} to Archive? Their tasker assignments will be kept.`, async () => {
       await supabase.from('helpers').update({ is_archived: true }).eq('id', helper.id)
+      if (helper.user_id) {
+        await supabase.from('profiles').update({ role: 'customer' }).eq('id', helper.user_id)
+        await supabase.from('helper_applications').update({ status: 'rejected' }).eq('user_id', helper.user_id)
+      }
       fetchData()
     }, true)
   }
@@ -6369,7 +6373,11 @@ function ArchivePanel() {
           </div>
           <ArchiveActionButtons
             onRestore={() => openConfirm(`Restore ${t.name || t.full_name}?`, () => restoreProfile(t.id))}
-            onDelete={() => openConfirm(`Permanently delete ${t.name || t.full_name}? This cannot be undone.`, () => deleteProfile(t.id), true)}
+            onDelete={() => openConfirm(`Revert ${t.name || t.full_name} to a customer account? Their tasker record will be removed and they will need to reapply.`, async () => {
+              await supabase.from('taskers').delete().eq('user_id', t.user_id)
+              await supabase.from('profiles').update({ role: 'customer', is_archived: false }).eq('id', t.user_id)
+              fetchAll()
+            }, true)}
           />
         </div>
       ),
@@ -6547,8 +6555,22 @@ function ArchivePanel() {
             <p className="text-xs text-gray-400">{h.phone || 'No phone'}</p>
           </div>
           <ArchiveActionButtons
-            onRestore={() => openConfirm(`Restore ${h.name}?`, () => restoreItem('helpers', h.id))}
-            onDelete={() => openConfirm(`Permanently delete ${h.name}? This cannot be undone.`, () => deleteItem('helpers', h.id), true)}
+            onRestore={() => openConfirm(`Restore ${h.name}?`, async () => {
+              await supabase.from('helpers').update({ is_archived: false }).eq('id', h.id)
+              if (h.user_id) {
+                await supabase.from('profiles').update({ role: 'helper' }).eq('id', h.user_id)
+                await supabase.from('helper_applications').update({ status: 'approved' }).eq('user_id', h.user_id)
+              }
+              fetchAll()
+            })}
+            onDelete={() => openConfirm(`Revert ${h.name} to a customer account? Their helper record will be removed and they will need to reapply.`, async () => {
+              await supabase.from('helpers').delete().eq('id', h.id)
+              if (h.user_id) {
+                await supabase.from('profiles').update({ role: 'customer', is_archived: false }).eq('id', h.user_id)
+                await supabase.from('helper_applications').update({ status: 'rejected' }).eq('user_id', h.user_id)
+              }
+              fetchAll()
+            }, true)}
           />
         </div>
       ),
