@@ -102,7 +102,7 @@ function Services() {
               </div>
 
               {/* Circular orange arrow button */}
-              {role !== 'tasker' && role !== 'admin' && (
+              {role !== 'tasker' && role !== 'admin' && role !== 'helper' && (
                 <div className="flex justify-end">
                   <Link to={`/booking/${service.title}`} className="flex items-center justify-center w-12 h-12 rounded-full bg-orange-500 text-white hover:bg-orange-600 transition-colors font-bold text-lg">
                     →

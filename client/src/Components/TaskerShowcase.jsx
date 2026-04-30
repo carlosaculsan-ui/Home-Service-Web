@@ -138,7 +138,6 @@ function TaskerShowcase() {
   const [selectedTasker, setSelectedTasker] = useState(null)
   const justOpenedRef = useRef(false)
 
-
   useEffect(() => {
     async function fetchTaskers() {
       const { data, error } = await supabase.from('taskers').select('*').eq('status', 'approved').eq('is_featured', true)

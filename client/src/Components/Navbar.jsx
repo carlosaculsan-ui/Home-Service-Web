@@ -774,6 +774,8 @@ function Navbar() {
                               setShowNotifDropdown(false);
                               if (isApprovedTasker) {
                                 navigate("/tasker-dashboard?tab=bookings");
+                              } else if (isHelper) {
+                                navigate("/helper-dashboard");
                               } else if (isInterview) {
                                 window.location.href = "/dashboard?tab=notifications";
                               } else {
