@@ -405,6 +405,317 @@ function TaskerApplications() {
   )
 }
 
+function HelperApplications() {
+  const [apps, setApps] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [expandedDocs, setExpandedDocs] = useState({})
+  const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [interviewModal, setInterviewModal] = useState(null)
+  const [confirmState, setConfirmState] = useState(null)
+  const [searchText, setSearchText] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
+
+  const todayPlus = (n) => {
+    const d = new Date()
+    d.setDate(d.getDate() + n)
+    return d.toISOString().split('T')[0]
+  }
+
+  const formatDate = (iso) =>
+    new Date(iso + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+
+  async function fetchApps() {
+    const { data } = await supabase
+      .from('helper_applications')
+      .select('*')
+      .not('status', 'eq', 'approved')
+      .order('created_at', { ascending: false })
+    setApps(data ?? [])
+    setLoading(false)
+  }
+
+  useEffect(() => { fetchApps() }, [])
+
+  async function scheduleInterview(app, date) {
+    await supabase.from('helper_applications').update({ status: 'interview_scheduled', interview_date: date }).eq('id', app.id)
+    const firstName = app.full_name?.split(' ')[0] || 'Applicant'
+    const readableDate = formatDate(date)
+    if (app.user_id) {
+      await supabase.from('notifications').insert({
+        user_id: app.user_id,
+        title: 'Helper Application — Interview Scheduled',
+        message: `Congratulations, ${firstName}! You've passed the initial screening of your Helper application. Your Final Interview is scheduled on ${readableDate}. Please visit our office and bring a valid government-issued ID. Check your email for further details. We look forward to meeting you!`,
+        is_read: false,
+      })
+    }
+    setInterviewModal(null)
+    fetchApps()
+  }
+
+  async function finalApprove(app) {
+    await supabase.from('helper_applications').update({ status: 'approved' }).eq('id', app.id)
+    if (app.user_id) {
+      await supabase.from('profiles').update({ role: 'helper' }).eq('id', app.user_id)
+      await supabase.from('helpers').insert({ name: app.full_name, phone: app.phone, user_id: app.user_id, is_active: true })
+      const firstName = app.full_name?.split(' ')[0] || 'Helper'
+      await supabase.from('notifications').insert({
+        user_id: app.user_id,
+        title: 'Welcome to the Team!',
+        message: `Welcome aboard, ${firstName}! You've officially been approved as a Hanap.ph Helper. We're excited to have you on the team!`,
+        is_read: false,
+      })
+    }
+    fetchApps()
+  }
+
+  async function rejectApplicant(app) {
+    await supabase.from('helper_applications').update({ status: 'rejected' }).eq('id', app.id)
+    if (app.user_id) {
+      await supabase.from('profiles').update({ role: 'customer' }).eq('id', app.user_id)
+      const firstName = app.full_name?.split(' ')[0] || 'Applicant'
+      await supabase.from('notifications').insert({
+        user_id: app.user_id,
+        title: 'Helper Application Update',
+        message: `Hi ${firstName}, thank you for applying to be a Hanap.ph Helper. After careful review, we regret to inform you that your application was not successful at this time. You're welcome to reapply in the future.`,
+        is_read: false,
+      })
+    }
+    fetchApps()
+  }
+
+  function handleReject(app) {
+    openConfirm(`Reject ${app.full_name || 'this applicant'}? They will be notified.`, () => rejectApplicant(app), true)
+  }
+
+  function handleDelete(app) {
+    openConfirm('Are you sure you want to remove this applicant? This cannot be undone.', async () => {
+      await supabase.from('helper_applications').delete().eq('id', app.id)
+      setApps(prev => prev.filter(a => a.id !== app.id))
+    }, true)
+  }
+
+  function toggleDocs(id) {
+    setExpandedDocs(prev => ({ ...prev, [id]: !prev[id] }))
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center mt-16">
+        <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  const filtered = apps.filter(a => {
+    const matchSearch = !searchText.trim() || a.full_name?.toLowerCase().includes(searchText.toLowerCase())
+    const matchStatus = statusFilter === 'all' || a.status === statusFilter
+    return matchSearch && matchStatus
+  })
+
+  return (
+    <div className="space-y-4">
+      {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          type="text"
+          value={searchText}
+          onChange={e => setSearchText(e.target.value)}
+          placeholder="Search by name..."
+          className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400"
+        />
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-orange-400 bg-white"
+        >
+          <option value="all">All Statuses</option>
+          <option value="pending">Pending</option>
+          <option value="interview_scheduled">Interview Scheduled</option>
+          <option value="rejected">Rejected</option>
+        </select>
+      </div>
+
+      {filtered.length === 0 && (
+        <p className="text-center text-gray-400 mt-16">No helper applications found.</p>
+      )}
+
+      {filtered.map(a => (
+        <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+            <h3 className="text-lg font-bold text-gray-800">{a.full_name || '—'}</h3>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full ${TASKER_STATUS_STYLES[a.status] ?? TASKER_STATUS_STYLES.pending}`}>
+                {TASKER_STATUS_LABELS[a.status] ?? a.status}
+              </span>
+              {a.status === 'pending' && (
+                <>
+                  <button
+                    onClick={() => setInterviewModal({ app: a, date: todayPlus(3) })}
+                    className="px-4 py-1.5 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >Approve for Interview</button>
+                  <button
+                    onClick={() => handleReject(a)}
+                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >Reject</button>
+                </>
+              )}
+              {a.status === 'interview_scheduled' && (
+                <>
+                  <button
+                    onClick={() => finalApprove(a)}
+                    className="px-4 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >Approve as Helper</button>
+                  <button
+                    onClick={() => handleReject(a)}
+                    className="px-4 py-1.5 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-lg transition-colors"
+                  >Reject</button>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Personal Information</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                <p className="font-medium text-gray-800 break-all">{a.email || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                <p className="font-medium text-gray-800">{a.phone || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Age</p>
+                <p className="font-medium text-gray-800">{a.age || '—'}</p>
+              </div>
+              <div className="col-span-2 sm:col-span-3">
+                <p className="text-xs text-gray-400 mb-0.5">Address</p>
+                <p className="font-medium text-gray-800">{a.address || '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Emergency Contact</h4>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Name</p>
+                <p className="font-medium text-gray-800">{a.emergency_contact_name || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                <p className="font-medium text-gray-800">{a.emergency_contact_phone || '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-400 mb-4">
+            Applied: {a.created_at ? new Date(a.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '—'}
+            {a.interview_date && (
+              <span className="ml-4 text-blue-500 font-medium">Interview: {formatDate(a.interview_date)}</span>
+            )}
+          </div>
+
+          <hr className="mb-4" />
+
+          {(a.gov_id_url || a.nbi_clearance_url) && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <button
+                onClick={() => toggleDocs(a.id)}
+                className="text-sm font-semibold text-orange-500 hover:text-orange-600 flex items-center gap-1"
+              >
+                {expandedDocs[a.id] ? '▲ Hide' : '▼ View'} Documents
+              </button>
+              {expandedDocs[a.id] && (
+                <div className="flex flex-wrap gap-3 mt-3">
+                  {[{ url: a.gov_id_url, label: 'Gov ID' }, { url: a.nbi_clearance_url, label: 'NBI Clearance' }].filter(d => d.url).map(({ url, label }) => (
+                    <div key={label} className="text-center">
+                      {isPdf(url) ? (
+                        <a href={url} target="_blank" rel="noopener noreferrer" className="w-20 h-20 flex flex-col items-center justify-center rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all bg-gray-50 gap-1">
+                          <span className="text-2xl">📄</span>
+                          <span className="text-[10px] text-orange-500 font-semibold">Open PDF</span>
+                        </a>
+                      ) : (
+                        <img src={url} alt={label} onClick={() => setLightboxSrc(url)} className="w-20 h-20 object-cover rounded-lg border border-gray-200 hover:border-orange-400 hover:shadow-md transition-all cursor-zoom-in" />
+                      )}
+                      <p className="text-xs text-gray-500 mt-1 w-20 truncate">{label}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="mt-3 flex justify-end border-t border-gray-100 pt-3">
+            <button
+              onClick={() => handleDelete(a)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-red-500 border border-gray-200 hover:border-red-300 rounded-lg transition-colors"
+            >
+              <Trash2 size={13} />
+              Delete Applicant
+            </button>
+          </div>
+        </div>
+      ))}
+
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+
+      {interviewModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
+            <h3 className="text-lg font-bold text-gray-800 mb-1">Schedule Final Interview</h3>
+            <p className="text-sm text-gray-500 mb-4">
+              Select an interview date for <span className="font-semibold text-gray-700">{interviewModal.app.full_name}</span>.
+              Must be 3–7 days from today.
+            </p>
+            <input
+              type="date"
+              min={todayPlus(3)}
+              max={todayPlus(7)}
+              value={interviewModal.date}
+              onChange={e => setInterviewModal(prev => ({ ...prev, date: e.target.value }))}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-1"
+            />
+            {interviewModal.date && (
+              <p className="text-xs text-orange-500 font-medium mb-4">{formatDate(interviewModal.date)}</p>
+            )}
+            <div className="flex gap-3">
+              <button onClick={() => setInterviewModal(null)} className="flex-1 px-4 py-2 border border-gray-200 text-gray-600 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">Cancel</button>
+              <button
+                onClick={() => scheduleInterview(interviewModal.app, interviewModal.date)}
+                disabled={!interviewModal.date}
+                className="flex-1 px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-semibold rounded-lg transition-colors disabled:opacity-50"
+              >Confirm & Notify</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ApplicantsPanel() {
+  const [applicantType, setApplicantType] = useState('tasker')
+  return (
+    <div>
+      <div className="flex gap-2 mb-5 border-b border-gray-200 pb-3">
+        <button
+          onClick={() => setApplicantType('tasker')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${applicantType === 'tasker' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+        >Tasker Applicants</button>
+        <button
+          onClick={() => setApplicantType('helper')}
+          className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${applicantType === 'helper' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
+        >Helper Applicants</button>
+      </div>
+      {applicantType === 'tasker' ? <TaskerApplications /> : <HelperApplications />}
+    </div>
+  )
+}
+
 // ─── Tasker Accounts Tab ─────────────────────────────────────────────────────
 
 const getInitials = (name) => {
@@ -6644,11 +6955,11 @@ function Admin() {
   }, [adminUserId])
 
   async function fetchPendingCount() {
-    const { count } = await supabase
-      .from('taskers')
-      .select('id', { count: 'exact', head: true })
-      .eq('status', 'pending')
-    setPendingCount(count ?? 0)
+    const [{ count: taskerCount }, { count: helperCount }] = await Promise.all([
+      supabase.from('taskers').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+      supabase.from('helper_applications').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    ])
+    setPendingCount((taskerCount ?? 0) + (helperCount ?? 0))
   }
 
   useEffect(() => {
@@ -6656,6 +6967,9 @@ function Admin() {
     const channel = supabase
       .channel('admin-pending-taskers')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'taskers' }, () => {
+        fetchPendingCount()
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'helper_applications' }, () => {
         fetchPendingCount()
       })
       .subscribe()
@@ -6991,7 +7305,7 @@ function Admin() {
             </>}
             {tab === 'tasker-accounts' && empSubtab === 'applicants' && <>
               <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Applicants</h2>
-              <TaskerApplications />
+              <ApplicantsPanel />
             </>}
             {tab === 'tasker-accounts' && empSubtab === 'helpers' && <HelpersPanel />}
             {tab === 'bookings' && <>

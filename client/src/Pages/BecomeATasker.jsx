@@ -17,6 +17,7 @@ function BecomeATasker() {
 
   const [checkingApplication, setCheckingApplication] = useState(true)
   const [existingApplication, setExistingApplication] = useState(null)
+  const [pendingHelperApp, setPendingHelperApp] = useState(false)
 
   useEffect(() => {
     async function checkExisting() {
@@ -25,12 +26,14 @@ function BecomeATasker() {
         setCheckingApplication(false)
         return
       }
-      const { data } = await supabase
-        .from('taskers')
-        .select('status')
-        .eq('user_id', user.id)
-        .maybeSingle()
-      setExistingApplication(data ?? null)
+      const [{ data: taskerData }, { data: helperData }] = await Promise.all([
+        supabase.from('taskers').select('status').eq('user_id', user.id).maybeSingle(),
+        supabase.from('helper_applications').select('status').eq('user_id', user.id).maybeSingle(),
+      ])
+      setExistingApplication(taskerData ?? null)
+      if (helperData && (helperData.status === 'pending' || helperData.status === 'interview_scheduled')) {
+        setPendingHelperApp(true)
+      }
       setCheckingApplication(false)
     }
     checkExisting()
@@ -382,6 +385,26 @@ function BecomeATasker() {
         style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
         <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
+  }
+
+  if (pendingHelperApp) {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center px-4"
+        style={{ backgroundImage: `url(${backgroundImg})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+      >
+        <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
+          <Hourglass size={64} className="text-orange-400 mx-auto mb-4" />
+          <h2 className="text-2xl font-bold text-gray-800 mb-3">Helper Application Pending</h2>
+          <p className="text-gray-500 text-sm mb-6">
+            You already have an active Helper application under review. Please wait for the admin's decision before applying as a Tasker.
+          </p>
+          <Link to="/" className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors">
+            Back to Home
+          </Link>
+        </div>
       </div>
     )
   }

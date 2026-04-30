@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import Navbar from '../Components/Navbar'
 import Footer from '../Components/Footer'
-import { CheckCircle2, Upload, X } from 'lucide-react'
+import { CheckCircle2, Upload, X, Hourglass, XCircle, Calendar, Loader2 } from 'lucide-react'
 
 const PH_PHONE_RE = /^(09|\+639)\d{9}$/
 const NAME_REGEX = /^[a-zA-ZñÑ\s.\-]+$/
@@ -53,6 +53,50 @@ function BecomeAHelper() {
   const [uploadProgress, setUploadProgress] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [checkingApp, setCheckingApp] = useState(true)
+  const [existingApp, setExistingApp] = useState(null)
+  const [userRole, setUserRole] = useState(null)
+  const [currentUser, setCurrentUser] = useState(null)
+
+  useEffect(() => {
+    async function checkAccess() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) { setCheckingApp(false); return }
+      setCurrentUser(user)
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      const role = profile?.role ?? 'customer'
+      setUserRole(role)
+      if (role === 'customer') {
+        const { data: app } = await supabase.from('helper_applications').select('status').eq('user_id', user.id).maybeSingle()
+        setExistingApp(app ?? null)
+      }
+      setCheckingApp(false)
+    }
+    checkAccess()
+  }, [])
+
+  const statusScreens = {
+    pending: {
+      icon: <Hourglass size={64} className="text-orange-400 mx-auto mb-4" />,
+      heading: 'Application Under Review',
+      message: 'Your application has been submitted. We will review your documents and get back to you within 1–3 business days.',
+    },
+    interview_scheduled: {
+      icon: <Calendar size={64} className="text-blue-400 mx-auto mb-4" />,
+      heading: 'Interview Scheduled',
+      message: 'You have passed the initial screening! Check your email for details about your scheduled interview.',
+    },
+    approved: {
+      icon: <CheckCircle2 size={64} className="text-green-500 mx-auto mb-4" />,
+      heading: 'Application Approved!',
+      message: 'Welcome to hanap.ph! You are now an approved Helper and can access your Helper Dashboard.',
+    },
+    rejected: {
+      icon: <XCircle size={64} className="text-red-400 mx-auto mb-4" />,
+      heading: 'Application Not Approved',
+      message: 'Unfortunately your application was not approved at this time. You are welcome to reapply.',
+    },
+  }
 
   const set = (field, value) => {
     setForm(prev => ({ ...prev, [field]: value }))
@@ -134,6 +178,7 @@ function BecomeAHelper() {
         gov_id_url: govIdUrl,
         nbi_clearance_url: nbiUrl,
         status: 'pending',
+        user_id: currentUser?.id ?? null,
       })
       if (insertError) throw new Error(insertError.message)
 
@@ -144,6 +189,80 @@ function BecomeAHelper() {
       setSubmitting(false)
       setUploadProgress('')
     }
+  }
+
+  if (checkingApp) {
+    return (
+      <div className="min-h-screen bg-gray-50 font-sans">
+        <Navbar />
+        <div className="flex items-center justify-center min-h-[80vh]">
+          <Loader2 size={36} className="text-orange-500 animate-spin" />
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (userRole === 'tasker' || userRole === 'admin') {
+    return (
+      <div className="min-h-screen bg-gray-50 font-sans">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
+          <div className="w-20 h-20 rounded-full bg-red-100 flex items-center justify-center mb-6">
+            <XCircle size={40} className="text-red-400" />
+          </div>
+          <h1 className="text-2xl font-extrabold text-gray-900 mb-3">Access Restricted</h1>
+          <p className="text-gray-500 max-w-md mb-8">
+            You are already registered as a {userRole === 'admin' ? 'platform administrator' : 'Tasker'} and cannot apply as a Helper.
+          </p>
+          <Link to="/" className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-bold px-8 py-3 rounded-xl transition-colors">
+            Back to Home
+          </Link>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  if (existingApp) {
+    const screen = statusScreens[existingApp.status] ?? statusScreens.pending
+    return (
+      <div className="min-h-screen bg-gray-50 font-sans">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full">
+            {screen.icon}
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">{screen.heading}</h2>
+            <p className="text-gray-500 text-sm mb-6">{screen.message}</p>
+            {existingApp.status === 'approved' && (
+              <Link
+                to="/helper-dashboard"
+                className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+              >
+                Go to Helper Dashboard
+              </Link>
+            )}
+            {existingApp.status === 'rejected' && (
+              <button
+                onClick={async () => {
+                  await supabase.from('helper_applications').delete().eq('user_id', currentUser.id)
+                  setExistingApp(null)
+                }}
+                className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+              >
+                Reapply
+              </button>
+            )}
+            {(existingApp.status === 'pending' || existingApp.status === 'interview_scheduled') && (
+              <Link to="/" className="block text-orange-500 hover:text-orange-600 font-medium text-sm mt-4">
+                Back to Home
+              </Link>
+            )}
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
   }
 
   if (submitted) {
