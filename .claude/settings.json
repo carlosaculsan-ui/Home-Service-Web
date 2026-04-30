@@ -3,7 +3,11 @@
     "allow": [
       "Bash(git restore *)",
       "Bash(npx tsc *)",
-      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\server\" -Depth 1 | Where-Object { -not $_.Name -like 'node_modules' })"
+      "PowerShell(Get-ChildItem -Path \"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\server\" -Depth 1 | Where-Object { -not $_.Name -like 'node_modules' })",
+      "Bash(cmd /c \"cd c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\client && npm run build\")",
+      "Bash(findstr /n \"price row\\\\|ManagePrices\\\\|task_prices\\\\|deleteId\\\\|delete this price\" \"client/src/Pages/Admin.jsx\")",
+      "Bash(cmd /c \"findstr /n \\\\\"price row\\\\\" \\\\\"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\client\\\\src\\\\Pages\\\\Admin.jsx\\\\\"\")",
+      "Read(//c/Users/Admin/.claude/projects/c--Users-Admin-Downloads-home-service-web/461477a5-fd21-49d3-9047-438c000df8d9/tool-results/**)"
     ]
   }
 }

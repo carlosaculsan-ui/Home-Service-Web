@@ -230,7 +230,7 @@ function BecomeAHelper() {
       <div className="min-h-screen bg-gray-50 font-sans">
         <Navbar />
         <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-10 max-w-md w-full">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-10 max-w-md w-full">
             {screen.icon}
             <h2 className="text-2xl font-bold text-gray-800 mb-3">{screen.heading}</h2>
             <p className="text-gray-500 text-sm mb-6">{screen.message}</p>

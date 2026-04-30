@@ -397,7 +397,7 @@ function BecomeATasker() {
       >
         <div className="bg-white rounded-2xl shadow-lg p-10 max-w-md w-full text-center">
           <Hourglass size={64} className="text-orange-400 mx-auto mb-4" />
-          <h2 className="text-2xl font-bold text-gray-800 mb-3">Helper Application Pending</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-3">Helper Application Pending</h2>
           <p className="text-gray-500 text-sm mb-6">
             You already have an active Helper application under review. Please wait for the admin's decision before applying as a Tasker.
           </p>

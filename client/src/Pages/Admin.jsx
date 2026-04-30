@@ -251,7 +251,7 @@ function TaskerApplications() {
             {/* Personal Information */}
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Personal Information</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
                 <div>
                   <p className="text-xs text-gray-400 mb-0.5">Email</p>
                   <p className="font-medium text-gray-800 break-all">{t.email || '—'}</p>
@@ -286,7 +286,7 @@ function TaskerApplications() {
             {/* Service Information */}
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Service Information</h4>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
                 <div>
                   <p className="text-xs text-gray-400 mb-0.5">Service Role</p>
                   <p className="font-medium text-gray-800">{t.role || '—'}</p>
@@ -578,7 +578,7 @@ function HelperApplications() {
 
           <div className="mb-5">
             <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Personal Information</h4>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4 text-sm">
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Email</p>
                 <p className="font-medium text-gray-800 break-all">{a.email || '—'}</p>
@@ -600,7 +600,7 @@ function HelperApplications() {
 
           <div className="mb-5">
             <h4 className="text-xs font-semibold text-orange-500 uppercase tracking-wide mb-3">Emergency Contact</h4>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
               <div>
                 <p className="text-xs text-gray-400 mb-0.5">Name</p>
                 <p className="font-medium text-gray-800">{a.emergency_contact_name || '—'}</p>
@@ -701,7 +701,7 @@ function ApplicantsPanel() {
   const [applicantType, setApplicantType] = useState('tasker')
   return (
     <div>
-      <div className="flex gap-2 mb-5 border-b border-gray-200 pb-3">
+      <div className="flex flex-wrap gap-2 mb-5 border-b border-gray-200 pb-3">
         <button
           onClick={() => setApplicantType('tasker')}
           className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${applicantType === 'tasker' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100'}`}
@@ -4962,7 +4962,7 @@ function HelpersPanel() {
             </div>
 
             {/* Details Grid */}
-            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm mb-6">
               <div><span className="text-gray-500">Age:</span> <span className="font-medium">{selectedHelper.app.age || '—'}</span></div>
               <div><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedHelper.app.email || '—'}</span></div>
               <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{selectedHelper.app.address || '—'}</span></div>
@@ -4980,7 +4980,7 @@ function HelpersPanel() {
                 {selectedHelper.app.gov_id_url ? (
                   <button
                     onClick={() => setLightboxSrc(selectedHelper.app.gov_id_url)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
                   >
                     🪪 Government ID
                   </button>
@@ -4990,7 +4990,7 @@ function HelpersPanel() {
                 {selectedHelper.app.nbi_clearance_url && (
                   <button
                     onClick={() => setLightboxSrc(selectedHelper.app.nbi_clearance_url)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
+                    className="flex items-center gap-1.5 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
                   >
                     📄 NBI Clearance
                   </button>
