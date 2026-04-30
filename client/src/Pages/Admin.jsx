@@ -4693,7 +4693,9 @@ function HelpersPanel() {
   const [assignments, setAssignments] = useState({}) // { helper_id: [{ tasker_id, tasker_name, slot }] }
   const [appByPhone, setAppByPhone] = useState({}) // { phone: helper_application_row }
   const [loading, setLoading] = useState(true)
-  const [expandedRows, setExpandedRows] = useState({})
+  const [selectedHelper, setSelectedHelper] = useState(null)
+  const [showHelperModal, setShowHelperModal] = useState(false)
+  const [lightboxSrc, setLightboxSrc] = useState(null)
   const [confirmState, setConfirmState] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
@@ -4867,23 +4869,10 @@ function HelpersPanel() {
                 }).map((h) => {
                   const helperAssignments = assignments[h.id] ?? []
                   const app = appByPhone[h.phone] ?? null
-                  const isExpanded = expandedRows[h.id] ?? false
                   return (
                     <>
                       <tr key={h.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">
-                          <div className="flex items-center gap-2">
-                            {h.name}
-                            {app && (
-                              <button
-                                onClick={() => setExpandedRows(prev => ({ ...prev, [h.id]: !prev[h.id] }))}
-                                className="text-xs text-orange-500 hover:underline"
-                              >
-                                {isExpanded ? '▲ less' : '▼ details'}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
                         <td className="px-4 py-3 text-gray-600">{h.phone || <span className="text-gray-300">—</span>}</td>
 
                         <td className="px-4 py-3">
@@ -4915,6 +4904,14 @@ function HelpersPanel() {
 
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
+                            {app && (
+                              <button
+                                onClick={() => { setSelectedHelper({ ...h, app }); setShowHelperModal(true) }}
+                                className="text-xs px-2.5 py-1 border border-orange-200 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors font-medium"
+                              >
+                                View Details →
+                              </button>
+                            )}
                             <button
                               onClick={() => { setAssignHelper(h); setAssignTaskerId(''); setAssignSlot('1'); setAssignWarning('') }}
                               className="text-xs px-2.5 py-1 border border-blue-200 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium"
@@ -4936,43 +4933,6 @@ function HelpersPanel() {
                           </div>
                         </td>
                       </tr>
-
-                      {/* Expandable details row */}
-                      {isExpanded && app && (
-                        <tr key={`${h.id}-details`} className="bg-orange-50/40">
-                          <td colSpan={5} className="px-6 py-4">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-3 text-sm mb-3">
-                              <div>
-                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Age</p>
-                                <p className="text-gray-700">{app.age}</p>
-                              </div>
-                              <div className="col-span-2">
-                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Address</p>
-                                <p className="text-gray-700">{app.address}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">Emergency Contact</p>
-                                <p className="text-gray-700">{app.emergency_contact_name}</p>
-                                <p className="text-gray-500 text-xs">{app.emergency_contact_phone}</p>
-                              </div>
-                            </div>
-                            <div className="flex gap-3 flex-wrap">
-                              {app.gov_id_url && (
-                                <a href={app.gov_id_url} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors">
-                                  🪪 Government ID
-                                </a>
-                              )}
-                              {app.nbi_clearance_url && (
-                                <a href={app.nbi_clearance_url} target="_blank" rel="noopener noreferrer"
-                                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors">
-                                  📄 NBI Clearance
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </>
                   )
                 })}
@@ -4982,6 +4942,66 @@ function HelpersPanel() {
         </div>
       )}
 
+
+      {/* Helper Details Modal */}
+      {showHelperModal && selectedHelper && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={() => setShowHelperModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={() => setShowHelperModal(false)} className="absolute top-3 right-3 text-gray-400 hover:text-black text-xl">✕</button>
+
+            {/* Header */}
+            <div className="flex items-center gap-4 mb-6">
+              <div className="w-14 h-14 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 text-xl font-bold flex-shrink-0">
+                {selectedHelper.name?.charAt(0)?.toUpperCase() ?? '?'}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-gray-800">{selectedHelper.name}</h2>
+                <p className="text-sm text-gray-500">{selectedHelper.phone || '—'}</p>
+                <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">Approved Helper</span>
+              </div>
+            </div>
+
+            {/* Details Grid */}
+            <div className="grid grid-cols-2 gap-4 text-sm mb-6">
+              <div><span className="text-gray-500">Age:</span> <span className="font-medium">{selectedHelper.app.age || '—'}</span></div>
+              <div><span className="text-gray-500">Email:</span> <span className="font-medium">{selectedHelper.app.email || '—'}</span></div>
+              <div className="col-span-2"><span className="text-gray-500">Address:</span> <span className="font-medium">{selectedHelper.app.address || '—'}</span></div>
+              <div><span className="text-gray-500">Emergency Contact:</span> <span className="font-medium">{selectedHelper.app.emergency_contact_name || '—'}</span></div>
+              <div><span className="text-gray-500">Emergency Phone:</span> <span className="font-medium">{selectedHelper.app.emergency_contact_phone || '—'}</span></div>
+              {selectedHelper.app.interview_date && (
+                <div className="col-span-2"><span className="text-gray-500">Interview Date:</span> <span className="font-medium">{new Date(selectedHelper.app.interview_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span></div>
+              )}
+            </div>
+
+            {/* Documents */}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase mb-3">Documents</h4>
+              <div className="flex gap-3 flex-wrap">
+                {selectedHelper.app.gov_id_url ? (
+                  <button
+                    onClick={() => setLightboxSrc(selectedHelper.app.gov_id_url)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
+                  >
+                    🪪 Government ID
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-400">No Gov ID uploaded</span>
+                )}
+                {selectedHelper.app.nbi_clearance_url && (
+                  <button
+                    onClick={() => setLightboxSrc(selectedHelper.app.nbi_clearance_url)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 hover:border-orange-400 transition-colors"
+                  >
+                    📄 NBI Clearance
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
 
       {/* Edit Helper Modal */}
       {editHelper && (
