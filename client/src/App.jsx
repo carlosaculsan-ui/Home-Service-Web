@@ -168,7 +168,7 @@ function App() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/reset-password" element={<ForgotPassword />} />
       <Route path="/become-a-tasker" element={<BecomeATaskerLanding />} />
-      <Route path="/become-a-helper" element={<BecomeAHelper />} />
+      <Route path="/become-a-helper" element={<ProtectedRoute><BecomeAHelper /></ProtectedRoute>} />
       <Route path="/helper-dashboard" element={<HelperRoute><HelperDashboard /></HelperRoute>} />
       <Route path="/become-a-tasker/apply" element={<ProtectedRoute><BecomeATasker /></ProtectedRoute>} />
       <Route path="/booking/:service" element={<Booking />} />
