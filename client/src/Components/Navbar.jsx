@@ -24,7 +24,7 @@ const NAV_LINKS = [
 
 
 /* ─── Avatar Dropdown ─────────────────────────────────────────────────── */
-function AvatarMenu({ session, isApprovedTasker, isAdmin, onLogout }) {
+function AvatarMenu({ session, isApprovedTasker, isAdmin, isHelper, onLogout }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
   const label = session?.user?.email?.slice(0, 2).toUpperCase() ?? "";
@@ -135,7 +135,7 @@ function AvatarMenu({ session, isApprovedTasker, isAdmin, onLogout }) {
               </div>
             </div>
             <div style={{ padding: "6px 0" }}>
-              {!isAdmin && !isApprovedTasker && (
+              {!isAdmin && !isApprovedTasker && !isHelper && (
                 <>
                   <DItem
                     to="/become-a-tasker"
@@ -150,6 +150,14 @@ function AvatarMenu({ session, isApprovedTasker, isAdmin, onLogout }) {
                     onClick={() => setOpen(false)}
                   />
                 </>
+              )}
+              {isHelper && (
+                <DItem
+                  to="/helper-dashboard"
+                  icon={<LayoutDashboard size={13} />}
+                  label="My Dashboard"
+                  onClick={() => setOpen(false)}
+                />
               )}
               {isApprovedTasker && (
                 <DItem
@@ -251,6 +259,7 @@ function Navbar() {
   const [session, setSession] = useState(null);
   const [isApprovedTasker, setIsApprovedTasker] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isHelper, setIsHelper] = useState(false);
   const [showNav, setShowNav] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -329,6 +338,7 @@ function Navbar() {
       .eq("id", uid)
       .single();
     setIsAdmin(data?.role === "admin");
+    setIsHelper(data?.role === "helper");
   }
 
 
@@ -339,6 +349,7 @@ function Navbar() {
     } else {
       setIsApprovedTasker(false);
       setIsAdmin(false);
+      setIsHelper(false);
       setNotifications([]);
       setUnreadCount(0);
     }
@@ -841,6 +852,7 @@ function Navbar() {
                 session={session}
                 isApprovedTasker={isApprovedTasker}
                 isAdmin={isAdmin}
+                isHelper={isHelper}
                 onLogout={handleLogout}
               />
             ) : (
@@ -996,7 +1008,7 @@ function Navbar() {
                       gap: "7px",
                     }}
                   >
-                    {!isAdmin && !isApprovedTasker && (
+                    {!isAdmin && !isApprovedTasker && !isHelper && (
                       <>
                         <MobItem
                           to="/become-a-tasker"
@@ -1011,6 +1023,14 @@ function Navbar() {
                           onClick={() => setMenuOpen(false)}
                         />
                       </>
+                    )}
+                    {isHelper && (
+                      <MobItem
+                        to="/helper-dashboard"
+                        icon={<LayoutDashboard size={14} />}
+                        label="My Dashboard"
+                        onClick={() => setMenuOpen(false)}
+                      />
                     )}
                     {isApprovedTasker && (
                       <MobItem

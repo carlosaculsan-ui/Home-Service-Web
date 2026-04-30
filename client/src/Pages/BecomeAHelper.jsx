@@ -224,6 +224,28 @@ function BecomeAHelper() {
     )
   }
 
+  if (userRole === 'helper') {
+    return (
+      <div className="min-h-screen bg-gray-50 font-sans">
+        <Navbar />
+        <div className="flex flex-col items-center justify-center min-h-[80vh] px-4 text-center">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 sm:p-10 max-w-md w-full">
+            {statusScreens.approved.icon}
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">{statusScreens.approved.heading}</h2>
+            <p className="text-gray-500 text-sm mb-6">{statusScreens.approved.message}</p>
+            <Link
+              to="/helper-dashboard"
+              className="inline-block bg-orange-500 hover:bg-orange-600 text-white font-semibold px-6 py-2.5 rounded-xl transition-colors"
+            >
+              Go to Helper Dashboard
+            </Link>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
   if (existingApp) {
     const screen = statusScreens[existingApp.status] ?? statusScreens.pending
     return (

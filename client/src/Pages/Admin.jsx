@@ -4872,7 +4872,18 @@ function HelpersPanel() {
                   return (
                     <>
                       <tr key={h.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-3 font-medium text-gray-800">{h.name}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {h.profile_photo ? (
+                              <img src={h.profile_photo} alt={h.name} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-orange-500 flex items-center justify-center flex-shrink-0">
+                                <span className="text-white text-xs font-bold">{h.name?.charAt(0)?.toUpperCase() ?? '?'}</span>
+                              </div>
+                            )}
+                            <span className="font-medium text-gray-800">{h.name}</span>
+                          </div>
+                        </td>
                         <td className="px-4 py-3 text-gray-600">{h.phone || <span className="text-gray-300">—</span>}</td>
 
                         <td className="px-4 py-3">
