@@ -4830,12 +4830,6 @@ function HelpersPanel() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold text-gray-800">Helpers</h2>
-        <button
-          onClick={() => { setNewName(''); setAddError(''); setShowAddModal(true) }}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-lg text-sm transition-colors"
-        >
-          + Add Helper
-        </button>
       </div>
 
       {/* Search */}
@@ -4988,53 +4982,6 @@ function HelpersPanel() {
         </div>
       )}
 
-      {/* Add Helper Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="font-bold text-gray-800 text-base mb-4">Add Helper</h3>
-            <label className="block text-xs text-gray-500 mb-1">Name</label>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => { setNewName(e.target.value); setAddError('') }}
-              placeholder="Helper's full name"
-              autoFocus
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
-            />
-            <label className="block text-xs text-gray-500 mb-1">Contact Number <span className="text-gray-300 font-normal">(optional)</span></label>
-            <input
-              type="tel"
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-              onKeyDown={(e) => {
-                if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Tab' && e.key !== 'Delete') e.preventDefault()
-                if (e.key === 'Enter') handleAddHelper()
-              }}
-              maxLength={11}
-              placeholder="e.g. 09171234567"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 mb-3"
-            />
-            {addError && <p className="text-xs text-red-500 mb-3">{addError}</p>}
-            <div className="flex gap-2">
-              <button
-                onClick={handleAddHelper}
-                disabled={addSaving}
-                className="flex-1 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-semibold py-2 rounded-lg text-sm transition-colors"
-              >
-                {addSaving ? 'Saving...' : 'Save'}
-              </button>
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 border border-gray-200 rounded-lg text-sm text-gray-500 hover:text-gray-700 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Edit Helper Modal */}
       {editHelper && (
