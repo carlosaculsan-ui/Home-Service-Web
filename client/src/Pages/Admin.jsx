@@ -9,7 +9,7 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
-  CreditCard, RefreshCw, Search, Smile, Download, Printer,
+  CreditCard, RefreshCw, Search, Smile, Download, Printer, SquarePen,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -4580,7 +4580,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
 
 // ─── Admin Messages Tab ───────────────────────────────────────────────────────
 
-function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
+function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPhoto, onBack }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -4687,9 +4687,13 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, onBack }) {
             ←
           </button>
         )}
-        <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-          <span className="text-sm font-bold text-orange-500">{(otherUserName?.[0] ?? '?').toUpperCase()}</span>
-        </div>
+        {otherUserPhoto ? (
+          <img src={otherUserPhoto} alt={otherUserName} className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+            <span className="text-sm font-bold text-orange-500">{(otherUserName?.[0] ?? '?').toUpperCase()}</span>
+          </div>
+        )}
         <p className="font-semibold text-gray-800 text-sm flex-1">{otherUserName}</p>
         {onBack && (
           <button onClick={onBack} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
@@ -4763,6 +4767,10 @@ function AdminMessagesPanel({ adminUserId }) {
   const [conversations, setConversations] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedTasker, setSelectedTasker] = useState(null)
+  const [showCompose, setShowCompose] = useState(false)
+  const [composeSearch, setComposeSearch] = useState('')
+  const [composeUsers, setComposeUsers] = useState([])
+  const [composeLoading, setComposeLoading] = useState(false)
 
   async function fetchConversations() {
     if (!adminUserId) return
@@ -4791,15 +4799,17 @@ function AdminMessagesPanel({ adminUserId }) {
     const taskerMap = {}
     ;(taskers ?? []).forEach((t) => { taskerMap[t.user_id] = t })
 
-    // For IDs not found in taskers, fall back to profiles
+    // For IDs not found in taskers, fall back to profiles + helpers table
     const missingIds = otherIds.filter((id) => !taskerMap[id])
     const profileMap = {}
+    const helperUserIds = new Set()
     if (missingIds.length > 0) {
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('id, full_name, role')
-        .in('id', missingIds)
+      const [{ data: profiles }, { data: helperRows }] = await Promise.all([
+        supabase.from('profiles').select('id, full_name, role').in('id', missingIds),
+        supabase.from('helpers').select('user_id').in('user_id', missingIds).eq('is_archived', false),
+      ])
       ;(profiles ?? []).forEach((p) => { profileMap[p.id] = p })
+      ;(helperRows ?? []).forEach((h) => { helperUserIds.add(h.user_id) })
     }
 
     // Build one entry per other user, using the first (most recent) message
@@ -4822,7 +4832,7 @@ function AdminMessagesPanel({ adminUserId }) {
         ? raw.startsWith('http') ? raw : supabase.storage.from('tasker-files').getPublicUrl(raw).data.publicUrl
         : null
 
-      const role = tasker ? 'tasker' : (profile?.role ?? 'customer')
+      const role = tasker ? 'tasker' : helperUserIds.has(otherId) ? 'helper' : (profile?.role ?? 'customer')
       const name = tasker?.name ?? profile?.full_name ?? 'Unknown User'
 
       convos.push({
@@ -4841,6 +4851,28 @@ function AdminMessagesPanel({ adminUserId }) {
   }
 
   useEffect(() => { fetchConversations() }, [adminUserId])
+
+  async function fetchComposeUsers() {
+    setComposeLoading(true)
+    const [{ data: tData }, { data: hData }] = await Promise.all([
+      supabase.from('taskers').select('id, name, user_id, profile_photo').eq('status', 'approved').order('name'),
+      supabase.from('helpers').select('id, name, user_id').eq('is_archived', false).not('user_id', 'is', null),
+    ])
+    const users = []
+    ;(tData ?? []).forEach((t) => {
+      if (!t.user_id) return
+      const raw = t.profile_photo
+      const photoUrl = raw
+        ? raw.startsWith('http') ? raw : supabase.storage.from('tasker-files').getPublicUrl(raw).data.publicUrl
+        : null
+      users.push({ userId: t.user_id, name: t.name, photoUrl, role: 'tasker' })
+    })
+    ;(hData ?? []).forEach((h) => {
+      users.push({ userId: h.user_id, name: h.name, photoUrl: null, role: 'helper' })
+    })
+    setComposeUsers(users)
+    setComposeLoading(false)
+  }
 
   async function openConversation(c) {
     setSelectedTasker(c)
@@ -4896,54 +4928,120 @@ function AdminMessagesPanel({ adminUserId }) {
 
       {/* Left panel — conversation list */}
       <div className={`w-full md:w-72 flex-shrink-0 border-r border-gray-100 flex flex-col ${selectedTasker ? 'hidden md:flex' : 'flex'}`}>
-        <div className="px-4 py-3 border-b border-gray-100">
-          <p className="font-bold text-gray-800 text-sm">Messages</p>
-          <p className="text-xs text-gray-400">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>
+        <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+          <div>
+            <p className="font-bold text-gray-800 text-sm">Messages</p>
+            {!showCompose && <p className="text-xs text-gray-400">{conversations.length} conversation{conversations.length !== 1 ? 's' : ''}</p>}
+          </div>
+          <button
+            onClick={() => {
+              if (showCompose) { setShowCompose(false); setComposeSearch('') }
+              else { setShowCompose(true); fetchComposeUsers() }
+            }}
+            title={showCompose ? 'Cancel' : 'New message'}
+            className="p-1.5 rounded-lg text-gray-400 hover:bg-orange-50 hover:text-orange-500 transition-colors"
+          >
+            {showCompose ? <X size={16} /> : <SquarePen size={16} />}
+          </button>
         </div>
-        <div className="flex-1 overflow-y-auto">
-          {conversations.length === 0 ? (
-            <p className="text-center text-gray-400 text-sm py-10 px-4">No messages yet.</p>
-          ) : (
-            conversations.map((c) => (
-              <button
-                key={c.userId}
-                onClick={() => openConversation(c)}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 ${
-                  selectedTasker?.userId === c.userId ? 'bg-orange-50' : ''
-                }`}
-              >
-                {c.photoUrl ? (
-                  <img src={c.photoUrl} alt={c.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sm font-bold text-orange-500">{(c.name?.[0] ?? '?').toUpperCase()}</span>
-                  </div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
-                      <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        c.role === 'tasker'
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'bg-green-100 text-green-600'
-                      }`}>
-                        {c.role === 'tasker' ? 'Tasker' : 'Customer'}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-400 flex-shrink-0">{fmtTime(c.lastTime)}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
+
+        {showCompose ? (
+          <div className="flex flex-col flex-1 min-h-0">
+            <div className="px-3 py-2 border-b border-gray-100">
+              <input
+                autoFocus
+                type="text"
+                placeholder="Search taskers & helpers..."
+                value={composeSearch}
+                onChange={(e) => setComposeSearch(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
+              />
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {composeLoading ? (
+                <div className="flex justify-center py-8">
+                  <div className="w-6 h-6 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
                 </div>
-                {c.unreadCount > 0 && (
-                  <span className="w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
-                    {c.unreadCount > 9 ? '9+' : c.unreadCount}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-        </div>
+              ) : (() => {
+                const filtered = composeUsers.filter((u) =>
+                  u.name.toLowerCase().includes(composeSearch.toLowerCase())
+                )
+                return filtered.length === 0 ? (
+                  <p className="text-center text-gray-400 text-sm py-10 px-4">No results.</p>
+                ) : (
+                  filtered.map((u) => (
+                    <button
+                      key={u.userId}
+                      onClick={() => { setSelectedTasker(u); setShowCompose(false); setComposeSearch('') }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-orange-50 border-b border-gray-50 transition-colors"
+                    >
+                      {u.photoUrl ? (
+                        <img src={u.photoUrl} alt={u.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                          <span className="text-sm font-bold text-orange-500">{(u.name?.[0] ?? '?').toUpperCase()}</span>
+                        </div>
+                      )}
+                      <p className="flex-1 text-sm font-semibold text-gray-800 truncate">{u.name}</p>
+                      <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        u.role === 'tasker' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'
+                      }`}>
+                        {u.role === 'tasker' ? 'Tasker' : 'Helper'}
+                      </span>
+                    </button>
+                  ))
+                )
+              })()}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto">
+            {conversations.length === 0 ? (
+              <p className="text-center text-gray-400 text-sm py-10 px-4">No messages yet.</p>
+            ) : (
+              conversations.map((c) => (
+                <button
+                  key={c.userId}
+                  onClick={() => openConversation(c)}
+                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 ${
+                    selectedTasker?.userId === c.userId ? 'bg-orange-50' : ''
+                  }`}
+                >
+                  {c.photoUrl ? (
+                    <img src={c.photoUrl} alt={c.name} className="w-10 h-10 rounded-full object-cover flex-shrink-0" />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <span className="text-sm font-bold text-orange-500">{(c.name?.[0] ?? '?').toUpperCase()}</span>
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800 truncate">{c.name}</p>
+                        <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                          c.role === 'tasker'
+                            ? 'bg-blue-100 text-blue-600'
+                            : c.role === 'helper'
+                            ? 'bg-purple-100 text-purple-600'
+                            : 'bg-green-100 text-green-600'
+                        }`}>
+                          {c.role === 'tasker' ? 'Tasker' : c.role === 'helper' ? 'Helper' : 'Customer'}
+                        </span>
+                      </div>
+                      <span className="text-xs text-gray-400 flex-shrink-0">{fmtTime(c.lastTime)}</span>
+                    </div>
+                    <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
+                  </div>
+                  {c.unreadCount > 0 && (
+                    <span className="w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
+                      {c.unreadCount > 9 ? '9+' : c.unreadCount}
+                    </span>
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right panel — chat */}
@@ -4953,6 +5051,7 @@ function AdminMessagesPanel({ adminUserId }) {
             adminUserId={adminUserId}
             otherUserId={selectedTasker.userId}
             otherUserName={selectedTasker.name}
+            otherUserPhoto={selectedTasker.photoUrl}
             onBack={() => setSelectedTasker(null)}
           />
         ) : (
@@ -7119,8 +7218,8 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           <div style={{ maxHeight: empSubOpen ? '160px' : '0px', overflow: 'hidden', transition: 'max-height 0.2s ease' }}>
             {[
               { key: 'taskers',             label: 'Taskers'             },
-              { key: 'applicants',          label: 'Applicants'          },
               { key: 'helpers',             label: 'Helpers'             },
+              { key: 'applicants',          label: 'Applicants'          },
             ].map(({ key, label }) => {
               const showApplicantBadge = key === 'applicants' && pendingCount > 0 && pendingCount !== pendingCountAtView
               return (
