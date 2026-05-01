@@ -429,6 +429,13 @@ function Navbar() {
   async function handleLogout() {
     setMenuOpen(false);
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session?.user?.id) {
+        await supabase.from('user_sessions')
+          .update({ time_out: new Date().toISOString() })
+          .eq('user_id', session.user.id)
+          .is('time_out', null)
+      }
       await supabase.auth.signOut();
     } catch (err) {
       console.error(err);

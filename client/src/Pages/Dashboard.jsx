@@ -3540,6 +3540,13 @@ function Dashboard() {
   }
 
   async function handleLogout() {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user?.id) {
+      await supabase.from('user_sessions')
+        .update({ time_out: new Date().toISOString() })
+        .eq('user_id', session.user.id)
+        .is('time_out', null)
+    }
     await supabase.auth.signOut()
     navigate('/')
   }

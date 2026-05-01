@@ -9,7 +9,7 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
-  CreditCard, RefreshCw, Search, Smile, Download, Printer, SquarePen, BarChart2,
+  CreditCard, Search, Smile, Download, Printer, SquarePen, BarChart2,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -5926,6 +5926,77 @@ function TransactionsPanel() {
   const mayaCount  = payments.filter((p) => p.attributes?.source?.type === 'paymaya' || p.attributes?.source?.type === 'maya').length
   const cardCount  = payments.filter((p) => p.attributes?.source?.type === 'card').length
 
+  function printTransactions() {
+    const now = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+
+    const getStatus = (p) => {
+      if (refundedSet.has(p.id) || refundedIds.has(p.id)) return 'Refunded'
+      const s = p.attributes?.status
+      return s === 'paid' ? 'Paid' : (s ?? '—')
+    }
+
+    const transactionRows = displayPayments.map((p, i) => {
+      const attr = p.attributes ?? {}
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${formatMethod(attr.source?.type)}</td>
+        <td class="mono">${p.id}</td>
+        <td>${formatAmount(attr.amount)}</td>
+        <td>${getStatus(p)}</td>
+        <td>${formatPaidAt(attr.paid_at)}</td>
+      </tr>`
+    }).join('')
+
+    const refundRows = refundedBookings.map((b, i) => {
+      const amt = '₱' + Number(b.estimated_total ?? 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      const date = new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+      return `<tr>
+        <td>${i + 1}</td>
+        <td>${b.customer_name ?? '—'}</td>
+        <td class="mono">${b.reference_number ?? b.id}</td>
+        <td>${b.service ?? '—'}</td>
+        <td>${amt}</td>
+        <td>${b.rejection_reason ?? '—'}</td>
+        <td>${date}</td>
+      </tr>`
+    }).join('')
+
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head><title>Transactions Report</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;padding:48px 56px;color:#111;font-size:13px}
+      h1{font-size:22px;font-weight:700;color:#ea580c;margin-bottom:2px}
+      .sub{color:#6b7280;font-size:13px;margin-bottom:32px}
+      .section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin:28px 0 10px}
+      table{width:100%;border-collapse:collapse}
+      th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:2px solid #e5e7eb;font-size:10px;text-transform:uppercase;color:#6b7280;letter-spacing:.05em}
+      td{padding:9px 12px;border-bottom:1px solid #f3f4f6}
+      .mono{font-family:monospace;font-size:11px;color:#6b7280}
+      .footer{margin-top:48px;font-size:10px;color:#9ca3af;text-align:center;border-top:1px solid #f3f4f6;padding-top:16px}
+    </style></head><body>
+      <h1>Transactions Report</h1>
+      <div class="sub">Generated ${now} &nbsp;·&nbsp; Showing ${displayPayments.length} transaction${displayPayments.length !== 1 ? 's' : ''}</div>
+
+      <div class="section">Transactions</div>
+      <table>
+        <thead><tr><th>#</th><th>Method</th><th>Payment ID</th><th>Amount</th><th>Status</th><th>Paid At</th></tr></thead>
+        <tbody>${transactionRows || '<tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:20px">No transactions</td></tr>'}</tbody>
+      </table>
+
+      ${refundedBookings.length > 0 ? `
+      <div class="section">Auto-Refunded Bookings</div>
+      <table>
+        <thead><tr><th>#</th><th>Customer</th><th>Reference</th><th>Service</th><th>Refund Amount</th><th>Rejection Reason</th><th>Date</th></tr></thead>
+        <tbody>${refundRows}</tbody>
+      </table>` : ''}
+
+      <div class="footer">Home Service Platform &nbsp;·&nbsp; Transactions Report &nbsp;·&nbsp; Confidential</div>
+    </body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 300)
+  }
+
   async function handleConfirmRefund() {
     if (!refundReason) {
       setRefundReasonError('Please select a reason.')
@@ -6336,14 +6407,14 @@ function TransactionsPanel() {
       })()}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
         <h2 className="text-xl font-bold text-gray-800">Transactions</h2>
         <button
-          onClick={fetchPayments}
-          className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
+          onClick={printTransactions}
+          className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors shadow-sm"
         >
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          Refresh
+          <Printer size={15} />
+          Print PDF
         </button>
       </div>
 
