@@ -102,6 +102,9 @@ function App() {
               .from('profiles')
               .update({ last_time_in: new Date().toISOString(), last_time_out: null })
               .eq('id', user.id)
+            await supabase
+              .from('user_sessions')
+              .insert({ user_id: user.id, role: 'tasker', time_in: new Date().toISOString() })
           }
         })
     } catch (err) {
@@ -114,6 +117,12 @@ function App() {
           .from('profiles')
           .update({ last_time_out: new Date().toISOString() })
           .eq('id', user.id)
+          .then(() => {})
+        supabase
+          .from('user_sessions')
+          .update({ time_out: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .is('time_out', null)
           .then(() => {})
         supabase.removeChannel(channel)
       }
@@ -141,6 +150,9 @@ function App() {
               .from('profiles')
               .update({ last_time_in: new Date().toISOString(), last_time_out: null })
               .eq('id', user.id)
+            await supabase
+              .from('user_sessions')
+              .insert({ user_id: user.id, role: 'customer', time_in: new Date().toISOString() })
           }
         })
     } catch (err) {
@@ -153,6 +165,12 @@ function App() {
           .from('profiles')
           .update({ last_time_out: new Date().toISOString() })
           .eq('id', user.id)
+          .then(() => {})
+        supabase
+          .from('user_sessions')
+          .update({ time_out: new Date().toISOString() })
+          .eq('user_id', user.id)
+          .is('time_out', null)
           .then(() => {})
         supabase.removeChannel(channel)
       }

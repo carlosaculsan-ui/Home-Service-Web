@@ -729,6 +729,89 @@ const getAvatarColor = (name) => {
   return colors[index]
 }
 
+function SessionHistoryModal({ userId, userName, onClose }) {
+  const [sessions, setSessions] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [currentDate, setCurrentDate] = useState(() => new Date())
+
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+
+  useEffect(() => {
+    async function fetchSessions() {
+      setLoading(true)
+      const start = new Date(year, month, 1).toISOString()
+      const end = new Date(year, month + 1, 1).toISOString()
+      const { data } = await supabase
+        .from('user_sessions')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('time_in', start)
+        .lt('time_in', end)
+        .order('time_in', { ascending: false })
+      setSessions(data ?? [])
+      setLoading(false)
+    }
+    fetchSessions()
+  }, [userId, year, month])
+
+  function prevMonth() {
+    setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
+  }
+  function nextMonth() {
+    const next = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+    if (next <= new Date()) setCurrentDate(next)
+  }
+
+  const monthLabel = currentDate.toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  const now = new Date()
+  const isCurrentMonth = currentDate.getMonth() === now.getMonth() && currentDate.getFullYear() === now.getFullYear()
+  const fmt = (ts) => ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(still active)'
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={onClose}>
+      <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl relative max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-3 text-gray-400 hover:text-black text-xl">✕</button>
+        <h2 className="text-lg font-bold text-gray-800 mb-0.5">{userName}</h2>
+        <p className="text-xs text-gray-500 mb-4">Session History</p>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={prevMonth} className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-500 text-lg leading-none">‹</button>
+          <span className="text-sm font-semibold text-gray-700">{monthLabel}</span>
+          <button onClick={nextMonth} disabled={isCurrentMonth} className="px-2 py-1 rounded-lg hover:bg-gray-100 text-gray-500 text-lg leading-none disabled:opacity-30">›</button>
+        </div>
+        <div className="overflow-y-auto flex-1">
+          {loading ? (
+            <div className="flex justify-center py-8">
+              <div className="w-6 h-6 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : sessions.length === 0 ? (
+            <p className="text-center text-gray-400 py-8 text-sm">No sessions recorded for this month.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-xs text-gray-400 border-b border-gray-100">
+                  <th className="pb-2 text-left font-medium w-8">#</th>
+                  <th className="pb-2 text-left font-medium">Time In</th>
+                  <th className="pb-2 text-left font-medium">Time Out</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {sessions.map((s, i) => (
+                  <tr key={s.id} className="text-gray-600">
+                    <td className="py-2.5 text-xs text-gray-400">{i + 1}</td>
+                    <td className="py-2.5 text-xs">{fmt(s.time_in)}</td>
+                    <td className="py-2.5 text-xs">{fmt(s.time_out)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function TaskerAccountsPanel() {
   const [taskers, setTaskers] = useState([])
   const [onlineTaskers, setOnlineTaskers] = useState([])
@@ -744,6 +827,7 @@ function TaskerAccountsPanel() {
   const [actionError, setActionError] = useState('')
   const [photoError, setPhotoError] = useState('')
   const [confirmState, setConfirmState] = useState(null)
+  const [historyUser, setHistoryUser] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function handleToggleFeature(tasker) {
@@ -936,6 +1020,7 @@ function TaskerAccountsPanel() {
                     <th className="px-3 py-3 font-medium">Email</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Time In</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-3 py-3 font-medium whitespace-nowrap">History</th>
                     <th className="px-3 py-3 font-medium text-center">Showcase</th>
                     <th className="px-3 py-3 font-medium whitespace-nowrap">Details</th>
                   </tr>
@@ -966,15 +1051,23 @@ function TaskerAccountsPanel() {
                         <td className="px-3 py-3 text-xs text-gray-500">{t.email || '—'}</td>
                         <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {isOnline && onlineInfo?.online_at
-                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : t.last_time_in
-                            ? new Date(t.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(t.last_time_in).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
                         <td className="px-3 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {!isOnline && t.last_time_out
-                            ? new Date(t.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(t.last_time_out).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
+                        </td>
+                        <td className="px-3 py-3">
+                          <button
+                            onClick={() => setHistoryUser(t)}
+                            className="text-blue-500 text-xs font-medium hover:underline whitespace-nowrap"
+                          >
+                            View History
+                          </button>
                         </td>
                         <td className="px-3 py-3 text-center">
                           <button
@@ -1009,12 +1102,12 @@ function TaskerAccountsPanel() {
               const isOnline = onlineTaskers.some((o) => o.user_id === t.user_id)
               const onlineInfo = onlineTaskers.find((o) => o.user_id === t.user_id)
               const timeIn = isOnline && onlineInfo?.online_at
-                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : t.last_time_in
-                ? new Date(t.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(t.last_time_in).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               const timeOut = !isOnline && t.last_time_out
-                ? new Date(t.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(t.last_time_out).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               return (
                 <div key={t.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1053,6 +1146,12 @@ function TaskerAccountsPanel() {
                     </button>
                   </div>
                   <button
+                    onClick={() => setHistoryUser(t)}
+                    className="w-full text-sm border border-blue-400 text-blue-500 py-2 rounded-lg hover:bg-blue-50 transition mb-2"
+                  >
+                    View History
+                  </button>
+                  <button
                     onClick={() => { setSelectedTasker(t); setShowTaskerModal(true) }}
                     className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition"
                   >
@@ -1064,6 +1163,8 @@ function TaskerAccountsPanel() {
           </div>
         </>
       )}
+
+      {historyUser && <SessionHistoryModal userId={historyUser.user_id} userName={historyUser.name} onClose={() => setHistoryUser(null)} />}
 
       {/* Tasker Details Modal */}
       {showTaskerModal && selectedTasker && (
@@ -1236,6 +1337,7 @@ function CustomerAccountsPanel() {
   const [showCustomerModal, setShowCustomerModal] = useState(false)
   const [customerSearch, setCustomerSearch] = useState('')
   const [confirmState, setConfirmState] = useState(null)
+  const [historyUser, setHistoryUser] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function fetchCustomers() {
@@ -1493,6 +1595,7 @@ function CustomerAccountsPanel() {
                     <th className="px-4 py-3 font-medium">Email</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Time In</th>
                     <th className="px-4 py-3 font-medium whitespace-nowrap">Time Out</th>
+                    <th className="px-4 py-3 font-medium whitespace-nowrap">History</th>
                     <th className="px-4 py-3 font-medium">Details</th>
                   </tr>
                 </thead>
@@ -1524,15 +1627,23 @@ function CustomerAccountsPanel() {
                         <td className="px-4 py-3 text-gray-500">{c.email || '—'}</td>
                         <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {isOnline && onlineInfo?.online_at
-                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(onlineInfo.online_at).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : c.last_time_in
-                            ? new Date(c.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(c.last_time_in).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
                         </td>
                         <td className="px-4 py-3 text-xs text-gray-600 whitespace-nowrap">
                           {!isOnline && c.last_time_out
-                            ? new Date(c.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                            ? new Date(c.last_time_out).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                             : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            onClick={() => setHistoryUser(c)}
+                            className="text-blue-500 text-sm font-medium hover:underline whitespace-nowrap"
+                          >
+                            View History
+                          </button>
                         </td>
                         <td className="px-4 py-3">
                           <button
@@ -1556,12 +1667,12 @@ function CustomerAccountsPanel() {
               const isOnline = onlineCustomers.some(o => o.user_id === c.id)
               const onlineInfo = onlineCustomers.find(o => o.user_id === c.id)
               const timeIn = isOnline && onlineInfo?.online_at
-                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(onlineInfo.online_at).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : c.last_time_in
-                ? new Date(c.last_time_in).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(c.last_time_in).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               const timeOut = !isOnline && c.last_time_out
-                ? new Date(c.last_time_out).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })
+                ? new Date(c.last_time_out).toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
                 : '—'
               return (
                 <div key={c.id} className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
@@ -1588,6 +1699,12 @@ function CustomerAccountsPanel() {
                     <div><span className="font-medium text-gray-700">Time Out:</span> {timeOut}</div>
                   </div>
                   <button
+                    onClick={() => setHistoryUser(c)}
+                    className="w-full text-sm border border-blue-400 text-blue-500 py-2 rounded-lg hover:bg-blue-50 transition mb-2"
+                  >
+                    View History
+                  </button>
+                  <button
                     onClick={() => { setSelectedCustomer(c); setShowCustomerModal(true) }}
                     className="w-full text-sm border border-orange-400 text-orange-500 py-2 rounded-lg hover:bg-orange-50 transition"
                   >
@@ -1599,6 +1716,7 @@ function CustomerAccountsPanel() {
           </div>
         </>
       )}
+      {historyUser && <SessionHistoryModal userId={historyUser.id} userName={historyUser.full_name?.trim() || historyUser.email?.split('@')[0] || '—'} onClose={() => setHistoryUser(null)} />}
     </>
   )
 }
