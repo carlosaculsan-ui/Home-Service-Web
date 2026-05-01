@@ -6529,9 +6529,33 @@ function ArchivePanel() {
     taskers: false, customers: false, bookings: false, reviews: false,
     leaves: false, prices: false, services: false, helpers: false,
   })
+  const [sectionSelected, setSectionSelected] = useState({
+    taskers: new Set(), customers: new Set(), bookings: new Set(),
+    reviews: new Set(), leaves: new Set(), prices: new Set(),
+    services: new Set(), helpers: new Set(),
+  })
 
   function toggleSection(key) {
     setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function toggleItem(sectionKey, itemId) {
+    setSectionSelected(prev => {
+      const next = new Set(prev[sectionKey])
+      next.has(itemId) ? next.delete(itemId) : next.add(itemId)
+      return { ...prev, [sectionKey]: next }
+    })
+  }
+
+  function toggleSectionAll(sectionKey, items) {
+    setSectionSelected(prev => {
+      const allSel = items.every(i => prev[sectionKey].has(i.id))
+      return { ...prev, [sectionKey]: allSel ? new Set() : new Set(items.map(i => i.id)) }
+    })
+  }
+
+  function clearSectionSelection(sectionKey) {
+    setSectionSelected(prev => ({ ...prev, [sectionKey]: new Set() }))
   }
 
   async function fetchAll() {
@@ -6603,6 +6627,89 @@ function ArchivePanel() {
   async function deleteItem(table, id) {
     await supabase.from(table).delete().eq('id', id)
     fetchAll()
+  }
+
+  const BULK_HANDLERS = {
+    taskers: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('profiles').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => {
+        const targets = archivedTaskers.filter(t => ids.includes(t.id))
+        await Promise.all(targets.map(t => Promise.all([
+          supabase.from('taskers').delete().eq('user_id', t.user_id ?? t.id),
+          supabase.from('profiles').update({ role: 'customer', is_archived: false }).eq('id', t.id),
+        ])))
+      },
+      deleteLabel: 'Revert to customer',
+    },
+    customers: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('profiles').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('profiles').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    bookings: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('bookings').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('bookings').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    reviews: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('reviews').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('reviews').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    leaves: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('tasker_leaves').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('tasker_leaves').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    prices: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('task_prices').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('task_prices').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    services: {
+      restore: async ids => { await Promise.all(ids.map(id => supabase.from('services').update({ is_archived: false }).eq('id', id))) },
+      delete:  async ids => { await Promise.all(ids.map(id => supabase.from('services').delete().eq('id', id))) },
+      deleteLabel: 'Delete permanently',
+    },
+    helpers: {
+      restore: async ids => {
+        const targets = archivedHelpers.filter(h => ids.includes(h.id))
+        await Promise.all(targets.map(async h => {
+          await supabase.from('helpers').update({ is_archived: false }).eq('id', h.id)
+          if (h.user_id) await Promise.all([
+            supabase.from('profiles').update({ role: 'helper' }).eq('id', h.user_id),
+            supabase.from('helper_applications').update({ status: 'approved' }).eq('user_id', h.user_id),
+          ])
+        }))
+      },
+      delete: async ids => {
+        const targets = archivedHelpers.filter(h => ids.includes(h.id))
+        await Promise.all(targets.map(async h => {
+          await supabase.from('helpers').delete().eq('id', h.id)
+          if (h.user_id) await Promise.all([
+            supabase.from('profiles').update({ role: 'customer', is_archived: false }).eq('id', h.user_id),
+            supabase.from('helper_applications').update({ status: 'rejected' }).eq('user_id', h.user_id),
+          ])
+        }))
+      },
+      deleteLabel: 'Revert to customer',
+    },
+  }
+
+  function handleBulkRestore(key, label, count) {
+    openConfirm(`Restore ${count} selected ${label.toLowerCase()}?`, async () => {
+      await BULK_HANDLERS[key].restore([...sectionSelected[key]])
+      clearSectionSelection(key)
+      fetchAll()
+    })
+  }
+
+  function handleBulkDelete(key, label, count) {
+    openConfirm(`${BULK_HANDLERS[key].deleteLabel}: ${count} selected ${label.toLowerCase()}? This cannot be undone.`, async () => {
+      await BULK_HANDLERS[key].delete([...sectionSelected[key]])
+      clearSectionSelection(key)
+      fetchAll()
+    }, true)
   }
 
   if (loading) {
@@ -6862,7 +6969,48 @@ function ArchivePanel() {
               <div className="px-5 pb-4 border-t border-gray-50">
                 {items.length === 0
                   ? <p className="text-sm text-gray-400 py-4 text-center">No archived {label.toLowerCase()}.</p>
-                  : items.map(renderRow)
+                  : <>
+                      <div className="flex items-center justify-between pt-3 pb-2 border-b border-gray-50 mb-1">
+                        <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={items.every(i => sectionSelected[key].has(i.id))}
+                            ref={el => { if (el) el.indeterminate = items.some(i => sectionSelected[key].has(i.id)) && !items.every(i => sectionSelected[key].has(i.id)) }}
+                            onChange={() => toggleSectionAll(key, items)}
+                            className="w-4 h-4 accent-orange-500 cursor-pointer"
+                          />
+                          Select all
+                        </label>
+                        {sectionSelected[key].size > 0 && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium text-orange-600">{sectionSelected[key].size} selected</span>
+                            <button
+                              onClick={() => handleBulkRestore(key, label, sectionSelected[key].size)}
+                              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-green-200 text-green-600 hover:bg-green-50 transition-colors"
+                            >
+                              <RotateCcw size={11} /> Restore
+                            </button>
+                            <button
+                              onClick={() => handleBulkDelete(key, label, sectionSelected[key].size)}
+                              className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                            >
+                              <Trash2 size={11} /> Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      {items.map(item => (
+                        <div key={item.id} className={`flex items-center gap-2.5 rounded-lg ${sectionSelected[key].has(item.id) ? 'bg-orange-50/60' : ''}`}>
+                          <input
+                            type="checkbox"
+                            checked={sectionSelected[key].has(item.id)}
+                            onChange={() => toggleItem(key, item.id)}
+                            className="w-4 h-4 accent-orange-500 cursor-pointer shrink-0 ml-1"
+                          />
+                          <div className="flex-1 min-w-0">{renderRow(item)}</div>
+                        </div>
+                      ))}
+                    </>
                 }
               </div>
             )}
