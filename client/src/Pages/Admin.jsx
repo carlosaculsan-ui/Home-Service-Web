@@ -9,7 +9,7 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
-  CreditCard, RefreshCw, Search, Smile,
+  CreditCard, RefreshCw, Search, Smile, Download, Printer,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -3601,136 +3601,28 @@ function LeaveRequestsPanel() {
 
 // ─── Payroll Panel ───────────────────────────────────────────────────────────
 
-function HelperPayrollModal({ period, onClose }) {
-  const [helperRows, setHelperRows] = useState([])
-  const [loadingHelpers, setLoadingHelpers] = useState(true)
-
-  useEffect(() => {
-    async function fetchHelperPayroll() {
-      const [year, month] = period.split('-').map(Number)
-      const { data: allBookings } = await supabase
-        .from('bookings')
-        .select('helper_fee, helper_names, duration_hours, scheduled_date')
-        .eq('status', 'completed')
-        .gt('helper_fee', 0)
-
-      const bookings = (allBookings ?? []).filter(b => {
-        if (!b.scheduled_date) return false
-        const d = new Date(b.scheduled_date + 'T00:00:00')
-        return d.getFullYear() === year && d.getMonth() + 1 === month
-      })
-
-      // Group by helper name
-      const helperMap = {}
-      for (const b of bookings) {
-        let names = []
-        try {
-          names = typeof b.helper_names === 'string' ? JSON.parse(b.helper_names) : (b.helper_names ?? [])
-        } catch { names = [] }
-        const isFullDay = (b.duration_hours ?? 8) >= 8
-        const perHelper = isFullDay ? 600 : 300
-        for (const entry of names) {
-          const name = entry?.name ?? entry
-          if (!name) continue
-          if (!helperMap[name]) helperMap[name] = { name, jobs: 0, total: 0 }
-          helperMap[name].jobs += 1
-          helperMap[name].total += perHelper
-        }
-      }
-
-      setHelperRows(Object.values(helperMap).sort((a, b) => a.name.localeCompare(b.name)))
-      setLoadingHelpers(false)
-    }
-    fetchHelperPayroll()
-  }, [period])
-
-  const grandTotal = helperRows.reduce((s, r) => s + r.total, 0)
-  const [y, m] = period.split('-')
-  const monthLabel = new Date(Number(y), Number(m) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl shadow-2xl max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-          <h3 className="font-bold text-gray-800 text-base">Helper Payroll — {monthLabel}</h3>
-          <button
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-bold transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4">
-          {loadingHelpers ? (
-            <div className="flex justify-center py-10">
-              <div className="w-7 h-7 border-4 border-teal-500 border-t-transparent rounded-full animate-spin" />
-            </div>
-          ) : helperRows.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No helper fees recorded for this period.</p>
-          ) : (
-            <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  <th className="pb-2 text-left">Helper Name</th>
-                  <th className="pb-2 text-right">Jobs Assisted</th>
-                  <th className="pb-2 text-right">Total Earned</th>
-                  <th className="pb-2 text-center pl-6">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {helperRows.map((r) => (
-                  <tr key={r.name} className="border-b border-gray-50 last:border-0">
-                    <td className="py-2.5 font-medium text-gray-800">{r.name}</td>
-                    <td className="py-2.5 text-right text-gray-600">{r.jobs}</td>
-                    <td className="py-2.5 text-right font-semibold" style={{ color: '#0d9488' }}>₱{r.total.toLocaleString()}</td>
-                    <td className="py-2.5 text-center pl-6">
-                      <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
-                    </td>
-                  </tr>
-                ))}
-                <tr className="border-t-2 border-gray-200 bg-gray-50">
-                  <td className="py-2.5 px-0 font-bold text-gray-800">Total</td>
-                  <td className="py-2.5 text-right font-bold text-gray-700">{helperRows.reduce((s, r) => s + r.jobs, 0)}</td>
-                  <td className="py-2.5 text-right font-bold" style={{ color: '#0d9488' }}>₱{grandTotal.toLocaleString()}</td>
-                </tr>
-              </tbody>
-            </table>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 function PayrollPanel() {
   const now = new Date()
   const [period, setPeriod] = useState(
     `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   )
-  const [rows, setRows] = useState([])
+  const [allRows, setAllRows] = useState([])
   const [loading, setLoading] = useState(false)
-  const [showHelperPayroll, setShowHelperPayroll] = useState(false)
+  const [filter, setFilter] = useState('all')
+  const [selected, setSelected] = useState(new Set())
+  const selectAllRef = useRef(null)
 
   useEffect(() => { fetchPayroll() }, [period])
 
   async function fetchPayroll() {
     setLoading(true)
-
     const [year, month] = period.split('-').map(Number)
 
-    // Fetch ALL completed bookings — filter by date client-side
     const { data: allBookings } = await supabase
       .from('bookings')
-      .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, scheduled_date')
+      .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, scheduled_date, helper_fee, helper_names')
       .eq('status', 'completed')
 
-    // Filter to the selected month using scheduled_date only
     const bookings = (allBookings ?? []).filter(b => {
       if (!b.scheduled_date) return false
       const d = new Date(b.scheduled_date + 'T00:00:00')
@@ -3738,13 +3630,12 @@ function PayrollPanel() {
     })
 
     if (bookings.length === 0) {
-      setRows([])
-      setPayRecords({})
+      setAllRows([])
       setLoading(false)
       return
     }
 
-    // Fetch tasker names + profile photos for the IDs present
+    // Tasker names + photos
     const taskerIds = [...new Set(bookings.map(b => b.tasker_id).filter(Boolean))]
     const { data: taskers } = await supabase
       .from('taskers')
@@ -3753,38 +3644,167 @@ function PayrollPanel() {
     const nameMap  = Object.fromEntries((taskers ?? []).map(t => [t.id, t.name]))
     const photoMap = Object.fromEntries((taskers ?? []).map(t => [t.id, t.profile_photo]))
 
-    // Aggregate per tasker
-    const agg = {}
+    // Aggregate taskers
+    const taskerAgg = {}
     for (const b of bookings) {
       if (!b.tasker_id) continue
-      if (!agg[b.tasker_id]) {
-        agg[b.tasker_id] = { tasker_id: b.tasker_id, name: nameMap[b.tasker_id] ?? '—', photo: photoMap[b.tasker_id] ?? null, jobs: 0, gross: 0, platform_cut: 0, payout: 0 }
+      if (!taskerAgg[b.tasker_id]) {
+        taskerAgg[b.tasker_id] = {
+          id: `t_${b.tasker_id}`,
+          name: nameMap[b.tasker_id] ?? '—',
+          photo: photoMap[b.tasker_id] ?? null,
+          jobs: 0, gross: 0, platform_cut: 0, payout: 0,
+          type: 'tasker',
+        }
       }
-      const gross        = Number(b.estimated_total) || 0
-      const platformCut  = Number(b.platform_fee)    || 0
-      const taskerPayout = Number(b.tasker_payout)   || 0
-      agg[b.tasker_id].jobs         += 1
-      agg[b.tasker_id].gross        += gross
-      agg[b.tasker_id].platform_cut += platformCut
-      agg[b.tasker_id].payout       += taskerPayout
+      taskerAgg[b.tasker_id].jobs         += 1
+      taskerAgg[b.tasker_id].gross        += Number(b.estimated_total) || 0
+      taskerAgg[b.tasker_id].platform_cut += Number(b.platform_fee)   || 0
+      taskerAgg[b.tasker_id].payout       += Number(b.tasker_payout)  || 0
     }
 
-    setRows(Object.values(agg).sort((a, b) => a.name.localeCompare(b.name)))
+    // Aggregate helpers — use actual helper_fee from the booking, split evenly across helpers
+    const helperAgg = {}
+    for (const b of bookings) {
+      const totalFee = Number(b.helper_fee) || 0
+      if (!totalFee || !b.helper_names) continue
+      let names = []
+      try {
+        names = typeof b.helper_names === 'string' ? JSON.parse(b.helper_names) : (b.helper_names ?? [])
+      } catch { names = [] }
+      if (names.length === 0) continue
+      const perHelper = totalFee / names.length
+      for (const entry of names) {
+        const name = entry?.name ?? entry
+        if (!name) continue
+        if (!helperAgg[name]) helperAgg[name] = { id: `h_${name}`, name, photo: null, jobs: 0, payout: 0, type: 'helper' }
+        helperAgg[name].jobs   += 1
+        helperAgg[name].payout += perHelper
+      }
+    }
+
+    setAllRows([
+      ...Object.values(taskerAgg).sort((a, b) => a.name.localeCompare(b.name)),
+      ...Object.values(helperAgg).sort((a, b) => a.name.localeCompare(b.name)),
+    ])
     setLoading(false)
   }
 
+  const filteredRows  = filter === 'all' ? allRows : allRows.filter(r => r.type === filter)
+  const totalJobs     = filteredRows.reduce((s, r) => s + r.jobs, 0)
+  const totalPayout   = filteredRows.reduce((s, r) => s + r.payout, 0)
+  const totalPlatform = filteredRows.filter(r => r.type === 'tasker').reduce((s, r) => s + r.platform_cut, 0)
+  const countLabel    = filter === 'helper' ? 'Total Helpers' : filter === 'tasker' ? 'Total Taskers' : 'Total People'
+  const exportTarget  = selected.size > 0 ? filteredRows.filter(r => selected.has(r.id)) : filteredRows
+  const allChecked    = filteredRows.length > 0 && filteredRows.every(r => selected.has(r.id))
+  const someChecked   = filteredRows.some(r => selected.has(r.id)) && !allChecked
 
-  const totalJobs     = rows.reduce((s, r) => s + r.jobs, 0)
-  const totalGross    = rows.reduce((s, r) => s + r.gross, 0)
-  const totalPlatform = rows.reduce((s, r) => s + r.platform_cut, 0)
-  const totalPayout   = rows.reduce((s, r) => s + r.payout, 0)
+  useEffect(() => { setSelected(new Set()) }, [period, filter])
+  useEffect(() => {
+    if (selectAllRef.current) selectAllRef.current.indeterminate = someChecked
+  }, [someChecked])
+
+  function toggleRow(id) {
+    setSelected(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setSelected(allChecked ? new Set() : new Set(filteredRows.map(r => r.id)))
+  }
+
+  function getMonthLabel() {
+    const [y, m] = period.split('-')
+    return new Date(Number(y), Number(m) - 1).toLocaleString('en-US', { month: 'long', year: 'numeric' })
+  }
+
+  function exportCSV() {
+    const headers = ['Name', 'Role', 'Completed Jobs', 'Total Earnings', 'Platform Cut', 'Payout']
+    const esc = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const csv = [
+      [esc(`Payroll — ${getMonthLabel()}`)].join(','),
+      '',
+      headers.map(esc).join(','),
+      ...exportTarget.map(r => [
+        r.name,
+        r.type === 'tasker' ? 'Tasker' : 'Helper',
+        r.jobs,
+        r.type === 'tasker' ? r.gross : '',
+        r.type === 'tasker' ? r.platform_cut : '',
+        r.payout,
+      ].map(esc).join(',')),
+    ].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `payroll_${period}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function printPayroll() {
+    const filterLabel = selected.size > 0 ? `${selected.size} selected` : filter === 'all' ? 'All' : filter === 'tasker' ? 'Taskers' : 'Helpers'
+    const tableRows = exportTarget.map(row => `
+      <tr>
+        <td>${row.name}</td>
+        <td>${row.type === 'tasker' ? 'Tasker' : 'Helper'}</td>
+        <td class="num">${row.jobs}</td>
+        <td class="num">${row.type === 'tasker' ? '&#8369;' + row.gross.toLocaleString() : '&mdash;'}</td>
+        <td class="num">${row.type === 'tasker' ? '&#8369;' + row.platform_cut.toLocaleString() : '&mdash;'}</td>
+        <td class="num bold">&#8369;${row.payout.toLocaleString()}</td>
+      </tr>`).join('')
+    const html = `<!DOCTYPE html>
+<html><head>
+  <meta charset="utf-8"/>
+  <title>Payroll &mdash; ${getMonthLabel()}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:sans-serif;font-size:13px;color:#111;padding:32px}
+    h1{font-size:20px;font-weight:700;margin-bottom:4px}
+    .meta{color:#6b7280;font-size:12px;margin-bottom:24px}
+    .summary{display:flex;gap:16px;margin-bottom:24px;flex-wrap:wrap}
+    .card{border:1px solid #e5e7eb;border-radius:8px;padding:10px 16px;min-width:120px}
+    .card-label{font-size:11px;color:#9ca3af;margin-bottom:4px;text-transform:uppercase;letter-spacing:.05em}
+    .card-value{font-size:18px;font-weight:700}
+    table{width:100%;border-collapse:collapse}
+    th{background:#f9fafb;text-align:left;padding:8px 12px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7280;border-bottom:2px solid #e5e7eb}
+    td{padding:8px 12px;border-bottom:1px solid #f3f4f6}
+    tr:last-child td{border-bottom:none}
+    .num{text-align:right}
+    .bold{font-weight:600}
+    @media print{body{padding:16px}}
+  </style>
+</head><body>
+  <h1>Payroll &mdash; ${getMonthLabel()}</h1>
+  <p class="meta">Filter: ${filterLabel} &nbsp;&middot;&nbsp; Generated ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+  <div class="summary">
+    <div class="card"><div class="card-label">${countLabel}</div><div class="card-value">${filteredRows.length}</div></div>
+    <div class="card"><div class="card-label">Total Jobs</div><div class="card-value">${totalJobs}</div></div>
+    <div class="card"><div class="card-label">Total Payouts</div><div class="card-value">&#8369;${totalPayout.toLocaleString()}</div></div>
+    <div class="card"><div class="card-label">Platform Earnings</div><div class="card-value">&#8369;${totalPlatform.toLocaleString()}</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <th>Name</th><th>Role</th>
+      <th class="num">Jobs</th><th class="num">Total Earnings</th>
+      <th class="num">Platform Cut</th><th class="num">Payout</th>
+    </tr></thead>
+    <tbody>${tableRows}</tbody>
+  </table>
+</body></html>`
+    const win = window.open('', '_blank')
+    win.document.write(html)
+    win.document.close()
+    win.focus()
+    win.print()
+  }
 
   return (
     <div className="p-4 sm:p-6 space-y-6">
-
-      {showHelperPayroll && (
-        <HelperPayrollModal period={period} onClose={() => setShowHelperPayroll(false)} />
-      )}
 
       {/* Header row */}
       <div className="flex items-center gap-4 flex-wrap">
@@ -3795,21 +3815,48 @@ function PayrollPanel() {
           onChange={e => { if (e.target.value) setPeriod(e.target.value) }}
           className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-700 focus:outline-none focus:border-orange-400"
         />
-        <button
-          onClick={() => setShowHelperPayroll(true)}
-          className="ml-auto px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
-        >
-          View Helper Payroll
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {selected.size > 0 && (
+            <span className="flex items-center gap-1.5 text-sm font-medium text-orange-600">
+              {selected.size} selected
+              <button onClick={() => setSelected(new Set())} className="text-gray-400 hover:text-gray-600 leading-none">✕</button>
+            </span>
+          )}
+          <button
+            onClick={exportCSV}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
+          >
+            <Download size={14} /> CSV
+          </button>
+          <button
+            onClick={printPayroll}
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 rounded-lg text-sm text-gray-600 hover:border-gray-400 hover:text-gray-800 transition-colors"
+          >
+            <Printer size={14} /> Print / PDF
+          </button>
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
+            {[['all', 'All'], ['tasker', 'Taskers'], ['helper', 'Helpers']].map(([val, lbl]) => (
+              <button
+                key={val}
+                onClick={() => setFilter(val)}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                  filter === val ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {lbl}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Total Taskers',      value: rows.length,                              fmt: v => v },
-          { label: 'Total Jobs',         value: totalJobs,                                fmt: v => v },
-          { label: 'Total Payouts',      value: totalPayout,                              fmt: v => `₱${v.toLocaleString()}` },
-          { label: 'Platform Earnings',  value: totalPlatform,                            fmt: v => `₱${v.toLocaleString()}` },
+          { label: countLabel,          value: filteredRows.length, fmt: v => v },
+          { label: 'Total Jobs',        value: totalJobs,           fmt: v => v },
+          { label: 'Total Payouts',     value: totalPayout,         fmt: v => `₱${v.toLocaleString()}` },
+          { label: 'Platform Earnings', value: totalPlatform,       fmt: v => `₱${v.toLocaleString()}` },
         ].map(({ label, value, fmt }) => (
           <div key={label} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
             <p className="text-xs text-gray-400 font-medium mb-1">{label}</p>
@@ -3823,7 +3870,7 @@ function PayrollPanel() {
         <div className="flex justify-center py-12">
           <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : rows.length === 0 ? (
+      ) : filteredRows.length === 0 ? (
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm py-12 text-center text-gray-400 text-sm">
           No completed bookings for this period.
         </div>
@@ -3831,11 +3878,16 @@ function PayrollPanel() {
         <>
           {/* Mobile cards */}
           <div className="flex flex-col gap-3 md:hidden">
-            {rows.map(row => (
-              <div key={row.tasker_id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 space-y-3">
-                {/* Tasker identity */}
+            {filteredRows.map(row => (
+              <div key={row.id} className={`rounded-xl shadow-sm border p-4 space-y-3 transition-colors ${selected.has(row.id) ? 'bg-orange-50/60 border-orange-200' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(row.id)}
+                      onChange={() => toggleRow(row.id)}
+                      className="w-4 h-4 cursor-pointer accent-orange-500 flex-shrink-0"
+                    />
                     {row.photo ? (
                       <img src={row.photo} alt={row.name} className="w-9 h-9 rounded-full object-cover flex-shrink-0" />
                     ) : (
@@ -3843,50 +3895,86 @@ function PayrollPanel() {
                         {row.name.charAt(0).toUpperCase()}
                       </div>
                     )}
-                    <span className="font-semibold text-gray-800 truncate">{row.name}</span>
+                    <div className="min-w-0">
+                      <span className="font-semibold text-gray-800 truncate block">{row.name}</span>
+                      <span className={`text-xs font-medium ${row.type === 'tasker' ? 'text-orange-500' : 'text-teal-600'}`}>
+                        {row.type === 'tasker' ? 'Tasker' : 'Helper'}
+                      </span>
+                    </div>
                   </div>
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 flex-shrink-0">Paid</span>
                 </div>
-                {/* Stats grid */}
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                    <p className="text-xs text-gray-400 mb-0.5">Jobs</p>
-                    <p className="text-sm font-bold text-gray-800">{row.jobs}</p>
+                {row.type === 'tasker' ? (
+                  <>
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-gray-50 rounded-lg px-2 py-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Jobs</p>
+                        <p className="text-sm font-bold text-gray-800">{row.jobs}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg px-2 py-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Earnings</p>
+                        <p className="text-sm font-bold text-gray-700">₱{row.gross.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg px-2 py-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Platform</p>
+                        <p className="text-sm font-bold text-red-500">₱{row.platform_cut.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <div className="pt-1 border-t border-gray-50">
+                      <p className="text-xs text-gray-400">Tasker Payout</p>
+                      <p className="text-base font-bold text-green-600">₱{row.payout.toLocaleString()}</p>
+                    </div>
+                  </>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 text-center">
+                    <div className="bg-gray-50 rounded-lg px-2 py-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Jobs</p>
+                      <p className="text-sm font-bold text-gray-800">{row.jobs}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg px-2 py-2">
+                      <p className="text-xs text-gray-400 mb-0.5">Payout</p>
+                      <p className="text-sm font-bold text-green-600">₱{row.payout.toLocaleString()}</p>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                    <p className="text-xs text-gray-400 mb-0.5">Earnings</p>
-                    <p className="text-sm font-bold text-gray-700">₱{row.gross.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-lg px-2 py-2">
-                    <p className="text-xs text-gray-400 mb-0.5">Platform</p>
-                    <p className="text-sm font-bold text-red-500">₱{row.platform_cut.toLocaleString()}</p>
-                  </div>
-                </div>
-                {/* Payout */}
-                <div className="pt-1 border-t border-gray-50">
-                  <p className="text-xs text-gray-400">Tasker Payout</p>
-                  <p className="text-base font-bold text-green-600">₱{row.payout.toLocaleString()}</p>
-                </div>
+                )}
               </div>
             ))}
           </div>
 
           {/* Desktop table */}
           <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-100 overflow-x-auto">
-            <table className="w-full text-sm min-w-[700px]">
+            <table className="w-full text-sm min-w-[750px]">
               <thead>
                 <tr className="border-b border-gray-100 bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  <th className="px-4 py-3 text-left">Tasker Name</th>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      ref={selectAllRef}
+                      type="checkbox"
+                      checked={allChecked}
+                      onChange={toggleAll}
+                      className="w-4 h-4 cursor-pointer accent-orange-500"
+                    />
+                  </th>
+                  <th className="px-4 py-3 text-left">Name</th>
+                  <th className="px-4 py-3 text-left">Role</th>
                   <th className="px-4 py-3 text-right">Completed Jobs</th>
                   <th className="px-4 py-3 text-right">Total Earnings</th>
-                  <th className="px-4 py-3 text-right">Platform Cut (10%)</th>
-                  <th className="px-4 py-3 text-right">Tasker Payout (90%)</th>
+                  <th className="px-4 py-3 text-right">Platform Cut</th>
+                  <th className="px-4 py-3 text-right">Payout</th>
                   <th className="px-4 py-3 text-center">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map(row => (
-                  <tr key={row.tasker_id} className="border-b border-gray-50 last:border-0 hover:bg-gray-50/50 transition-colors">
+                {filteredRows.map(row => (
+                  <tr key={row.id} className={`border-b border-gray-50 last:border-0 transition-colors ${selected.has(row.id) ? 'bg-orange-50/60' : 'hover:bg-gray-50/50'}`}>
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(row.id)}
+                        onChange={() => toggleRow(row.id)}
+                        className="w-4 h-4 cursor-pointer accent-orange-500"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {row.photo ? (
@@ -3899,9 +3987,20 @@ function PayrollPanel() {
                         <span className="font-medium text-gray-800">{row.name}</span>
                       </div>
                     </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                        row.type === 'tasker' ? 'bg-orange-100 text-orange-600' : 'bg-teal-100 text-teal-700'
+                      }`}>
+                        {row.type === 'tasker' ? 'Tasker' : 'Helper'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-right text-gray-600">{row.jobs}</td>
-                    <td className="px-4 py-3 text-right text-gray-700">₱{row.gross.toLocaleString()}</td>
-                    <td className="px-4 py-3 text-right text-red-500">₱{row.platform_cut.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">
+                      {row.type === 'tasker' ? `₱${row.gross.toLocaleString()}` : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right text-red-500">
+                      {row.type === 'tasker' ? `₱${row.platform_cut.toLocaleString()}` : '—'}
+                    </td>
                     <td className="px-4 py-3 text-right font-semibold text-green-600">₱{row.payout.toLocaleString()}</td>
                     <td className="px-4 py-3 text-center">
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-700">Paid</span>
