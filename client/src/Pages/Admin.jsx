@@ -9,7 +9,7 @@ import {
   CalendarDays, Wrench, Umbrella, LogOut, Menu, CircleDollarSign,
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
-  CreditCard, RefreshCw, Search, Smile, Download, Printer, SquarePen,
+  CreditCard, RefreshCw, Search, Smile, Download, Printer, SquarePen, BarChart2,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -7120,6 +7120,300 @@ function ArchivePanel() {
   )
 }
 
+// ─── Reports Panel ───────────────────────────────────────────────────────────
+
+const REPORT_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
+
+function ReportsPanel() {
+  const now = new Date()
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [year, setYear]   = useState(now.getFullYear())
+  const [loading, setLoading]     = useState(false)
+  const [generated, setGenerated] = useState(false)
+  const [summary, setSummary]     = useState(null)
+  const [topServices, setTopServices] = useState([])
+  const [topTaskers, setTopTaskers]   = useState([])
+
+  const years = [now.getFullYear() - 1, now.getFullYear()]
+  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+
+  async function generateReport() {
+    setLoading(true)
+    setGenerated(false)
+
+    const nextMonth = month === 12 ? 1 : month + 1
+    const nextYear  = month === 12 ? year + 1 : year
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
+
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('id, estimated_total, platform_fee, helper_fee, tasker_payout, tasker_id, service')
+      .eq('status', 'completed')
+      .gte('scheduled_date', startDate)
+      .lt('scheduled_date', endDate)
+
+    const bk = bookings ?? []
+
+    setSummary({
+      totalBookings:    bk.length,
+      totalRevenue:     bk.reduce((s, b) => s + (Number(b.estimated_total) || 0), 0),
+      platformEarnings: bk.reduce((s, b) => s + (Number(b.platform_fee)    || 0), 0),
+      taskerPayouts:    bk.reduce((s, b) => s + (Number(b.tasker_payout)   || 0), 0),
+      helperFees:       bk.reduce((s, b) => s + (Number(b.helper_fee)      || 0), 0),
+    })
+
+    const svcMap = {}
+    bk.forEach((b) => { if (b.service) svcMap[b.service] = (svcMap[b.service] || 0) + 1 })
+    setTopServices(Object.entries(svcMap).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 5))
+
+    const taskerIds = [...new Set(bk.map((b) => b.tasker_id).filter(Boolean))]
+    if (taskerIds.length > 0) {
+      const [{ data: taskers }, { data: reviews }] = await Promise.all([
+        supabase.from('taskers').select('id, name').in('id', taskerIds),
+        supabase.from('reviews').select('tasker_id, rating').in('tasker_id', taskerIds),
+      ])
+      const jobMap = {}, payMap = {}, ratingMap = {}
+      bk.forEach((b) => {
+        if (!b.tasker_id) return
+        jobMap[b.tasker_id] = (jobMap[b.tasker_id] || 0) + 1
+        payMap[b.tasker_id] = (payMap[b.tasker_id] || 0) + (Number(b.tasker_payout) || 0)
+      })
+      ;(reviews ?? []).forEach((r) => {
+        if (!ratingMap[r.tasker_id]) ratingMap[r.tasker_id] = []
+        ratingMap[r.tasker_id].push(r.rating ?? 0)
+      })
+      setTopTaskers(
+        (taskers ?? []).map((t) => {
+          const ratings = ratingMap[t.id] ?? []
+          const avgRating = ratings.length > 0 ? ratings.reduce((s, v) => s + v, 0) / ratings.length : 0
+          return { name: t.name, jobs: jobMap[t.id] || 0, payout: payMap[t.id] || 0, avgRating }
+        }).sort((a, b) => b.jobs - a.jobs)
+      )
+    } else {
+      setTopTaskers([])
+    }
+
+    setLoading(false)
+    setGenerated(true)
+  }
+
+  function printReport() {
+    const generatedOn = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+    const fmt = (n) => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+    const win = window.open('', '_blank')
+    win.document.write(`<!DOCTYPE html><html><head><title>Monthly Report — ${monthLabel}</title><style>
+      *{margin:0;padding:0;box-sizing:border-box}
+      body{font-family:Arial,sans-serif;padding:48px 56px;color:#111;font-size:13px}
+      h1{font-size:22px;font-weight:700;color:#ea580c;margin-bottom:2px}
+      .sub{color:#6b7280;font-size:13px;margin-bottom:32px}
+      .section{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#9ca3af;margin:28px 0 10px}
+      .cards{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:4px}
+      .card{border:1px solid #e5e7eb;border-radius:8px;padding:14px 16px}
+      .card-label{font-size:10px;color:#6b7280;margin-bottom:6px}
+      .card-value{font-size:17px;font-weight:700;color:#ea580c}
+      table{width:100%;border-collapse:collapse;margin-top:2px}
+      th{text-align:left;padding:8px 12px;background:#f9fafb;border-bottom:2px solid #e5e7eb;font-size:10px;text-transform:uppercase;color:#6b7280;letter-spacing:.05em}
+      td{padding:9px 12px;border-bottom:1px solid #f3f4f6}
+      .footer{margin-top:48px;font-size:10px;color:#9ca3af;text-align:center;border-top:1px solid #f3f4f6;padding-top:16px}
+    </style></head><body>
+      <h1>Monthly Business Report</h1>
+      <div class="sub">${monthLabel} &nbsp;·&nbsp; Generated ${generatedOn}</div>
+
+      <div class="section">Summary</div>
+      <div class="cards">
+        <div class="card"><div class="card-label">Completed Bookings</div><div class="card-value">${summary.totalBookings}</div></div>
+        <div class="card"><div class="card-label">Total Revenue</div><div class="card-value">${fmt(summary.totalRevenue)}</div></div>
+        <div class="card"><div class="card-label">Platform Earnings</div><div class="card-value">${fmt(summary.platformEarnings)}</div></div>
+        <div class="card"><div class="card-label">Tasker Payouts</div><div class="card-value">${fmt(summary.taskerPayouts)}</div></div>
+        <div class="card"><div class="card-label">Helper Fees</div><div class="card-value">${fmt(summary.helperFees)}</div></div>
+      </div>
+
+      ${topServices.length > 0 ? `
+      <div class="section">Top Services</div>
+      <table>
+        <thead><tr><th>#</th><th>Service</th><th>Bookings</th></tr></thead>
+        <tbody>${topServices.map((s, i) => `<tr><td>${i + 1}</td><td>${s.name}</td><td>${s.count}</td></tr>`).join('')}</tbody>
+      </table>` : ''}
+
+      ${topTaskers.length > 0 ? `
+      <div class="section">Tasker Performance</div>
+      <table>
+        <thead><tr><th>#</th><th>Tasker</th><th>Jobs Completed</th><th>Avg Rating</th><th>Total Payout</th></tr></thead>
+        <tbody>${topTaskers.map((t, i) => `<tr><td>${i + 1}</td><td>${t.name}</td><td>${t.jobs}</td><td>${t.avgRating > 0 ? t.avgRating.toFixed(1) + ' ★' : '—'}</td><td>${fmt(t.payout)}</td></tr>`).join('')}</tbody>
+      </table>` : ''}
+
+      <div class="footer">Home Service Platform &nbsp;·&nbsp; ${monthLabel} Report &nbsp;·&nbsp; Confidential</div>
+    </body></html>`)
+    win.document.close()
+    win.focus()
+    setTimeout(() => { win.print(); win.close() }, 300)
+  }
+
+  const fmt = (n) => `₱${Number(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  return (
+    <div className="p-4 sm:p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-bold text-gray-800">Monthly Business Report</h2>
+          <p className="text-sm text-gray-400 mt-0.5">Select a period and generate a printable summary</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <select
+            value={month}
+            onChange={(e) => { setMonth(Number(e.target.value)); setGenerated(false) }}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white outline-none focus:border-orange-400 cursor-pointer"
+          >
+            {REPORT_MONTHS.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+          </select>
+          <select
+            value={year}
+            onChange={(e) => { setYear(Number(e.target.value)); setGenerated(false) }}
+            className="px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white outline-none focus:border-orange-400 cursor-pointer"
+          >
+            {years.map((y) => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <button
+            onClick={generateReport}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition-colors disabled:opacity-50"
+          >
+            <BarChart2 size={15} />
+            {loading ? 'Generating…' : 'Generate Report'}
+          </button>
+          {generated && (
+            <button
+              onClick={printReport}
+              className="hidden sm:flex items-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium transition-colors"
+            >
+              <Printer size={15} />
+              Print PDF
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Empty state */}
+      {!generated && !loading && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col items-center justify-center py-20 text-center">
+          <BarChart2 size={40} className="text-orange-200 mb-4" />
+          <p className="text-gray-500 font-medium">No report generated yet</p>
+          <p className="text-gray-400 text-sm mt-1">Select a month and year, then click <span className="font-semibold text-orange-500">Generate Report</span></p>
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center py-20">
+          <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+        </div>
+      )}
+
+      {/* Report content */}
+      {generated && summary && (
+        <div className="space-y-6">
+
+          {/* Period label */}
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{monthLabel}</p>
+
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+            {[
+              { label: 'Completed Bookings', value: summary.totalBookings, isCount: true, color: 'text-orange-600' },
+              { label: 'Total Revenue',      value: fmt(summary.totalRevenue),     color: 'text-green-600' },
+              { label: 'Platform Earnings',  value: fmt(summary.platformEarnings), color: 'text-blue-600' },
+              { label: 'Tasker Payouts',     value: fmt(summary.taskerPayouts),    color: 'text-purple-600' },
+              { label: 'Helper Fees',        value: fmt(summary.helperFees),       color: 'text-amber-600' },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{label}</p>
+                <p className={`text-xl sm:text-2xl font-bold ${color} break-all`}>{value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* Top Services */}
+          {topServices.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <p className="font-bold text-gray-800 text-sm">Top Services</p>
+              </div>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="px-6 py-3 text-left">#</th>
+                    <th className="px-6 py-3 text-left">Service</th>
+                    <th className="px-6 py-3 text-right">Bookings</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topServices.map((s, i) => (
+                    <tr key={s.name} className="border-t border-gray-50">
+                      <td className="px-6 py-3 text-gray-400 font-medium">{i + 1}</td>
+                      <td className="px-6 py-3 text-gray-800 font-medium">{s.name}</td>
+                      <td className="px-6 py-3 text-right">
+                        <span className="bg-orange-100 text-orange-600 font-bold text-xs px-2.5 py-1 rounded-full">{s.count}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Tasker Performance */}
+          {topTaskers.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <p className="font-bold text-gray-800 text-sm">Tasker Performance</p>
+              </div>
+              <div className="overflow-x-auto">
+              <table className="w-full text-sm min-w-[480px]">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                    <th className="px-6 py-3 text-left">#</th>
+                    <th className="px-6 py-3 text-left">Tasker</th>
+                    <th className="px-6 py-3 text-right">Jobs</th>
+                    <th className="px-6 py-3 text-right">Avg Rating</th>
+                    <th className="px-6 py-3 text-right">Total Payout</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topTaskers.map((t, i) => (
+                    <tr key={t.name} className="border-t border-gray-50">
+                      <td className="px-6 py-3 text-gray-400 font-medium">{i + 1}</td>
+                      <td className="px-6 py-3 text-gray-800 font-medium">{t.name}</td>
+                      <td className="px-6 py-3 text-right text-gray-700 font-semibold">{t.jobs}</td>
+                      <td className="px-6 py-3 text-right">
+                        {t.avgRating > 0 ? (
+                          <span className="text-yellow-500 font-semibold">{t.avgRating.toFixed(1)} ★</span>
+                        ) : <span className="text-gray-300">—</span>}
+                      </td>
+                      <td className="px-6 py-3 text-right text-gray-700 font-medium">{fmt(t.payout)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+            </div>
+          )}
+
+          {/* No data state */}
+          {summary.totalBookings === 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 py-12 text-center">
+              <p className="text-gray-400 text-sm">No completed bookings found for {monthLabel}.</p>
+            </div>
+          )}
+
+        </div>
+      )}
+    </div>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'dashboard',       label: 'Dashboard',           icon: LayoutDashboard },
   { key: 'calendar',        label: 'Calendar',            icon: CalendarDays },
@@ -7127,6 +7421,7 @@ const NAV_ITEMS = [
   { key: 'tasker-accounts', label: 'Employee Accounts',   icon: UserCheck },
   { key: 'bookings',        label: 'Bookings',            icon: CalendarDays },
   { key: 'payroll',         label: 'Payroll',             icon: CircleDollarSign },
+  { key: 'reports',         label: 'Reports',             icon: BarChart2 },
   { key: 'services',        label: 'Services',            icon: Wrench },
   { key: 'reviews',         label: 'Reviews',             icon: Star },
   { key: 'leave-requests',  label: 'Leave Requests',      icon: Umbrella },
@@ -7596,6 +7891,8 @@ function Admin() {
           <DashboardPanel setTab={setTab} setBookingFilter={setBookingFilter} />
         ) : tab === 'payroll' ? (
           <PayrollPanel />
+        ) : tab === 'reports' ? (
+          <ReportsPanel />
         ) : tab === 'calendar' ? (
           <>
           <div className="p-3 sm:p-6 w-full">
