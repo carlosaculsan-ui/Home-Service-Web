@@ -768,6 +768,65 @@ function SessionHistoryModal({ userId, userName, onClose }) {
   const isCurrentMonth = currentDate.getMonth() === now.getMonth() && currentDate.getFullYear() === now.getFullYear()
   const fmt = (ts) => ts ? new Date(ts).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '(still active)'
 
+  function getDuration(s) {
+    if (!s.time_out) return '—'
+    const mins = Math.floor((new Date(s.time_out) - new Date(s.time_in)) / 60000)
+    const h = Math.floor(mins / 60)
+    const m = mins % 60
+    if (h === 0) return `${m}m`
+    return m > 0 ? `${h}h ${m}m` : `${h}h`
+  }
+
+  const totalMins = sessions.reduce((acc, s) => {
+    if (!s.time_out) return acc
+    return acc + Math.floor((new Date(s.time_out) - new Date(s.time_in)) / 60000)
+  }, 0)
+  const totalH = Math.floor(totalMins / 60)
+  const totalM = totalMins % 60
+  const totalLabel = totalH > 0 ? (totalM > 0 ? `${totalH}h ${totalM}m` : `${totalH}h`) : `${totalM}m`
+
+  function handlePrint() {
+    const win = window.open('', '_blank')
+    win.document.write(`
+      <html>
+        <head>
+          <title>Session History — ${userName}</title>
+          <style>
+            body { font-family: sans-serif; padding: 32px; color: #111; }
+            h2 { margin: 0 0 4px; font-size: 18px; }
+            .sub { color: #666; font-size: 13px; margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th { text-align: left; padding: 6px 8px; border-bottom: 2px solid #eee; color: #888; font-weight: 600; }
+            td { padding: 8px; border-bottom: 1px solid #f0f0f0; }
+            .total { margin-top: 20px; font-size: 14px; font-weight: 700; }
+          </style>
+        </head>
+        <body>
+          <h2>${userName}</h2>
+          <p class="sub">Session History — ${monthLabel}</p>
+          <table>
+            <thead>
+              <tr><th>#</th><th>Time In</th><th>Time Out</th><th>Duration</th></tr>
+            </thead>
+            <tbody>
+              ${sessions.map((s, i) => `
+                <tr>
+                  <td>${i + 1}</td>
+                  <td>${fmt(s.time_in)}</td>
+                  <td>${fmt(s.time_out)}</td>
+                  <td>${getDuration(s)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <p class="total">Total Hours: ${totalLabel}</p>
+        </body>
+      </html>
+    `)
+    win.document.close()
+    win.print()
+  }
+
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center px-4" onClick={onClose}>
       <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-xl relative max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -787,24 +846,32 @@ function SessionHistoryModal({ userId, userName, onClose }) {
           ) : sessions.length === 0 ? (
             <p className="text-center text-gray-400 py-8 text-sm">No sessions recorded for this month.</p>
           ) : (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-gray-400 border-b border-gray-100">
-                  <th className="pb-2 text-left font-medium w-8">#</th>
-                  <th className="pb-2 text-left font-medium">Time In</th>
-                  <th className="pb-2 text-left font-medium">Time Out</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {sessions.map((s, i) => (
-                  <tr key={s.id} className="text-gray-600">
-                    <td className="py-2.5 text-xs text-gray-400">{i + 1}</td>
-                    <td className="py-2.5 text-xs">{fmt(s.time_in)}</td>
-                    <td className="py-2.5 text-xs">{fmt(s.time_out)}</td>
+            <>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-400 border-b border-gray-100">
+                    <th className="pb-2 text-left font-medium w-8">#</th>
+                    <th className="pb-2 text-left font-medium">Time In</th>
+                    <th className="pb-2 text-left font-medium">Time Out</th>
+                    <th className="pb-2 text-left font-medium">Duration</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {sessions.map((s, i) => (
+                    <tr key={s.id} className="text-gray-600">
+                      <td className="py-2.5 text-xs text-gray-400">{i + 1}</td>
+                      <td className="py-2.5 text-xs">{fmt(s.time_in)}</td>
+                      <td className="py-2.5 text-xs">{fmt(s.time_out)}</td>
+                      <td className="py-2.5 text-xs font-medium text-gray-700">{getDuration(s)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+                <span className="text-sm font-semibold text-gray-700">Total: <span className="text-orange-500">{totalLabel}</span></span>
+                <button onClick={handlePrint} className="text-xs font-medium text-gray-500 border border-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition">Print</button>
+              </div>
+            </>
           )}
         </div>
       </div>
