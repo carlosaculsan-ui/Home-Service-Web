@@ -3617,19 +3617,19 @@ function PayrollPanel() {
   async function fetchPayroll() {
     setLoading(true)
     const [year, month] = period.split('-').map(Number)
+    const nextMonth = month === 12 ? 1 : month + 1
+    const nextYear  = month === 12 ? year + 1 : year
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`
+    const endDate   = `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`
 
-    const { data: allBookings } = await supabase
+    const { data: bookings } = await supabase
       .from('bookings')
       .select('id, tasker_id, estimated_total, platform_fee, tasker_payout, scheduled_date, helper_fee, helper_names')
       .eq('status', 'completed')
+      .gte('scheduled_date', startDate)
+      .lt('scheduled_date', endDate)
 
-    const bookings = (allBookings ?? []).filter(b => {
-      if (!b.scheduled_date) return false
-      const d = new Date(b.scheduled_date + 'T00:00:00')
-      return d.getFullYear() === year && d.getMonth() + 1 === month
-    })
-
-    if (bookings.length === 0) {
+    if ((bookings ?? []).length === 0) {
       setAllRows([])
       setLoading(false)
       return
