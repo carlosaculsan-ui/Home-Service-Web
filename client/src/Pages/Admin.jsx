@@ -36,6 +36,7 @@ const BOOKING_STATUS_STYLES = {
   accepted:    'bg-yellow-100 text-yellow-700',
   on_the_way:  'bg-purple-100 text-purple-700',
   in_progress: 'bg-orange-100 text-orange-700',
+  disputed:    'bg-orange-200 text-orange-800',
   completed:   'bg-green-100 text-green-700',
   cancelled:   'bg-red-100 text-red-600',
 }
@@ -2029,6 +2030,63 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
     })
   }
 
+  function handleDisputeForceComplete(b) {
+    openConfirm(`Rule in favor of the tasker for booking ${b.reference_number ?? b.id}? This will force-complete the job and release full payout to the tasker.`, async () => {
+      setForceCompleteProcessing(b.id)
+      const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
+      const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+      const updatePayload = { status: 'completed' }
+      if (platform_fee != null) { updatePayload.platform_fee = platform_fee; updatePayload.tasker_payout = tasker_payout }
+      const { error } = await supabase.from('bookings').update(updatePayload).eq('id', b.id)
+      if (!error && tasker_payout && b.tasker_id) {
+        const { data: taskerRow } = await supabase.from('taskers').select('user_id').eq('id', b.tasker_id).single()
+        const taskerUserId = taskerRow?.user_id
+        if (taskerUserId) {
+          await supabase.rpc('increment_wallet_balance', { target_user_id: taskerUserId, increment_amount: tasker_payout })
+          await supabase.from('wallet_transactions').insert({ user_id: taskerUserId, booking_id: b.id, amount: tasker_payout, type: 'credit', description: `Earnings from booking ${b.reference_number ?? b.id} (dispute resolved — tasker)` })
+          await supabase.from('notifications').insert({ user_id: taskerUserId, title: 'Dispute Resolved — You Won', message: `Admin reviewed the dispute for booking #${b.reference_number ?? b.id} and ruled in your favor. Your earnings have been credited.`, is_read: false })
+        }
+      }
+      if (!error && b.client_id) {
+        await supabase.from('notifications').insert({ user_id: b.client_id, title: 'Dispute Resolved', message: `Admin reviewed your dispute for booking #${b.reference_number ?? b.id} and ruled in favor of the tasker. The job is marked complete.`, is_read: false })
+      }
+      if (!error) setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: 'completed', platform_fee, tasker_payout } : bk))
+      setForceCompleteProcessing(null)
+    })
+  }
+
+  function handleDisputeRefund(b) {
+    openConfirm(`Rule in favor of the customer for booking ${b.reference_number ?? b.id}? Customer receives a 40% refund. Remaining 60% is split 90/10 between tasker and platform.`, async () => {
+      setForceCompleteProcessing(b.id)
+      const total = Number(b.estimated_total) || 0
+      const customerRefund = total * 0.40
+      const remaining = total * 0.60
+      const tasker_payout = remaining * 0.90
+      const platform_fee = remaining * 0.10
+
+      await supabase.from('bookings').update({ status: 'completed', platform_fee, tasker_payout }).eq('id', b.id)
+
+      if (customerRefund > 0 && b.client_id) {
+        await supabase.rpc('increment_wallet_balance', { target_user_id: b.client_id, increment_amount: customerRefund })
+        await supabase.from('wallet_transactions').insert({ user_id: b.client_id, booking_id: b.id, amount: customerRefund, type: 'credit', description: `40% dispute refund for booking ${b.reference_number ?? b.id}` })
+        await supabase.from('notifications').insert({ user_id: b.client_id, title: 'Dispute Resolved — Partial Refund', message: `Admin reviewed your dispute for booking #${b.reference_number ?? b.id} and issued a 40% refund of ₱${customerRefund.toLocaleString('en-PH', { minimumFractionDigits: 2 })} to your wallet.`, is_read: false })
+      }
+
+      if (tasker_payout > 0 && b.tasker_id) {
+        const { data: taskerRow } = await supabase.from('taskers').select('user_id').eq('id', b.tasker_id).single()
+        const taskerUserId = taskerRow?.user_id
+        if (taskerUserId) {
+          await supabase.rpc('increment_wallet_balance', { target_user_id: taskerUserId, increment_amount: tasker_payout })
+          await supabase.from('wallet_transactions').insert({ user_id: taskerUserId, booking_id: b.id, amount: tasker_payout, type: 'credit', description: `Partial earnings (dispute resolved — customer) from booking ${b.reference_number ?? b.id}` })
+          await supabase.from('notifications').insert({ user_id: taskerUserId, title: 'Dispute Resolved — Partial Payout', message: `Admin reviewed the dispute for booking #${b.reference_number ?? b.id} and ruled in favor of the customer. You received a partial payout of ₱${tasker_payout.toLocaleString('en-PH', { minimumFractionDigits: 2 })}.`, is_read: false })
+        }
+      }
+
+      setBookings(prev => prev.map(bk => bk.id === b.id ? { ...bk, status: 'completed', platform_fee, tasker_payout } : bk))
+      setForceCompleteProcessing(null)
+    })
+  }
+
   async function handleConfirmCancel() {
     if (!cancelReason.trim()) { setCancelReasonError('Cancellation reason is required.'); return }
     setCancelProcessing(true)
@@ -2239,12 +2297,25 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                     : []),
                   ['Address',   b.address],
                   ...(b.landmark ? [['Landmark', b.landmark]] : []),
+                  ...(b.dispute_reason ? [['Dispute Reason', b.dispute_reason]] : []),
                 ].map(([label, val]) => (
                   <div key={label} className="flex gap-2 items-start">
-                    <span className="text-gray-400 w-28 flex-shrink-0">{label}</span>
+                    <span className={`w-28 flex-shrink-0 ${label === 'Dispute Reason' ? 'text-orange-500 font-medium' : 'text-gray-400'}`}>{label}</span>
                     <span className="text-gray-700">{val ?? '—'}</span>
                   </div>
                 ))}
+                {b.dispute_evidence_url && (
+                  <div className="flex gap-2 items-start">
+                    <span className="text-orange-500 font-medium w-28 flex-shrink-0">Evidence</span>
+                    {b.dispute_evidence_url.match(/\.(mp4|mov|webm|ogg)$/i) ? (
+                      <video src={b.dispute_evidence_url} controls className="w-40 rounded-lg border border-gray-200" />
+                    ) : (
+                      <a href={b.dispute_evidence_url} target="_blank" rel="noreferrer">
+                        <img src={b.dispute_evidence_url} alt="Dispute evidence" className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80" />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -2266,6 +2337,24 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
                 >
                   {forceCompleteProcessing === b.id ? 'Processing…' : 'Force Complete'}
                 </button>
+              )}
+              {b.status === 'disputed' && (
+                <div className="flex flex-col gap-2 items-end">
+                  <button
+                    onClick={() => handleDisputeForceComplete(b)}
+                    disabled={forceCompleteProcessing === b.id}
+                    className="text-xs border border-green-500 text-green-600 px-3 py-1 rounded-lg hover:bg-green-50 transition disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {forceCompleteProcessing === b.id ? 'Processing…' : 'Tasker Wins'}
+                  </button>
+                  <button
+                    onClick={() => handleDisputeRefund(b)}
+                    disabled={forceCompleteProcessing === b.id}
+                    className="text-xs border border-orange-400 text-orange-600 px-3 py-1 rounded-lg hover:bg-orange-50 transition disabled:opacity-50 whitespace-nowrap"
+                  >
+                    {forceCompleteProcessing === b.id ? 'Processing…' : 'Customer Wins (40% Refund)'}
+                  </button>
+                </div>
               )}
             </div>
           </div>

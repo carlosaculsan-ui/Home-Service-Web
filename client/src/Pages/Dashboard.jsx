@@ -8,7 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2 } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Paperclip } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
@@ -22,6 +22,7 @@ const STATUS_STYLES = {
   on_the_way:       'bg-blue-100 text-blue-700',
   in_progress:          'bg-orange-100 text-orange-700',
   pending_confirmation: 'bg-purple-100 text-purple-700',
+  disputed:             'bg-orange-100 text-orange-700',
   completed:            'bg-green-100 text-green-700',
   cancelled:   'bg-red-100 text-red-600',
   rejected:    'bg-red-100 text-red-600',
@@ -34,6 +35,7 @@ const STATUS_LABELS = {
   on_the_way:       'Tasker On The Way',
   in_progress:          'In Progress',
   pending_confirmation: 'Confirm Completion',
+  disputed:             'Disputed',
   completed:            'Completed',
   cancelled:   'Cancelled',
   rejected:    'Rejected by Tasker',
@@ -1052,7 +1054,7 @@ function ReceiptModal({ booking, onClose }) {
   )
 }
 
-function BookingCard({ booking, userId, onCancel }) {
+function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
   const navigate = useNavigate()
   const bookingTaskOpts = typeof booking.task_options === 'string'
     ? (() => { try { return JSON.parse(booking.task_options) } catch { return {} } })()
@@ -1073,6 +1075,10 @@ function BookingCard({ booking, userId, onCancel }) {
   const [showTrackModal, setShowTrackModal] = useState(false)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(false)
+  const [showDisputeModal, setShowDisputeModal] = useState(false)
+  const [disputeNote, setDisputeNote] = useState('')
+  const [disputing, setDisputing] = useState(false)
+  const [disputeError, setDisputeError] = useState('')
 
   const proposedDates = (() => {
     try { return JSON.parse(booking.proposed_dates) } catch { return [] }
@@ -1179,6 +1185,41 @@ function BookingCard({ booking, userId, onCancel }) {
     }
     setConfirming(false)
     if (!error) onCancel()
+  }
+
+  async function handleDispute() {
+    if (!disputeNote.trim()) { setDisputeError('Please describe what is not done.'); return }
+    setDisputing(true)
+    setDisputeError('')
+
+    await supabase.from('bookings').update({
+      status: 'disputed',
+      dispute_reason: disputeNote.trim(),
+    }).eq('id', booking.id)
+
+    if (booking.taskerUserId) {
+      await supabase.from('notifications').insert({
+        user_id: booking.taskerUserId,
+        title: 'Job Completion Disputed',
+        message: `The customer has disputed booking #${booking.reference_number ?? booking.id}. An admin will review and contact you with the outcome.`,
+        is_read: false,
+      })
+    }
+
+    const { data: adminProfile } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle()
+    if (adminProfile?.id) {
+      await supabase.from('notifications').insert({
+        user_id: adminProfile.id,
+        title: '⚠️ Dispute Raised',
+        message: `Customer disputed booking #${booking.reference_number ?? booking.id}. Reason: ${disputeNote.trim()}`,
+        is_read: false,
+      })
+    }
+
+    setDisputing(false)
+    setShowDisputeModal(false)
+    setDisputeNote('')
+    onOpenAdminChat?.()
   }
 
   async function handleCancel(reason, note) {
@@ -1561,13 +1602,63 @@ function BookingCard({ booking, userId, onCancel }) {
                 )}
               </>
             )}
-            <button
-              onClick={handleConfirmComplete}
-              disabled={confirming}
-              className="text-sm font-semibold text-white bg-green-500 hover:bg-green-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
-            >
-              {confirming ? 'Confirming…' : '✓ I Confirm Job is Done'}
-            </button>
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={handleConfirmComplete}
+                disabled={confirming || disputing}
+                className="text-sm font-semibold text-white bg-green-500 hover:bg-green-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+              >
+                {confirming ? 'Confirming…' : '✓ I Confirm Job is Done'}
+              </button>
+              <button
+                onClick={() => setShowDisputeModal(true)}
+                disabled={confirming || disputing}
+                className="text-sm font-semibold text-white bg-red-500 hover:bg-red-600 disabled:opacity-50 px-4 py-2 rounded-lg transition-colors"
+              >
+                Job Not Done Yet
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Dispute Modal */}
+        {showDisputeModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setShowDisputeModal(false)}>
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+              <h3 className="text-base font-bold text-gray-900">Report: Job Not Done Yet</h3>
+              <p className="text-sm text-gray-500">Describe what was not completed. An admin will review and contact you privately.</p>
+              <textarea
+                value={disputeNote}
+                onChange={e => { setDisputeNote(e.target.value); setDisputeError('') }}
+                rows={4}
+                placeholder="Explain what's missing or not done correctly…"
+                className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+              />
+              {disputeError && <p className="text-xs text-red-500">{disputeError}</p>}
+              <p className="text-xs text-gray-400">After submitting, you can send photos and videos directly in the admin chat.</p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={handleDispute}
+                  disabled={disputing}
+                  className="flex-1 bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white text-sm font-semibold py-2 rounded-xl transition-colors"
+                >
+                  {disputing ? 'Submitting…' : 'Submit Dispute'}
+                </button>
+                <button
+                  onClick={() => { setShowDisputeModal(false); setDisputeNote(''); setDisputeError('') }}
+                  className="flex-1 border border-gray-300 text-gray-600 text-sm font-semibold py-2 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {booking.status === 'disputed' && (
+          <div className="space-y-1 pt-1">
+            <p className="text-sm font-semibold text-orange-600">⚠️ Dispute Under Review</p>
+            <p className="text-sm text-gray-500">An admin has been notified and will contact you to resolve this. Please check your messages.</p>
           </div>
         )}
 
@@ -2334,8 +2425,12 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [mediaFile, setMediaFile] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const [mediaError, setMediaError] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
+  const fileInputRef = useRef(null)
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -2381,18 +2476,51 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
 
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending) return
+    if ((!text && !mediaFile) || sending) return
     setSending(true)
     setInput('')
-    await supabase.from('messages').insert({
-      booking_id: null,
-      sender_id: customerId,
-      receiver_id: adminId,
-      content: text,
-      is_read: false,
-    })
+
+    if (mediaFile) {
+      const ext = mediaFile.name.split('.').pop()
+      const path = `dispute-evidence/${customerId}-${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage.from('booking-assets').upload(path, mediaFile)
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
+        const isVideo = mediaFile.type.startsWith('video/')
+        const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
+        await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: mediaContent, is_read: false })
+      }
+      setMediaFile(null)
+      setMediaPreview(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+
+    if (text) {
+      await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: text, is_read: false })
+    }
+
     setSending(false)
     inputRef.current?.focus()
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMediaError('')
+    if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video')
+      vid.preload = 'metadata'
+      vid.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(vid.src)
+        if (vid.duration > 10) { setMediaError('Video must be 10 seconds or less.'); return }
+        setMediaFile(file)
+        setMediaPreview(URL.createObjectURL(file))
+      }
+      vid.src = URL.createObjectURL(file)
+    } else {
+      setMediaFile(file)
+      setMediaPreview(URL.createObjectURL(file))
+    }
   }
 
   const fmtTime = (iso) => iso
@@ -2428,19 +2556,25 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
           </div>
         ) : messages.map((msg) => {
           const isMine = msg.sender_id === customerId
+          const isImage = msg.content?.startsWith('[image:')
+          const isVideo = msg.content?.startsWith('[video:')
+          const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
           return (
             <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
               <div style={{ maxWidth: '82%' }}>
                 <div style={{
-                  padding: '8px 12px',
+                  padding: mediaUrl ? '4px' : '8px 12px',
                   borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
                   background: isMine ? '#f97316' : '#f3f4f6',
                   color: isMine ? '#fff' : '#1f2937',
                   fontSize: '0.85rem',
                   lineHeight: 1.5,
                   wordBreak: 'break-word',
+                  overflow: 'hidden',
                 }}>
-                  {msg.content}
+                  {isImage && <img src={mediaUrl} alt="evidence" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12, display: 'block' }} />}
+                  {isVideo && <video src={mediaUrl} controls style={{ maxWidth: 200, borderRadius: 12, display: 'block' }} />}
+                  {!mediaUrl && msg.content}
                 </div>
                 <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
                   {fmtTime(msg.created_at)}
@@ -2452,8 +2586,25 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Media preview */}
+      {mediaPreview && (
+        <div style={{ padding: '6px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {mediaFile?.type.startsWith('video/') ? (
+            <video src={mediaPreview} style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} muted />
+          ) : (
+            <img src={mediaPreview} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} />
+          )}
+          <button onClick={() => { setMediaFile(null); setMediaPreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }} style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+        </div>
+      )}
+      {mediaError && <p style={{ fontSize: '0.72rem', color: '#ef4444', padding: '0 12px 4px' }}>{mediaError}</p>}
+
       {/* Input */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0 }}>
+      <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+        <label style={{ cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', color: '#9ca3af' }} title="Attach photo or video (max 10s)">
+          <Paperclip size={18} />
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+        </label>
         <input
           ref={inputRef}
           value={input}
@@ -2464,10 +2615,10 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         />
         <button
           onClick={handleSend}
-          disabled={!input.trim() || sending}
-          style={{ background: input.trim() && !sending ? '#f97316' : '#e5e7eb', border: 'none', borderRadius: '10px', padding: '9px 14px', cursor: input.trim() && !sending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          disabled={(!input.trim() && !mediaFile) || sending}
+          style={{ background: (input.trim() || mediaFile) && !sending ? '#f97316' : '#e5e7eb', border: 'none', borderRadius: '10px', padding: '9px 14px', cursor: (input.trim() || mediaFile) && !sending ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
         >
-          <Send size={16} color={input.trim() && !sending ? '#fff' : '#9ca3af'} />
+          <Send size={16} color={(input.trim() || mediaFile) && !sending ? '#fff' : '#9ca3af'} />
         </button>
       </div>
     </div>
@@ -2677,7 +2828,7 @@ const SUPPORT_TOPICS = [
   { key: 'Report a Tasker',   icon: AlertTriangle,  label: 'Report a Tasker' },
 ]
 
-function CustomerSupport({ userId }) {
+function CustomerSupport({ userId, autoAdmin, onAutoAdminDone }) {
   const [view, setView] = useState('menu') // 'menu' | 'ai' | 'admin'
   const [topic, setTopic] = useState(null)
   const [adminId, setAdminId] = useState(null)
@@ -2691,6 +2842,13 @@ function CustomerSupport({ userId }) {
     setAdminLoading(false)
     setView('admin')
   }
+
+  useEffect(() => {
+    if (autoAdmin) {
+      openAdminChat()
+      onAutoAdminDone?.()
+    }
+  }, [autoAdmin])
 
   function selectTopic(key) {
     setTopic(key)
@@ -3239,6 +3397,7 @@ function CustomerComingSoon() {
 
 function Dashboard() {
   const [tab, setTab] = useState(() => new URLSearchParams(window.location.search).get('tab') || 'bookings')
+  const [jumpToAdminChat, setJumpToAdminChat] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
@@ -3771,7 +3930,7 @@ function Dashboard() {
                         </p>
                       )
                       return filtered.map((booking) => (
-                        <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} />
+                        <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} onOpenAdminChat={() => { setJumpToAdminChat(true); setTab('support') }} />
                       ))
                     })()}
                   </div>
@@ -3799,7 +3958,7 @@ function Dashboard() {
           )}
 
           {tab === 'support' && (
-            <CustomerSupport userId={userId} />
+            <CustomerSupport userId={userId} autoAdmin={jumpToAdminChat} onAutoAdminDone={() => setJumpToAdminChat(false)} />
           )}
 
           {tab === 'notifications' && (

@@ -36,6 +36,7 @@ const STATUS_STYLES = {
   on_the_way:  'bg-blue-100 text-blue-700',
   in_progress: 'bg-blue-100 text-blue-700',
   completed:   'bg-gray-100 text-gray-600',
+  disputed:    'bg-orange-100 text-orange-700',
   rejected:    'bg-red-100 text-red-600',
   cancelled:   'bg-gray-100 text-gray-500',
 }
@@ -46,6 +47,7 @@ const STATUS_LABELS = {
   on_the_way:  'On The Way',
   in_progress: 'In Progress',
   completed:   'Completed',
+  disputed:    'Disputed',
   rejected:    'Rejected',
 }
 
@@ -1243,6 +1245,14 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       {booking.status === 'pending_confirmation' && (
         <div className="pt-1">
           <p className="text-sm text-purple-600 font-medium">⏳ Waiting for customer to confirm job completion.</p>
+        </div>
+      )}
+
+      {/* Disputed */}
+      {booking.status === 'disputed' && (
+        <div className="pt-1 space-y-1">
+          <p className="text-sm text-orange-600 font-semibold">⚠️ Job Completion Disputed</p>
+          <p className="text-sm text-gray-500">The customer has raised a dispute. An admin is reviewing the case and will notify you of the outcome.</p>
         </div>
       )}
 
