@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Routes, Route, useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import Navbar from './Components/Navbar'
@@ -55,6 +55,7 @@ function Home() {
 function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const accessTokenRef = useRef(null)
   const navigate = useNavigate()
 
   // If Supabase redirects recovery token to homepage instead of /reset-password, catch it here
@@ -68,9 +69,11 @@ function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
+      accessTokenRef.current = session?.access_token ?? null
     })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
+      accessTokenRef.current = session?.access_token ?? null
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -79,6 +82,31 @@ function App() {
     if (!user) { setProfile(null); return }
     supabase.from('profiles').select('role, full_name').eq('id', user.id).single()
       .then(({ data }) => setProfile(data))
+  }, [user])
+
+  // Close open sessions on browser/tab close using keepalive fetch (survives page unload)
+  useEffect(() => {
+    if (!user) return
+    const handleBeforeUnload = () => {
+      const token = accessTokenRef.current
+      if (!token) return
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_sessions?user_id=eq.${user.id}&time_out=is.null`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${token}`,
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ time_out: new Date().toISOString() }),
+          keepalive: true,
+        }
+      )
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [user])
 
   useEffect(() => {
