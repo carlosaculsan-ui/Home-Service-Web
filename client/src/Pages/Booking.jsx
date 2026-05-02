@@ -171,6 +171,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const [selectedDate, setSelectedDate] = useState(null)
   const [selectedSlot, setSelectedSlot] = useState(null)
   const [leaveDates, setLeaveDates] = useState(new Set())
+  const [blackoutDates, setBlackoutDates] = useState(new Set())
   const [bookingsByDate, setBookingsByDate] = useState({})
   const [loadingDates, setLoadingDates] = useState(true)
   const [taskerAvailability, setTaskerAvailability] = useState(null)
@@ -184,7 +185,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
         Authorization: `Bearer ${token}`,
       }
 
-      const [bookingsRes, leavesRes, availResult] = await Promise.all([
+      const [bookingsRes, leavesRes, availResult, blackoutRes] = await Promise.all([
         fetch(
           `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/bookings?tasker_id=eq.${tasker.id}&status=in.(confirmed,accepted,on_the_way,in_progress)&select=scheduled_date,scheduled_time,duration_hours`,
           { headers }
@@ -194,10 +195,15 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
           { headers }
         ),
         supabase.from('taskers').select('availability').eq('id', tasker.id).single(),
+        fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/admin_blackout_dates?select=date`,
+          { headers }
+        ),
       ])
 
-      const [bookingsData, leavesData] = await Promise.all([bookingsRes.json(), leavesRes.json()])
+      const [bookingsData, leavesData, blackoutData] = await Promise.all([bookingsRes.json(), leavesRes.json(), blackoutRes.json()])
       setTaskerAvailability(availResult.data?.availability ?? null)
+      setBlackoutDates(new Set(Array.isArray(blackoutData) ? blackoutData.map(r => r.date) : []))
 
       // Group bookings by date
       const byDate = {}
@@ -258,6 +264,7 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
   const isBlocked = (d) => {
     if (!d) return false
     const dateKey = getDateKey(d)
+    if (blackoutDates.has(dateKey)) return true
     if (leaveDates.has(dateKey)) return true
     const dayBookings = bookingsByDate[dateKey] || []
     // Existing full-day booking blocks the date for everyone

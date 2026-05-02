@@ -7759,6 +7759,7 @@ function Admin() {
   const [showEventModal, setShowEventModal] = useState(false)
   const [eventInput, setEventInput] = useState('')
   const [eventDate, setEventDate] = useState('')
+  const [blackoutDates, setBlackoutDates] = useState(new Set())
   const navigate = useNavigate()
 
   async function fetchReminders() {
@@ -7790,6 +7791,16 @@ function Admin() {
     })
   }
 
+  const toggleBlackout = async (dateStr) => {
+    if (blackoutDates.has(dateStr)) {
+      await supabase.from('admin_blackout_dates').delete().eq('date', dateStr)
+      setBlackoutDates(prev => { const s = new Set(prev); s.delete(dateStr); return s })
+    } else {
+      await supabase.from('admin_blackout_dates').insert({ date: dateStr })
+      setBlackoutDates(prev => new Set([...prev, dateStr]))
+    }
+  }
+
   useEffect(() => {
     if (tab !== 'calendar') return
     fetchReminders()
@@ -7808,6 +7819,10 @@ function Admin() {
         })
         setApprovedLeaves(allLeaves)
       })
+    supabase
+      .from('admin_blackout_dates')
+      .select('date')
+      .then(({ data }) => setBlackoutDates(new Set((data || []).map(r => r.date))))
   }, [tab])
 
   useEffect(() => {
@@ -8027,6 +8042,7 @@ function Admin() {
                         const dayBookings = calendarBookings.filter(b => b.scheduled_date === dateStr)
                         const isToday = today.getDate() === day && today.getMonth() === month && today.getFullYear() === year
                         const isSelected = selectedDate === dateStr
+                        const isBlackout = blackoutDates.has(dateStr)
                         return (
                           <div
                             key={i}
@@ -8034,11 +8050,13 @@ function Admin() {
                             className={`relative p-1.5 sm:p-3 rounded-lg cursor-pointer text-center transition
                               ${isSelected ? 'bg-orange-500 text-white' : ''}
                               ${isToday && !isSelected ? 'border-2 border-orange-500 text-orange-500 font-bold' : ''}
-                              ${!isSelected && !isToday ? 'hover:bg-gray-100' : ''}
+                              ${isBlackout && !isSelected ? 'bg-red-50' : ''}
+                              ${!isSelected && !isToday && !isBlackout ? 'hover:bg-gray-100' : ''}
+                              ${!isSelected && isBlackout ? 'hover:bg-red-100' : ''}
                             `}
                           >
                             <span className="text-xs sm:text-base">{day}</span>
-                            {(dayBookings.length > 0 || reminders[dateStr]?.length > 0 || approvedLeaves.some(l => l.leave_dates?.includes(dateStr))) && (
+                            {(dayBookings.length > 0 || reminders[dateStr]?.length > 0 || approvedLeaves.some(l => l.leave_dates?.includes(dateStr)) || isBlackout) && (
                               <div className="flex justify-center gap-1 mt-1">
                                 {dayBookings.length > 0 && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-orange-500'}`} />
@@ -8048,6 +8066,9 @@ function Admin() {
                                 )}
                                 {approvedLeaves.some(l => l.leave_dates?.includes(dateStr)) && (
                                   <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-purple-500'}`} />
+                                )}
+                                {isBlackout && (
+                                  <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-white' : 'bg-red-500'}`} />
                                 )}
                               </div>
                             )}
@@ -8071,6 +8092,10 @@ function Admin() {
                   <div className="flex items-center gap-1">
                     <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" />
                     <span className="text-xs text-gray-500">Approved Leaves</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-red-500 inline-block" />
+                    <span className="text-xs text-gray-500">Blackout</span>
                   </div>
                 </div>
               </div>
@@ -8145,6 +8170,28 @@ function Admin() {
                           >✕</button>
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Blackout date toggle */}
+                {selectedDate && (
+                  <div className="mt-4">
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Blackout Date</h4>
+                    <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
+                      <span className="text-sm text-red-700">
+                        {blackoutDates.has(selectedDate) ? 'No bookings allowed' : 'Bookings open'}
+                      </span>
+                      <button
+                        onClick={() => toggleBlackout(selectedDate)}
+                        className={`text-xs font-semibold px-3 py-1 rounded-full transition ${
+                          blackoutDates.has(selectedDate)
+                            ? 'bg-red-500 text-white hover:bg-red-600'
+                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
+                        }`}
+                      >
+                        {blackoutDates.has(selectedDate) ? 'Remove' : 'Mark Blackout'}
+                      </button>
                     </div>
                   </div>
                 )}

@@ -22,7 +22,10 @@
       "Bash(awk 'NR>=1290 && NR<=1330' client/src/pages/TaskerDashboard.jsx)",
       "Bash(awk 'NR>=1240 && NR<=1280' client/src/pages/TaskerDashboard.jsx)",
       "Bash(awk 'NR>=1490 && NR<=1548' client/src/pages/TaskerDashboard.jsx)",
-      "Bash(awk 'NR>=780 && NR<=810' client/src/pages/TaskerDashboard.jsx)"
+      "Bash(awk 'NR>=780 && NR<=810' client/src/pages/TaskerDashboard.jsx)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\" -Recurse -Name)",
+      "Bash(Select-Object -First 50)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\" -Recurse | Select-Object -First 50 | ForEach-Object { $_.FullName })"
     ]
   }
 }
