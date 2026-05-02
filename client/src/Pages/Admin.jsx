@@ -4029,6 +4029,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [topServices, setTopServices] = useState([])
   const [topTaskers, setTopTaskers] = useState([])
   const [leaderboardSort, setLeaderboardSort] = useState('jobs')
+  const [showAllTaskers, setShowAllTaskers] = useState(false)
   const [loading, setLoading] = useState(true)
   const currentYear = new Date().getFullYear()
 
@@ -4482,12 +4483,13 @@ function DashboardPanel({ setTab, setBookingFilter }) {
               ? (a, b) => b.avgRating - a.avgRating || b.jobs - a.jobs
               : (a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating
           )
+          const displayed = showAllTaskers ? sorted : sorted.slice(0, 10)
           const maxJobs = Math.max(...sorted.map((t) => t.jobs), 1)
           const rankEmoji = (i) => i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null
           const borderAccent = (i) => i === 0 ? '#f59e0b' : i === 1 ? '#94a3b8' : i === 2 ? '#b45309' : 'transparent'
           return (
             <div className="divide-y divide-gray-100 rounded-lg overflow-hidden border border-gray-100">
-              {sorted.map((t, i) => {
+              {displayed.map((t, i) => {
                 const photo = t.profile_photo
                   ? t.profile_photo.startsWith('http')
                     ? t.profile_photo
@@ -4570,6 +4572,14 @@ function DashboardPanel({ setTab, setBookingFilter }) {
             </div>
           )
         })()}
+        {topTaskers.length > 10 && (
+          <button
+            onClick={() => setShowAllTaskers(prev => !prev)}
+            className="mt-3 w-full text-xs text-orange-500 hover:text-orange-600 font-semibold py-1"
+          >
+            {showAllTaskers ? 'Show less ▲' : `Show all ${topTaskers.length} taskers ▼`}
+          </button>
+        )}
       </div>
 
     </div>
