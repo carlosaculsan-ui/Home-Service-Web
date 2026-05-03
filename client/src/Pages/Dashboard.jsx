@@ -8,7 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
@@ -2446,11 +2446,17 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const [mediaPreview, setMediaPreview] = useState(null)
   const [mediaError, setMediaError] = useState('')
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [interimText, setInterimText] = useState('')
+  const [micDenied, setMicDenied] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const videoInputRef = useRef(null)
   const emojiPickerRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+  const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -2559,6 +2565,31 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
     inputRef.current?.focus()
   }
 
+  function toggleRecording() {
+    if (isRecording) { recognitionRef.current?.stop(); return }
+    setMicDenied(false)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-PH'
+    rec.onresult = (e) => {
+      let interim = '', final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + final)
+      setInterimText(interim)
+    }
+    rec.onerror = (e) => { if (e.error === 'not-allowed') setMicDenied(true); setIsRecording(false); setInterimText('') }
+    rec.onend = () => { setIsRecording(false); setInterimText('') }
+    recognitionRef.current = rec
+    rec.start()
+    setIsRecording(true)
+  }
+
   const fmtTime = (iso) => iso
     ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : ''
@@ -2591,34 +2622,74 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
           </div>
         ) : (() => {
           const lastSeenId = [...messages].reverse().find(m => m.sender_id === customerId && m.is_read)?.id
-          return messages.map((msg) => {
+          const fmtDateLabel = (iso) => {
+            const d = new Date(iso), now = new Date()
+            const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
+            if (d.toDateString() === now.toDateString()) return 'Today'
+            if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+            return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+          }
+          return messages.map((msg, idx) => {
             const isMine = msg.sender_id === customerId
             const isImage = msg.content?.startsWith('[image:')
             const isVideo = msg.content?.startsWith('[video:')
             const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
-            return (
-              <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-                <div style={{ maxWidth: '82%' }}>
-                  <div style={{
-                    padding: mediaUrl ? '4px' : '8px 12px',
-                    borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                    background: isMine ? '#f97316' : '#f3f4f6',
-                    color: isMine ? '#fff' : '#1f2937',
-                    fontSize: '0.85rem',
-                    lineHeight: 1.5,
-                    wordBreak: 'break-word',
-                    overflow: 'hidden',
-                  }}>
-                    {isImage && <img src={mediaUrl} alt="evidence" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12, display: 'block' }} />}
-                    {isVideo && <video src={mediaUrl} controls style={{ maxWidth: 200, borderRadius: 12, display: 'block' }} />}
-                    {!mediaUrl && msg.content}
+            const isDisputeMarker = msg.content?.startsWith('[Dispute for Booking #')
+            const showDate = new Date(msg.created_at).toDateString() !== (idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null)
+
+            const dateSep = showDate && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+                <span style={{ fontSize: '0.68rem', color: '#9ca3af', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmtDateLabel(msg.created_at)}</span>
+                <div style={{ flex: 1, height: 1, background: '#e5e7eb' }} />
+              </div>
+            )
+
+            if (isDisputeMarker) {
+              const match = msg.content.match(/^\[Dispute for Booking #([^\]]+)\]\s*(.*)$/)
+              const bookingRef = match?.[1] ?? ''
+              const reason = match?.[2] ?? ''
+              return (
+                <div key={msg.id}>
+                  {dateSep}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+                    <div style={{ flex: 1, height: 1, background: '#fed7aa' }} />
+                    <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, padding: '6px 12px', textAlign: 'center', flexShrink: 0 }}>
+                      <p style={{ fontSize: '0.72rem', fontWeight: 700, color: '#ea580c', margin: 0 }}>⚠️ Dispute Opened — Booking #{bookingRef}</p>
+                      {reason && <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: '2px 0 0', fontStyle: 'italic' }}>"{reason}"</p>}
+                    </div>
+                    <div style={{ flex: 1, height: 1, background: '#fed7aa' }} />
                   </div>
-                  <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
-                    {fmtTime(msg.created_at)}
-                    {isMine && msg.id === lastSeenId && (
-                      <span style={{ marginLeft: 6, color: '#f97316', fontWeight: 600 }}>· Seen</span>
-                    )}
-                  </p>
+                </div>
+              )
+            }
+
+            return (
+              <div key={msg.id}>
+                {dateSep}
+                <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                  <div style={{ maxWidth: '82%' }}>
+                    <div style={{
+                      padding: mediaUrl ? '4px' : '8px 12px',
+                      borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                      background: isMine ? '#f97316' : '#f3f4f6',
+                      color: isMine ? '#fff' : '#1f2937',
+                      fontSize: '0.85rem',
+                      lineHeight: 1.5,
+                      wordBreak: 'break-word',
+                      overflow: 'hidden',
+                    }}>
+                      {isImage && <img src={mediaUrl} alt="evidence" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12, display: 'block' }} />}
+                      {isVideo && <video src={mediaUrl} controls style={{ maxWidth: 200, borderRadius: 12, display: 'block' }} />}
+                      {!mediaUrl && msg.content}
+                    </div>
+                    <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
+                      {fmtTime(msg.created_at)}
+                      {isMine && msg.id === lastSeenId && (
+                        <span style={{ marginLeft: 6, color: '#f97316', fontWeight: 600 }}>· Seen</span>
+                      )}
+                    </p>
+                  </div>
                 </div>
               </div>
             )
@@ -2639,6 +2710,13 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         </div>
       )}
       {mediaError && <p style={{ fontSize: '0.72rem', color: '#ef4444', padding: '0 12px 4px' }}>{mediaError}</p>}
+
+      {/* Interim speech preview */}
+      {interimText && (
+        <div style={{ padding: '4px 14px', background: '#f9fafb', borderTop: '1px solid #f3f4f6', flexShrink: 0 }}>
+          <p style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{interimText}…</p>
+        </div>
+      )}
 
       {/* Input */}
       <div style={{ position: 'relative', padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
@@ -2670,6 +2748,23 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         >
           <Smile size={18} />
         </button>
+        {shouldShowMic && (
+          <button
+            type="button"
+            onClick={toggleRecording}
+            title={micDenied ? 'Microphone access denied' : isRecording ? 'Stop recording' : 'Speak your message'}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', color: isRecording ? '#ef4444' : '#9ca3af', flexShrink: 0 }}
+          >
+            {isRecording ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', flexShrink: 0, animation: 'pulse 1s cubic-bezier(0.4,0,0.6,1) infinite' }} />
+                <Mic size={17} />
+              </span>
+            ) : (
+              <Mic size={17} />
+            )}
+          </button>
+        )}
         <button
           onClick={handleSend}
           disabled={(!input.trim() && !mediaFile) || sending}
@@ -3465,6 +3560,10 @@ function Dashboard() {
   const [customerEmail, setCustomerEmail] = useState('')
   const [notifications, setNotifications] = useState([])
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
+  const [chatBubbleVisible, setChatBubbleVisible] = useState(false)
+  const [chatBubbleOpen, setChatBubbleOpen] = useState(false)
+  const [chatBubbleAdminId, setChatBubbleAdminId] = useState(null)
+  const [supportUnread, setSupportUnread] = useState(0)
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [notifToast, setNotifToast] = useState(null)
   const [interviewNotif, setInterviewNotif] = useState(null)
@@ -3765,6 +3864,39 @@ function Dashboard() {
     }
     await supabase.auth.signOut()
     navigate('/')
+  }
+
+  // ── Support chat bubble unread count ────────────────────────────────────────
+  useEffect(() => {
+    if (!userId) return
+    supabase.from('messages')
+      .select('id', { count: 'exact', head: true })
+      .is('booking_id', null)
+      .eq('receiver_id', userId)
+      .eq('is_read', false)
+      .then(({ count }) => {
+        if ((count ?? 0) > 0) { setSupportUnread(count); setChatBubbleVisible(true) }
+      })
+    const ch = supabase.channel(`support-bubble-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        const msg = payload.new
+        if (msg.booking_id === null && msg.receiver_id === userId) {
+          setSupportUnread((c) => c + 1)
+          setChatBubbleVisible(true)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [userId])
+
+  async function openChatBubble() {
+    setChatBubbleOpen(true)
+    setSupportUnread(0)
+    supabase.from('messages').update({ is_read: true }).is('booking_id', null).eq('receiver_id', userId).eq('is_read', false)
+    if (!chatBubbleAdminId) {
+      const { data } = await supabase.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle()
+      setChatBubbleAdminId(data?.id ?? null)
+    }
   }
 
   const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'My Bookings'
@@ -4077,6 +4209,115 @@ function Dashboard() {
 
         </div>
       </div>
+
+      {/* ── Floating Support Chat Bubble ─────────────────────────────────────── */}
+      {userId && tab !== 'support' && chatBubbleVisible && (
+        <>
+          {/* Bubble button + dismiss X */}
+          <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 1001 }}>
+            <button
+              onClick={chatBubbleOpen ? () => setChatBubbleOpen(false) : openChatBubble}
+              title={chatBubbleOpen ? 'Close chat' : 'Chat with Support'}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f97316, #fb923c)',
+                border: 'none',
+                cursor: 'pointer',
+                boxShadow: '0 4px 20px rgba(249,115,22,0.45)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                transition: 'transform 0.15s',
+              }}
+            >
+              {chatBubbleOpen ? <X size={22} color="#fff" /> : <MessageCircle size={24} color="#fff" />}
+            </button>
+
+            {/* Unread badge */}
+            {!chatBubbleOpen && supportUnread > 0 && (
+              <span style={{
+                position: 'absolute',
+                top: -4,
+                right: -4,
+                background: '#ef4444',
+                color: '#fff',
+                fontSize: '0.6rem',
+                fontWeight: 700,
+                borderRadius: '50%',
+                minWidth: 18,
+                height: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '0 4px',
+                border: '2px solid #fff',
+                lineHeight: 1,
+                pointerEvents: 'none',
+              }}>
+                {supportUnread > 9 ? '9+' : supportUnread}
+              </span>
+            )}
+
+            {/* Dismiss X — only when panel is closed */}
+            {!chatBubbleOpen && (
+              <button
+                onClick={() => { setChatBubbleVisible(false); setChatBubbleOpen(false) }}
+                title="Dismiss"
+                style={{
+                  position: 'absolute',
+                  top: -6,
+                  left: -6,
+                  width: 20,
+                  height: 20,
+                  borderRadius: '50%',
+                  background: '#1f2937',
+                  border: '2px solid #fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                }}
+              >
+                <X size={10} color="#fff" />
+              </button>
+            )}
+          </div>
+
+          {/* Floating chat panel */}
+          {chatBubbleOpen && (
+            <div style={{
+              position: 'fixed',
+              bottom: 96,
+              right: 20,
+              width: 'min(360px, calc(100vw - 24px))',
+              height: 'min(500px, calc(100vh - 120px))',
+              borderRadius: 20,
+              boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+              zIndex: 1000,
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              background: '#fff',
+              border: '1px solid #f3f4f6',
+            }}>
+              {chatBubbleAdminId ? (
+                <SupportInlineChat
+                  customerId={userId}
+                  adminId={chatBubbleAdminId}
+                  onBack={() => setChatBubbleOpen(false)}
+                />
+              ) : (
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 28, height: 28, border: '3px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

@@ -10,7 +10,7 @@ import {
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
   CreditCard, Search, Smile, Download, Printer, SquarePen, BarChart2,
-  Camera, Video,
+  Camera, Video, Mic,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -4743,11 +4743,17 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   const [mediaFile, setMediaFile] = useState(null)
   const [mediaPreview, setMediaPreview] = useState(null)
   const [mediaError, setMediaError] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+  const [interimText, setInterimText] = useState('')
+  const [micDenied, setMicDenied] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const pickerRef = useRef(null)
   const imageInputRef = useRef(null)
   const videoInputRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+  const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
   async function fetchMessages() {
     // Collect all admin profile IDs — customer may have sent to a different admin UUID
@@ -4878,6 +4884,31 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
     inputRef.current?.focus()
   }
 
+  function toggleRecording() {
+    if (isRecording) { recognitionRef.current?.stop(); return }
+    setMicDenied(false)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-PH'
+    rec.onresult = (e) => {
+      let interim = '', final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + final)
+      setInterimText(interim)
+    }
+    rec.onerror = (e) => { if (e.error === 'not-allowed') setMicDenied(true); setIsRecording(false); setInterimText('') }
+    rec.onend = () => { setIsRecording(false); setInterimText('') }
+    recognitionRef.current = rec
+    rec.start()
+    setIsRecording(true)
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Chat header */}
@@ -4909,23 +4940,63 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
             <p className="text-gray-400 text-sm text-center">No messages yet.<br />Start the conversation!</p>
           </div>
         ) : (
-          messages.map((msg) => {
+          messages.map((msg, idx) => {
             const isMine = msg.sender_id === adminUserId
             const isImage = msg.content?.startsWith('[image:')
             const isVideo = msg.content?.startsWith('[video:')
             const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
-            return (
-              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
-                  isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
-                  {isImage && <img src={mediaUrl} alt="evidence" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
-                  {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
-                  {!mediaUrl && msg.content}
+            const isDisputeMarker = msg.content?.startsWith('[Dispute for Booking #')
+            const showDate = new Date(msg.created_at).toDateString() !== (idx > 0 ? new Date(messages[idx - 1].created_at).toDateString() : null)
+            const fmtDateLabel = (iso) => {
+              const d = new Date(iso), now = new Date()
+              const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1)
+              if (d.toDateString() === now.toDateString()) return 'Today'
+              if (d.toDateString() === yesterday.toDateString()) return 'Yesterday'
+              return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+            }
+
+            const dateSep = showDate && (
+              <div className="flex items-center gap-2 my-1.5">
+                <div className="flex-1 h-px bg-gray-200" />
+                <span className="text-[10px] text-gray-400 font-semibold whitespace-nowrap">{fmtDateLabel(msg.created_at)}</span>
+                <div className="flex-1 h-px bg-gray-200" />
+              </div>
+            )
+
+            if (isDisputeMarker) {
+              const match = msg.content.match(/^\[Dispute for Booking #([^\]]+)\]\s*(.*)$/)
+              const bookingRef = match?.[1] ?? ''
+              const reason = match?.[2] ?? ''
+              return (
+                <div key={msg.id}>
+                  {dateSep}
+                  <div className="flex items-center gap-2 my-1">
+                    <div className="flex-1 h-px bg-orange-200" />
+                    <div className="bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 text-center flex-shrink-0">
+                      <p className="text-[11px] font-bold text-orange-600">⚠️ Dispute Opened — Booking #{bookingRef}</p>
+                      {reason && <p className="text-[10px] text-gray-400 italic mt-0.5">"{reason}"</p>}
+                    </div>
+                    <div className="flex-1 h-px bg-orange-200" />
+                  </div>
                 </div>
-                <p className="text-xs text-gray-400 mt-1 px-1">
-                  {isMine ? 'You' : otherUserName} · {fmtTime(msg.created_at)}
-                </p>
+              )
+            }
+
+            return (
+              <div key={msg.id}>
+                {dateSep}
+                <div className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
+                  <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
+                    isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
+                    {isImage && <img src={mediaUrl} alt="evidence" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
+                    {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
+                    {!mediaUrl && msg.content}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1 px-1">
+                    {isMine ? 'You' : otherUserName} · {fmtTime(msg.created_at)}
+                  </p>
+                </div>
               </div>
             )
           })
@@ -4945,6 +5016,13 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         </div>
       )}
       {mediaError && <p className="text-xs text-red-500 px-4 pb-1">{mediaError}</p>}
+
+      {/* Interim speech preview */}
+      {interimText && (
+        <div className="px-4 py-1.5 bg-gray-50 border-t border-gray-100 flex-shrink-0">
+          <p className="text-xs text-gray-400 italic truncate">{interimText}…</p>
+        </div>
+      )}
 
       {/* Input */}
       <div className="relative flex items-center gap-2 px-4 py-3 border-t border-gray-100 flex-shrink-0">
@@ -4977,6 +5055,23 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         >
           <Smile size={20} />
         </button>
+        {shouldShowMic && (
+          <button
+            type="button"
+            onClick={toggleRecording}
+            title={micDenied ? 'Microphone access denied' : isRecording ? 'Stop recording' : 'Speak your message'}
+            className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-400 hover:text-orange-500'}`}
+          >
+            {isRecording ? (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <Mic size={18} />
+              </span>
+            ) : (
+              <Mic size={18} />
+            )}
+          </button>
+        )}
         <button
           onClick={handleSend}
           disabled={(!input.trim() && !mediaFile) || sending}

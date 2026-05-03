@@ -11,7 +11,7 @@ import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile,
+  LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import EmojiPicker from 'emoji-picker-react'
@@ -3700,6 +3700,10 @@ function TaskerDashboard() {
   const [notifications, setNotifications] = useState([])
   const [unreadNotifCount, setUnreadNotifCount] = useState(0)
   const [notifTabOpen, setNotifTabOpen] = useState(false)
+  const [chatBubbleVisible, setChatBubbleVisible] = useState(false)
+  const [chatBubbleOpen, setChatBubbleOpen] = useState(false)
+  const [chatBubbleConvos, setChatBubbleConvos] = useState([])
+  const [chatBubbleSelected, setChatBubbleSelected] = useState(null)
   const [announcements, setAnnouncements] = useState([])
   const [showNotifBanner, setShowNotifBanner] = useState(false)
   const [notifToast, setNotifToast] = useState(null)
@@ -3924,6 +3928,70 @@ function TaskerDashboard() {
     }
     await supabase.auth.signOut()
     navigate('/')
+  }
+
+  // ── Chat bubble: unread conversations ───────────────────────────────────────
+  useEffect(() => {
+    if (!taskerUserId) return
+
+    async function fetchUnreadConvos() {
+      const { data: msgs } = await supabase
+        .from('messages')
+        .select('booking_id, content, created_at')
+        .eq('receiver_id', taskerUserId)
+        .eq('is_read', false)
+        .not('booking_id', 'is', null)
+        .order('created_at', { ascending: false })
+      if (!msgs || msgs.length === 0) return
+
+      const bookingIds = [...new Set(msgs.map((m) => m.booking_id))]
+      const { data: bookingRows } = await supabase
+        .from('bookings')
+        .select('id, client_id, customer_name, service')
+        .in('id', bookingIds)
+      const bookingMap = {}
+      bookingRows?.forEach((b) => { bookingMap[b.id] = b })
+
+      const byBooking = {}
+      msgs.forEach((msg) => {
+        if (!byBooking[msg.booking_id]) byBooking[msg.booking_id] = { count: 0, lastMsg: msg.content, lastAt: msg.created_at }
+        byBooking[msg.booking_id].count++
+      })
+
+      const convos = Object.entries(byBooking)
+        .map(([bookingId, info]) => {
+          const b = bookingMap[bookingId]
+          if (!b?.client_id) return null
+          return { bookingId, customerName: b.customer_name ?? 'Customer', clientId: b.client_id, service: b.service ?? '', unread: info.count, lastMsg: info.lastMsg, lastAt: info.lastAt }
+        })
+        .filter(Boolean)
+
+      if (convos.length > 0) { setChatBubbleConvos(convos); setChatBubbleVisible(true) }
+    }
+
+    fetchUnreadConvos()
+
+    const ch = supabase.channel(`tasker-bubble-${taskerUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, async (payload) => {
+        const msg = payload.new
+        if (msg.receiver_id !== taskerUserId || msg.booking_id === null || msg.is_read) return
+        const { data: b } = await supabase.from('bookings').select('id, client_id, customer_name, service').eq('id', msg.booking_id).maybeSingle()
+        if (!b?.client_id) return
+        setChatBubbleConvos((prev) => {
+          const exists = prev.find((c) => c.bookingId === msg.booking_id)
+          if (exists) return prev.map((c) => c.bookingId === msg.booking_id ? { ...c, unread: c.unread + 1, lastMsg: msg.content, lastAt: msg.created_at } : c)
+          return [{ bookingId: msg.booking_id, customerName: b.customer_name ?? 'Customer', clientId: b.client_id, service: b.service ?? '', unread: 1, lastMsg: msg.content, lastAt: msg.created_at }, ...prev]
+        })
+        setChatBubbleVisible(true)
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [taskerUserId])
+
+  function openConvo(convo) {
+    setChatBubbleSelected(convo)
+    setChatBubbleConvos((prev) => prev.map((c) => c.bookingId === convo.bookingId ? { ...c, unread: 0 } : c))
+    supabase.from('messages').update({ is_read: true }).eq('booking_id', convo.bookingId).eq('receiver_id', taskerUserId).eq('is_read', false)
   }
 
   const activeLabel = NAV_ITEMS.find((n) => n.key === tab)?.label ?? 'Dashboard'
@@ -4321,6 +4389,139 @@ function TaskerDashboard() {
 
         </div>
       </div>
+
+      {/* ── Floating Chat Bubble (Tasker) ────────────────────────────────────── */}
+      {taskerUserId && chatBubbleVisible && !chatBubbleSelected && (
+        <>
+          <div style={{ position: 'fixed', bottom: 28, right: 28, zIndex: 1001 }}>
+            <button
+              onClick={chatBubbleOpen ? () => setChatBubbleOpen(false) : () => setChatBubbleOpen(true)}
+              title={chatBubbleOpen ? 'Close' : 'Messages'}
+              style={{
+                width: 56, height: 56, borderRadius: '50%',
+                background: 'linear-gradient(135deg, #f97316, #fb923c)',
+                border: 'none', cursor: 'pointer',
+                boxShadow: '0 4px 20px rgba(249,115,22,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                transition: 'transform 0.15s',
+              }}
+            >
+              {chatBubbleOpen ? <X size={22} color="#fff" /> : <MessageCircle size={24} color="#fff" />}
+            </button>
+
+            {/* Total unread badge */}
+            {!chatBubbleOpen && chatBubbleConvos.reduce((s, c) => s + c.unread, 0) > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#ef4444', color: '#fff',
+                fontSize: '0.6rem', fontWeight: 700, borderRadius: '50%',
+                minWidth: 18, height: 18, display: 'flex',
+                alignItems: 'center', justifyContent: 'center',
+                padding: '0 4px', border: '2px solid #fff', lineHeight: 1, pointerEvents: 'none',
+              }}>
+                {chatBubbleConvos.reduce((s, c) => s + c.unread, 0) > 9 ? '9+' : chatBubbleConvos.reduce((s, c) => s + c.unread, 0)}
+              </span>
+            )}
+
+            {/* Dismiss X */}
+            {!chatBubbleOpen && (
+              <button
+                onClick={() => { setChatBubbleVisible(false); setChatBubbleOpen(false) }}
+                title="Dismiss"
+                style={{
+                  position: 'absolute', top: -6, left: -6,
+                  width: 20, height: 20, borderRadius: '50%',
+                  background: '#1f2937', border: '2px solid #fff',
+                  cursor: 'pointer', display: 'flex',
+                  alignItems: 'center', justifyContent: 'center', padding: 0,
+                }}
+              >
+                <X size={10} color="#fff" />
+              </button>
+            )}
+          </div>
+
+          {/* Mini inbox panel */}
+          {chatBubbleOpen && (
+            <div style={{
+              position: 'fixed', bottom: 96, right: 20,
+              width: 'min(360px, calc(100vw - 24px))',
+              maxHeight: 'min(420px, calc(100vh - 120px))',
+              borderRadius: 20, boxShadow: '0 8px 40px rgba(0,0,0,0.18)',
+              zIndex: 1000, display: 'flex', flexDirection: 'column',
+              overflow: 'hidden', background: '#fff', border: '1px solid #f3f4f6',
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '14px 16px', flexShrink: 0,
+                background: 'linear-gradient(135deg, #f97316, #fb923c)',
+                display: 'flex', alignItems: 'center', gap: 10,
+              }}>
+                <MessageCircle size={18} color="#fff" />
+                <p style={{ fontWeight: 700, color: '#fff', fontSize: '0.9rem', margin: 0, flex: 1 }}>Messages</p>
+              </div>
+
+              {/* Conversation list */}
+              <div style={{ overflowY: 'auto', flex: 1 }}>
+                {chatBubbleConvos.length === 0 ? (
+                  <div style={{ padding: '32px 16px', textAlign: 'center', color: '#9ca3af', fontSize: '0.85rem' }}>
+                    No messages
+                  </div>
+                ) : chatBubbleConvos.map((convo) => (
+                  <button
+                    key={convo.bookingId}
+                    onClick={() => openConvo(convo)}
+                    style={{
+                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
+                      padding: '12px 16px', background: 'none', border: 'none',
+                      borderBottom: '1px solid #f3f4f6', cursor: 'pointer', textAlign: 'left',
+                    }}
+                  >
+                    {/* Avatar */}
+                    <div style={{
+                      width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                      background: 'linear-gradient(135deg, #f97316, #fb923c)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <span style={{ color: '#fff', fontWeight: 700, fontSize: '1rem' }}>
+                        {convo.customerName.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.85rem', margin: '0 0 1px' }}>{convo.customerName}</p>
+                      <p style={{ color: '#6b7280', fontSize: '0.72rem', margin: '0 0 2px' }}>{convo.service}</p>
+                      <p style={{ color: '#9ca3af', fontSize: '0.72rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {convo.lastMsg?.startsWith('[image:') ? '📷 Photo' : convo.lastMsg?.startsWith('[video:') ? '🎥 Video' : convo.lastMsg}
+                      </p>
+                    </div>
+                    {convo.unread > 0 && (
+                      <span style={{
+                        background: '#f97316', color: '#fff', fontSize: '0.65rem',
+                        fontWeight: 700, borderRadius: '50%', minWidth: 20, height: 20,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        padding: '0 4px', flexShrink: 0,
+                      }}>
+                        {convo.unread > 9 ? '9+' : convo.unread}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ChatModal opened from bubble */}
+      {chatBubbleSelected && (
+        <ChatModal
+          bookingId={chatBubbleSelected.bookingId}
+          currentUserId={taskerUserId}
+          otherUserId={chatBubbleSelected.clientId}
+          otherUserName={chatBubbleSelected.customerName}
+          onClose={() => setChatBubbleSelected(null)}
+        />
+      )}
     </div>
   )
 }

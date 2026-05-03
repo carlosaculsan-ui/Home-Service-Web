@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send, Phone, Smile } from 'lucide-react'
+import { X, Send, Phone, Smile, Mic } from 'lucide-react'
 import { supabase } from '../supabase'
 import EmojiPicker from 'emoji-picker-react'
 
@@ -22,7 +22,13 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const [isCustomer, setIsCustomer] = useState(false)
   const [taskerPhone, setTaskerPhone] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
+  const [interimText, setInterimText] = useState('')
+  const [micDenied, setMicDenied] = useState(false)
   const pickerRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+  const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
   // ── Fetch booking info + user role for intro message ───────────────────────
   useEffect(() => {
@@ -177,6 +183,31 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     inputRef.current?.focus()
   }
 
+  function toggleRecording() {
+    if (isRecording) { recognitionRef.current?.stop(); return }
+    setMicDenied(false)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-PH'
+    rec.onresult = (e) => {
+      let interim = '', final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + final)
+      setInterimText(interim)
+    }
+    rec.onerror = (e) => { if (e.error === 'not-allowed') setMicDenied(true); setIsRecording(false); setInterimText('') }
+    rec.onend = () => { setIsRecording(false); setInterimText('') }
+    recognitionRef.current = rec
+    rec.start()
+    setIsRecording(true)
+  }
+
   return (
     <>
       {/* Backdrop */}
@@ -288,6 +319,13 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
             <div ref={bottomRef} />
           </div>
 
+          {/* Interim speech preview */}
+          {interimText && (
+            <div className="px-4 py-1.5 bg-gray-50 border-t border-gray-100 flex-shrink-0">
+              <p className="text-xs text-gray-400 italic truncate">{interimText}…</p>
+            </div>
+          )}
+
           {/* Input */}
           <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
             {showEmojiPicker && (
@@ -311,6 +349,23 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
             >
               <Smile size={20} />
             </button>
+            {shouldShowMic && (
+              <button
+                type="button"
+                onClick={toggleRecording}
+                title={micDenied ? 'Microphone access denied' : isRecording ? 'Stop recording' : 'Speak your message'}
+                className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-400 hover:text-orange-500'}`}
+              >
+                {isRecording ? (
+                  <span className="flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                    <Mic size={18} />
+                  </span>
+                ) : (
+                  <Mic size={18} />
+                )}
+              </button>
+            )}
             <button
               onClick={handleSend}
               disabled={!input.trim() || sending}
