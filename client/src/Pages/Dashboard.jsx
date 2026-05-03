@@ -2445,10 +2445,12 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const [mediaFile, setMediaFile] = useState(null)
   const [mediaPreview, setMediaPreview] = useState(null)
   const [mediaError, setMediaError] = useState('')
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
   const videoInputRef = useRef(null)
+  const emojiPickerRef = useRef(null)
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -2541,6 +2543,22 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
     }
   }
 
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(e.target)) {
+        setShowEmojiPicker(false)
+      }
+    }
+    if (showEmojiPicker) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showEmojiPicker])
+
+  function handleEmojiClick(emojiData) {
+    setInput((prev) => prev + emojiData.emoji)
+    setShowEmojiPicker(false)
+    inputRef.current?.focus()
+  }
+
   const fmtTime = (iso) => iso
     ? new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
     : ''
@@ -2563,7 +2581,6 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
       <div className="mx-4 mt-4 mb-2 bg-orange-50 border border-orange-100 rounded-xl p-4 text-sm">
         <p className="font-semibold text-gray-800 mb-1">👋 You're connected with Hanap.ph Support</p>
         <p className="text-gray-600">Please describe your concern and our team will get back to you as soon as possible.</p>
-        <p className="text-xs text-gray-400 mt-2">For urgent matters, expect a response within 24 hours.</p>
       </div>
 
       {/* Messages */}
@@ -2624,7 +2641,12 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
       {mediaError && <p style={{ fontSize: '0.72rem', color: '#ef4444', padding: '0 12px 4px' }}>{mediaError}</p>}
 
       {/* Input */}
-      <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+      <div style={{ position: 'relative', padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
+        {showEmojiPicker && (
+          <div ref={emojiPickerRef} style={{ position: 'absolute', bottom: 64, right: 12, zIndex: 50 }}>
+            <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+          </div>
+        )}
         <label style={{ cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', color: '#9ca3af' }} title="Attach photo">
           <Camera size={18} />
           <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
@@ -2641,6 +2663,13 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
           placeholder="Type a message..."
           style={{ flex: 1, border: '1px solid #e5e7eb', borderRadius: '10px', padding: '9px 12px', fontSize: '16px', outline: 'none', color: '#1f2937', minWidth: 0 }}
         />
+        <button
+          type="button"
+          onClick={() => setShowEmojiPicker((p) => !p)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '6px', display: 'flex', alignItems: 'center', color: '#9ca3af', flexShrink: 0 }}
+        >
+          <Smile size={18} />
+        </button>
         <button
           onClick={handleSend}
           disabled={(!input.trim() && !mediaFile) || sending}

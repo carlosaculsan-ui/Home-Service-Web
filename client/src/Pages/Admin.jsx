@@ -2198,6 +2198,26 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
     <>
       {confirmState && <ConfirmModal message={confirmState.message} onConfirm={() => { setConfirmState(null); confirmState.onConfirm() }} onCancel={() => setConfirmState(null)} danger={confirmState.danger} />}
     <div className="space-y-4">
+      {/* Dispute alert banner */}
+      {(() => {
+        const count = bookings.filter(b => b.status === 'disputed').length
+        if (count === 0) return null
+        return (
+          <div className="flex items-center gap-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3">
+            <span className="text-red-500 text-lg leading-none">⚠️</span>
+            <p className="text-sm font-semibold text-red-700 flex-1">
+              {count === 1 ? '1 active dispute' : `${count} active disputes`} — tasker payout is on hold
+            </p>
+            <button
+              onClick={() => setBookingFilter('disputed')}
+              className="text-xs font-bold text-red-600 border border-red-400 px-3 py-1.5 rounded-lg hover:bg-red-100 transition whitespace-nowrap"
+            >
+              View
+            </button>
+          </div>
+        )
+      })()}
+
       {/* Search bar */}
       <div className="relative">
         <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
@@ -2225,6 +2245,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
           { value: 'on_the_way',           label: 'On The Way' },
           { value: 'in_progress',          label: 'In Progress' },
           { value: 'pending_confirmation', label: 'Awaiting Confirmation' },
+          { value: 'disputed',             label: 'Disputed' },
           { value: 'completed',            label: 'Completed' },
           { value: 'cancelled',            label: 'Cancelled' },
         ].map(({ value, label }) => (
@@ -2340,30 +2361,6 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
                   {forceCompleteProcessing === b.id ? 'Processing…' : 'Force Complete'}
                 </button>
               )}
-              {b.status === 'disputed' && (
-                <div className="flex flex-col gap-2 items-end">
-                  <button
-                    onClick={() => setDisputeChatBookingId(b.id)}
-                    className="text-xs border border-blue-400 text-blue-600 px-3 py-1 rounded-lg hover:bg-blue-50 transition whitespace-nowrap"
-                  >
-                    View Dispute Chat
-                  </button>
-                  <button
-                    onClick={() => handleDisputeForceComplete(b)}
-                    disabled={forceCompleteProcessing === b.id}
-                    className="text-xs border border-green-500 text-green-600 px-3 py-1 rounded-lg hover:bg-green-50 transition disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {forceCompleteProcessing === b.id ? 'Processing…' : 'Tasker Wins'}
-                  </button>
-                  <button
-                    onClick={() => handleDisputeRefund(b)}
-                    disabled={forceCompleteProcessing === b.id}
-                    className="text-xs border border-orange-400 text-orange-600 px-3 py-1 rounded-lg hover:bg-orange-50 transition disabled:opacity-50 whitespace-nowrap"
-                  >
-                    {forceCompleteProcessing === b.id ? 'Processing…' : 'Customer Wins (40% Refund)'}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
           {(b.platform_fee != null || b.tasker_payout != null) && (() => {
@@ -2411,6 +2408,31 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
               >
                 <img src={b.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
                 View completion photo
+              </button>
+            </div>
+          )}
+          {b.status === 'disputed' && (
+            <div className="mt-3 rounded-xl bg-orange-50 border border-orange-200 px-4 py-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold text-orange-600 mr-auto">Resolve Dispute:</span>
+              <button
+                onClick={() => setDisputeChatBookingId(b.id)}
+                className="text-xs font-medium border border-blue-400 text-blue-600 px-3 py-1.5 rounded-lg hover:bg-blue-50 transition whitespace-nowrap"
+              >
+                View Dispute Chat
+              </button>
+              <button
+                onClick={() => handleDisputeForceComplete(b)}
+                disabled={forceCompleteProcessing === b.id}
+                className="text-xs font-medium border border-green-500 text-green-600 px-3 py-1.5 rounded-lg hover:bg-green-50 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {forceCompleteProcessing === b.id ? 'Processing…' : 'Tasker Wins'}
+              </button>
+              <button
+                onClick={() => handleDisputeRefund(b)}
+                disabled={forceCompleteProcessing === b.id}
+                className="text-xs font-medium border border-orange-400 text-orange-600 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition disabled:opacity-50 whitespace-nowrap"
+              >
+                {forceCompleteProcessing === b.id ? 'Processing…' : 'Customer Wins (40% Refund)'}
               </button>
             </div>
           )}
@@ -4728,26 +4750,32 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   const videoInputRef = useRef(null)
 
   async function fetchMessages() {
+    // Collect all admin profile IDs — customer may have sent to a different admin UUID
+    const { data: adminProfiles } = await supabase.from('profiles').select('id').eq('role', 'admin')
+    const allAdminIds = [...new Set([adminUserId, ...(adminProfiles?.map((a) => a.id) ?? [])])]
+
+    const orParts = allAdminIds.flatMap((aid) => [
+      `and(sender_id.eq.${aid},receiver_id.eq.${otherUserId})`,
+      `and(sender_id.eq.${otherUserId},receiver_id.eq.${aid})`,
+    ])
+
     const { data } = await supabase
       .from('messages')
       .select('*')
       .is('booking_id', null)
-      .or(`sender_id.eq.${adminUserId},receiver_id.eq.${adminUserId}`)
+      .or(orParts.join(','))
       .order('created_at', { ascending: true })
-    // Keep only messages between these two users
-    setMessages((data ?? []).filter(
-      (m) => (m.sender_id === adminUserId && m.receiver_id === otherUserId) ||
-             (m.sender_id === otherUserId && m.receiver_id === adminUserId)
-    ))
+
+    setMessages(data ?? [])
   }
 
   async function markAsRead() {
+    // Mark all unread messages from this user as read, regardless of which admin received them
     await supabase
       .from('messages')
       .update({ is_read: true })
       .is('booking_id', null)
       .eq('sender_id', otherUserId)
-      .eq('receiver_id', adminUserId)
       .eq('is_read', false)
   }
 
@@ -4973,12 +5001,17 @@ function AdminMessagesPanel({ adminUserId }) {
   async function fetchConversations() {
     if (!adminUserId) return
 
+    // Collect all admin profile IDs so inbox catches messages sent to any admin account
+    const { data: adminProfiles } = await supabase.from('profiles').select('id').eq('role', 'admin')
+    const allAdminIds = [...new Set([adminUserId, ...(adminProfiles?.map((a) => a.id) ?? [])])]
+    const adminOrParts = allAdminIds.flatMap((aid) => [`sender_id.eq.${aid}`, `receiver_id.eq.${aid}`])
+
     // Fetch all admin messages (booking_id IS NULL)
     const { data: msgs } = await supabase
       .from('messages')
       .select('*')
       .is('booking_id', null)
-      .or(`sender_id.eq.${adminUserId},receiver_id.eq.${adminUserId}`)
+      .or(adminOrParts.join(','))
       .order('created_at', { ascending: false })
 
     if (!msgs || msgs.length === 0) { setLoading(false); return }
@@ -7699,7 +7732,7 @@ const NAV_ITEMS = [
   { key: 'transactions',    label: 'Transactions',        icon: CreditCard },
 ]
 
-function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, pendingCount, pendingCountAtView, setPendingCountAtView, onLogout, onClose }) {
+function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEmpSubtab, svcSubtab, setSvcSubtab, msgSubtab, setMsgSubtab, adminEmail, inboxUnread, pendingCount, pendingCountAtView, setPendingCountAtView, disputeCount, onLogout, onClose }) {
   // ── Subtab open state ───────────────────────────────────────────────────────
   const [empSubOpen, setEmpSubOpen] = useState(tab === 'tasker-accounts')
   const [svcSubOpen, setSvcSubOpen] = useState(tab === 'services')
@@ -7914,6 +7947,11 @@ function AdminSidebar({ tab, setTab, dashSubtab, setDashSubtab, empSubtab, setEm
           >
             <Icon size={17} className="flex-shrink-0" />
             {label}
+            {key === 'bookings' && disputeCount > 0 && (
+              <span className="ml-1 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1">
+                {disputeCount > 99 ? '99+' : disputeCount}
+              </span>
+            )}
           </button>
         ))}
       </nav>
@@ -7948,6 +7986,7 @@ function Admin() {
   const [adminUserId, setAdminUserId] = useState('')
   const [inboxUnread, setInboxUnread] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
+  const [disputeCount, setDisputeCount] = useState(0)
   const [pendingCountAtView, setPendingCountAtView] = useState(null)
   const [calendarBookings, setCalendarBookings] = useState([])
   const [approvedLeaves, setApprovedLeaves] = useState([])
@@ -8086,6 +8125,25 @@ function Admin() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  async function fetchDisputeCount() {
+    const { count } = await supabase
+      .from('bookings')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'disputed')
+    setDisputeCount(count ?? 0)
+  }
+
+  useEffect(() => {
+    fetchDisputeCount()
+    const channel = supabase
+      .channel('admin-dispute-count')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'bookings' }, () => {
+        fetchDisputeCount()
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     navigate('/admin')
@@ -8122,6 +8180,7 @@ function Admin() {
           pendingCount={pendingCount}
           pendingCountAtView={pendingCountAtView}
           setPendingCountAtView={setPendingCountAtView}
+          disputeCount={disputeCount}
           onLogout={handleLogout}
         />
       </div>
@@ -8150,6 +8209,7 @@ function Admin() {
               pendingCount={pendingCount}
               pendingCountAtView={pendingCountAtView}
               setPendingCountAtView={setPendingCountAtView}
+              disputeCount={disputeCount}
               onLogout={handleLogout}
               onClose={() => setSidebarOpen(false)}
             />
