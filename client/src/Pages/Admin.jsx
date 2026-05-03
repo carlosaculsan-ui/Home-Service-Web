@@ -10,6 +10,7 @@ import {
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
   CreditCard, Search, Smile, Download, Printer, SquarePen, BarChart2,
+  Camera, Video,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -1836,7 +1837,7 @@ const getStatusBadge = (status) => {
   )
 }
 
-function BookingsPanel({ bookingFilter, setBookingFilter }) {
+function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
@@ -1849,6 +1850,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
   const [forceCompleteProcessing, setForceCompleteProcessing] = useState(null)
   const [completionPhotoModalUrl, setCompletionPhotoModalUrl] = useState(null)
   const [confirmState, setConfirmState] = useState(null)
+  const [disputeChatBookingId, setDisputeChatBookingId] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
   async function fetchBookings() {
@@ -2341,6 +2343,12 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
               {b.status === 'disputed' && (
                 <div className="flex flex-col gap-2 items-end">
                   <button
+                    onClick={() => setDisputeChatBookingId(b.id)}
+                    className="text-xs border border-blue-400 text-blue-600 px-3 py-1 rounded-lg hover:bg-blue-50 transition whitespace-nowrap"
+                  >
+                    View Dispute Chat
+                  </button>
+                  <button
                     onClick={() => handleDisputeForceComplete(b)}
                     disabled={forceCompleteProcessing === b.id}
                     className="text-xs border border-green-500 text-green-600 px-3 py-1 rounded-lg hover:bg-green-50 transition disabled:opacity-50 whitespace-nowrap"
@@ -2423,6 +2431,32 @@ function BookingsPanel({ bookingFilter, setBookingFilter }) {
         </div>
       )})}
     </div>
+
+    {/* Dispute Chat Modal */}
+    {disputeChatBookingId && adminUserId && (() => {
+      const b = bookings.find(bk => bk.id === disputeChatBookingId)
+      if (!b?.client_id) return null
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setDisputeChatBookingId(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-lg" style={{ height: 580 }} onClick={e => e.stopPropagation()}>
+            <div className="px-4 pt-4 pb-2 border-b border-gray-100 flex-shrink-0">
+              <p className="text-xs font-semibold text-orange-500">Dispute Chat</p>
+              <p className="text-sm font-bold text-gray-800">{b.customer_name || b.clientEmail}</p>
+              {b.dispute_reason && <p className="text-xs text-gray-400 mt-0.5 truncate">Re: {b.dispute_reason}</p>}
+            </div>
+            <div className="flex-1 min-h-0">
+              <AdminInlineChat
+                adminUserId={adminUserId}
+                otherUserId={b.client_id}
+                otherUserName={b.customer_name || b.clientEmail || 'Customer'}
+                otherUserPhoto={null}
+                onBack={() => setDisputeChatBookingId(null)}
+              />
+            </div>
+          </div>
+        </div>
+      )
+    })()}
 
     {/* Completion Photo Modal */}
     {completionPhotoModalUrl && (
@@ -4684,9 +4718,14 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [mediaFile, setMediaFile] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const [mediaError, setMediaError] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const pickerRef = useRef(null)
+  const imageInputRef = useRef(null)
+  const videoInputRef = useRef(null)
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -4743,18 +4782,52 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
 
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending) return
+    if ((!text && !mediaFile) || sending) return
     setSending(true)
     setInput('')
-    await supabase.from('messages').insert({
-      booking_id: null,
-      sender_id: adminUserId,
-      receiver_id: otherUserId,
-      content: text,
-      is_read: false,
-    })
+
+    if (mediaFile) {
+      const ext = mediaFile.name.split('.').pop()
+      const path = `dispute-evidence/${adminUserId}-${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage.from('booking-assets').upload(path, mediaFile)
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
+        const isVideo = mediaFile.type.startsWith('video/')
+        const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
+        await supabase.from('messages').insert({ booking_id: null, sender_id: adminUserId, receiver_id: otherUserId, content: mediaContent, is_read: false })
+      }
+      setMediaFile(null)
+      setMediaPreview(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      if (videoInputRef.current) videoInputRef.current.value = ''
+    }
+
+    if (text) {
+      await supabase.from('messages').insert({ booking_id: null, sender_id: adminUserId, receiver_id: otherUserId, content: text, is_read: false })
+    }
+
     setSending(false)
     inputRef.current?.focus()
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMediaError('')
+    if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video')
+      vid.preload = 'metadata'
+      vid.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(vid.src)
+        if (vid.duration > 10) { setMediaError('Video must be 10 seconds or less.'); return }
+        setMediaFile(file)
+        setMediaPreview(URL.createObjectURL(file))
+      }
+      vid.src = URL.createObjectURL(file)
+    } else {
+      setMediaFile(file)
+      setMediaPreview(URL.createObjectURL(file))
+    }
   }
 
   const fmtTime = (iso) => iso
@@ -4810,12 +4883,17 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         ) : (
           messages.map((msg) => {
             const isMine = msg.sender_id === adminUserId
+            const isImage = msg.content?.startsWith('[image:')
+            const isVideo = msg.content?.startsWith('[video:')
+            const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
             return (
               <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
                   isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                }`}>
-                  {msg.content}
+                } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
+                  {isImage && <img src={mediaUrl} alt="evidence" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
+                  {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
+                  {!mediaUrl && msg.content}
                 </div>
                 <p className="text-xs text-gray-400 mt-1 px-1">
                   {isMine ? 'You' : otherUserName} · {fmtTime(msg.created_at)}
@@ -4827,13 +4905,34 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         <div ref={bottomRef} />
       </div>
 
+      {/* Media preview */}
+      {mediaPreview && (
+        <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-100">
+          {mediaFile?.type.startsWith('video/') ? (
+            <video src={mediaPreview} className="w-12 h-12 object-cover rounded-lg border border-gray-200" muted />
+          ) : (
+            <img src={mediaPreview} alt="preview" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+          )}
+          <button onClick={() => { setMediaFile(null); setMediaPreview(null); if (imageInputRef.current) imageInputRef.current.value = ''; if (videoInputRef.current) videoInputRef.current.value = '' }} className="text-xs text-red-400 hover:text-red-600">Remove</button>
+        </div>
+      )}
+      {mediaError && <p className="text-xs text-red-500 px-4 pb-1">{mediaError}</p>}
+
       {/* Input */}
-      <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+      <div className="relative flex items-center gap-2 px-4 py-3 border-t border-gray-100 flex-shrink-0">
         {showEmojiPicker && (
           <div ref={pickerRef} className="absolute bottom-16 right-4 z-50">
             <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
           </div>
         )}
+        <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0" title="Attach photo">
+          <Camera size={20} />
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+        </label>
+        <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0" title="Attach video (max 10s)">
+          <Video size={20} />
+          <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+        </label>
         <input
           ref={inputRef}
           type="text"
@@ -4852,7 +4951,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         </button>
         <button
           onClick={handleSend}
-          disabled={!input.trim() || sending}
+          disabled={(!input.trim() && !mediaFile) || sending}
           className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 flex-shrink-0"
         >
           <Send size={16} />
@@ -8355,7 +8454,7 @@ function Admin() {
             {tab === 'tasker-accounts' && empSubtab === 'helpers' && <HelpersPanel />}
             {tab === 'bookings' && <>
               <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Bookings</h2>
-              <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} />
+              <BookingsPanel bookingFilter={bookingFilter} setBookingFilter={setBookingFilter} adminUserId={adminUserId} />
             </>}
             {tab === 'services' && svcSubtab === 'overview' && <>
               <h2 className="text-xl font-bold text-gray-800 mb-4 sm:mb-6">Services Overview</h2>

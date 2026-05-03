@@ -8,7 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Paperclip } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
@@ -1214,6 +1214,13 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
         message: `Customer disputed booking #${booking.reference_number ?? booking.id}. Reason: ${disputeNote.trim()}`,
         is_read: false,
       })
+      await supabase.from('messages').insert({
+        booking_id: null,
+        sender_id: userId,
+        receiver_id: adminProfile.id,
+        content: `[Dispute for Booking #${booking.reference_number ?? booking.id}] ${disputeNote.trim()}`,
+        is_read: false,
+      })
     }
 
     setDisputing(false)
@@ -1761,7 +1768,17 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
           </div>
         )}
 
-        {booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.status !== 'pending_payment' && booking.taskerUserId && (
+        {booking.status === 'disputed' ? (
+          <div className="pt-1">
+            <button
+              onClick={onOpenAdminChat}
+              className="flex items-center gap-2 text-sm font-semibold text-orange-500 hover:text-orange-600 border border-orange-200 hover:border-orange-400 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              <MessageSquare size={15} />
+              Message Admin
+            </button>
+          </div>
+        ) : booking.status !== 'cancelled' && booking.status !== 'rejected' && booking.status !== 'pending_payment' && booking.taskerUserId && (
           <div className="pt-1">
             <button
               onClick={() => setShowChat(true)}
@@ -2431,6 +2448,7 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
+  const videoInputRef = useRef(null)
 
   async function fetchMessages() {
     const { data } = await supabase
@@ -2554,35 +2572,41 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center' }}>No messages yet.<br />Send a message to get help!</p>
           </div>
-        ) : messages.map((msg) => {
-          const isMine = msg.sender_id === customerId
-          const isImage = msg.content?.startsWith('[image:')
-          const isVideo = msg.content?.startsWith('[video:')
-          const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
-          return (
-            <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
-              <div style={{ maxWidth: '82%' }}>
-                <div style={{
-                  padding: mediaUrl ? '4px' : '8px 12px',
-                  borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
-                  background: isMine ? '#f97316' : '#f3f4f6',
-                  color: isMine ? '#fff' : '#1f2937',
-                  fontSize: '0.85rem',
-                  lineHeight: 1.5,
-                  wordBreak: 'break-word',
-                  overflow: 'hidden',
-                }}>
-                  {isImage && <img src={mediaUrl} alt="evidence" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12, display: 'block' }} />}
-                  {isVideo && <video src={mediaUrl} controls style={{ maxWidth: 200, borderRadius: 12, display: 'block' }} />}
-                  {!mediaUrl && msg.content}
+        ) : (() => {
+          const lastSeenId = [...messages].reverse().find(m => m.sender_id === customerId && m.is_read)?.id
+          return messages.map((msg) => {
+            const isMine = msg.sender_id === customerId
+            const isImage = msg.content?.startsWith('[image:')
+            const isVideo = msg.content?.startsWith('[video:')
+            const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
+            return (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                <div style={{ maxWidth: '82%' }}>
+                  <div style={{
+                    padding: mediaUrl ? '4px' : '8px 12px',
+                    borderRadius: isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                    background: isMine ? '#f97316' : '#f3f4f6',
+                    color: isMine ? '#fff' : '#1f2937',
+                    fontSize: '0.85rem',
+                    lineHeight: 1.5,
+                    wordBreak: 'break-word',
+                    overflow: 'hidden',
+                  }}>
+                    {isImage && <img src={mediaUrl} alt="evidence" style={{ maxWidth: 200, maxHeight: 200, borderRadius: 12, display: 'block' }} />}
+                    {isVideo && <video src={mediaUrl} controls style={{ maxWidth: 200, borderRadius: 12, display: 'block' }} />}
+                    {!mediaUrl && msg.content}
+                  </div>
+                  <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
+                    {fmtTime(msg.created_at)}
+                    {isMine && msg.id === lastSeenId && (
+                      <span style={{ marginLeft: 6, color: '#f97316', fontWeight: 600 }}>· Seen</span>
+                    )}
+                  </p>
                 </div>
-                <p style={{ fontSize: '0.62rem', color: '#9ca3af', marginTop: '3px', textAlign: isMine ? 'right' : 'left' }}>
-                  {fmtTime(msg.created_at)}
-                </p>
               </div>
-            </div>
-          )
-        })}
+            )
+          })
+        })()}
         <div ref={bottomRef} />
       </div>
 
@@ -2594,16 +2618,20 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
           ) : (
             <img src={mediaPreview} alt="preview" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 8, border: '1px solid #e5e7eb' }} />
           )}
-          <button onClick={() => { setMediaFile(null); setMediaPreview(null); if (fileInputRef.current) fileInputRef.current.value = '' }} style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
+          <button onClick={() => { setMediaFile(null); setMediaPreview(null); if (fileInputRef.current) fileInputRef.current.value = ''; if (videoInputRef.current) videoInputRef.current.value = '' }} style={{ fontSize: '0.75rem', color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer' }}>Remove</button>
         </div>
       )}
       {mediaError && <p style={{ fontSize: '0.72rem', color: '#ef4444', padding: '0 12px 4px' }}>{mediaError}</p>}
 
       {/* Input */}
       <div style={{ padding: '10px 12px', borderTop: '1px solid #f3f4f6', display: 'flex', gap: '8px', flexShrink: 0, alignItems: 'center' }}>
-        <label style={{ cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', color: '#9ca3af' }} title="Attach photo or video (max 10s)">
-          <Paperclip size={18} />
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+        <label style={{ cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', color: '#9ca3af' }} title="Attach photo">
+          <Camera size={18} />
+          <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleFileSelect} />
+        </label>
+        <label style={{ cursor: 'pointer', flexShrink: 0, display: 'flex', alignItems: 'center', color: '#9ca3af' }} title="Attach video (max 10s)">
+          <Video size={18} />
+          <input ref={videoInputRef} type="file" accept="video/*" style={{ display: 'none' }} onChange={handleFileSelect} />
         </label>
         <input
           ref={inputRef}
@@ -2865,7 +2893,7 @@ function CustomerSupport({ userId, autoAdmin, onAutoAdminDone }) {
         .support-chat-box {
           display: flex;
           flex-direction: column;
-          height: clamp(420px, 62vh, 520px);
+          height: clamp(550px, 78vh, 720px);
           background: #fff;
           border-radius: 16px;
           border: 1px solid #f3f4f6;
@@ -2896,7 +2924,7 @@ function CustomerSupport({ userId, autoAdmin, onAutoAdminDone }) {
         }
         @media (max-width: 400px) {
           .support-chat-box {
-            height: clamp(380px, 65vh, 460px);
+            height: clamp(480px, 75vh, 620px);
             border-radius: 12px;
           }
           .support-topic-btn {
