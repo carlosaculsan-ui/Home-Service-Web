@@ -26,6 +26,10 @@ create policy "Admin read sessions" on user_sessions
 create policy "Users insert own session" on user_sessions
   for insert with check (auth.uid() = user_id);
 
+-- Users can read their own sessions (needed for .select('id') after insert)
+create policy "Users read own session" on user_sessions
+  for select using (auth.uid() = user_id);
+
 -- Users can update their own open session (set time_out)
 create policy "Users update own session" on user_sessions
   for update using (auth.uid() = user_id);

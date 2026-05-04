@@ -748,6 +748,7 @@ function SessionHistoryModal({ userId, userName, onClose }) {
         .from('user_sessions')
         .select('*')
         .eq('user_id', userId)
+        .not('time_out', 'is', null)
         .gte('time_in', start)
         .lt('time_in', end)
         .order('time_in', { ascending: false })

@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
+import { FaEnvelope } from 'react-icons/fa'
+import { Eye, EyeOff } from 'lucide-react'
 import Background from '../Assets/Background.jpg'
 import './AuthForm.css'
 
@@ -306,7 +307,7 @@ function AuthForm() {
                 className="auth-icon"
                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
-                {showPassword ? <FaLockOpen /> : <FaLock />}
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             {error && isLogin && <p className="auth-error">{error}</p>}
@@ -377,7 +378,7 @@ function AuthForm() {
                 className="auth-icon"
                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
-                {showSignupPassword ? <FaLockOpen /> : <FaLock />}
+                {showSignupPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             <div className="auth-input-box">
@@ -397,7 +398,7 @@ function AuthForm() {
                 className="auth-icon"
                 style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
-                {showConfirmPassword ? <FaLockOpen /> : <FaLock />}
+                {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
             {/* Remember Me */}

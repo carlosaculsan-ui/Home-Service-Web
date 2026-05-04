@@ -56,6 +56,7 @@ function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const accessTokenRef = useRef(null)
+  const sessionIdRef = useRef(null)
   const navigate = useNavigate()
 
   // If Supabase redirects recovery token to homepage instead of /reset-password, catch it here
@@ -84,14 +85,16 @@ function App() {
       .then(({ data }) => setProfile(data))
   }, [user])
 
-  // Close open sessions on browser/tab close using keepalive fetch (survives page unload)
+  // Close open session on browser/tab close — targets the specific session row by ID
   useEffect(() => {
     if (!user) return
-    const handleBeforeUnload = () => {
+    const closeSession = () => {
       const token = accessTokenRef.current
-      if (!token) return
+      const sessionId = sessionIdRef.current
+      if (!token || !sessionId) return
+      sessionIdRef.current = null
       fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_sessions?user_id=eq.${user.id}&time_out=is.null`,
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/user_sessions?id=eq.${sessionId}`,
         {
           method: 'PATCH',
           headers: {
@@ -105,14 +108,19 @@ function App() {
         }
       )
     }
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+    window.addEventListener('beforeunload', closeSession)
+    window.addEventListener('pagehide', closeSession)
+    return () => {
+      window.removeEventListener('beforeunload', closeSession)
+      window.removeEventListener('pagehide', closeSession)
+    }
   }, [user])
 
   useEffect(() => {
     if (!user || profile?.role !== 'tasker') return
 
     let channel
+    let localSessionId = null
     try {
       channel = supabase.channel('online-taskers', {
         config: { presence: { key: user.id } }
@@ -130,9 +138,15 @@ function App() {
               .from('profiles')
               .update({ last_time_in: new Date().toISOString(), last_time_out: null })
               .eq('id', user.id)
-            await supabase
+            const { data: sessionRow } = await supabase
               .from('user_sessions')
               .insert({ user_id: user.id, role: 'tasker', time_in: new Date().toISOString() })
+              .select('id')
+              .single()
+            if (sessionRow?.id) {
+              localSessionId = sessionRow.id
+              sessionIdRef.current = sessionRow.id
+            }
           }
         })
     } catch (err) {
@@ -140,20 +154,21 @@ function App() {
     }
 
     return () => {
-      if (channel) {
-        supabase
-          .from('profiles')
-          .update({ last_time_out: new Date().toISOString() })
-          .eq('id', user.id)
-          .then(() => {})
+      const sessionId = localSessionId || sessionIdRef.current
+      if (sessionId === sessionIdRef.current) sessionIdRef.current = null
+      supabase
+        .from('profiles')
+        .update({ last_time_out: new Date().toISOString() })
+        .eq('id', user.id)
+        .then(() => {})
+      if (sessionId) {
         supabase
           .from('user_sessions')
           .update({ time_out: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .is('time_out', null)
+          .eq('id', sessionId)
           .then(() => {})
-        supabase.removeChannel(channel)
       }
+      if (channel) supabase.removeChannel(channel)
     }
   }, [user, profile])
 
@@ -161,6 +176,7 @@ function App() {
     if (!user || profile?.role !== 'customer') return
 
     let channel
+    let localSessionId = null
     try {
       channel = supabase.channel('online-customers', {
         config: { presence: { key: user.id } }
@@ -178,9 +194,15 @@ function App() {
               .from('profiles')
               .update({ last_time_in: new Date().toISOString(), last_time_out: null })
               .eq('id', user.id)
-            await supabase
+            const { data: sessionRow } = await supabase
               .from('user_sessions')
               .insert({ user_id: user.id, role: 'customer', time_in: new Date().toISOString() })
+              .select('id')
+              .single()
+            if (sessionRow?.id) {
+              localSessionId = sessionRow.id
+              sessionIdRef.current = sessionRow.id
+            }
           }
         })
     } catch (err) {
@@ -188,20 +210,21 @@ function App() {
     }
 
     return () => {
-      if (channel) {
-        supabase
-          .from('profiles')
-          .update({ last_time_out: new Date().toISOString() })
-          .eq('id', user.id)
-          .then(() => {})
+      const sessionId = localSessionId || sessionIdRef.current
+      if (sessionId === sessionIdRef.current) sessionIdRef.current = null
+      supabase
+        .from('profiles')
+        .update({ last_time_out: new Date().toISOString() })
+        .eq('id', user.id)
+        .then(() => {})
+      if (sessionId) {
         supabase
           .from('user_sessions')
           .update({ time_out: new Date().toISOString() })
-          .eq('user_id', user.id)
-          .is('time_out', null)
+          .eq('id', sessionId)
           .then(() => {})
-        supabase.removeChannel(channel)
       }
+      if (channel) supabase.removeChannel(channel)
     }
   }, [user, profile])
 

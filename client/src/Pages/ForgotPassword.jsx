@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
+import { FaEnvelope } from 'react-icons/fa'
+import { Eye, EyeOff } from 'lucide-react'
 import { supabase } from '../supabase'
 import backgroundImg from '../Assets/Background.jpg'
 import '../Pages/AuthForm.css'
@@ -252,7 +253,7 @@ function ForgotPassword() {
                   className="auth-icon"
                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
-                  {showPassword ? <FaLockOpen /> : <FaLock />}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               <div
@@ -274,7 +275,7 @@ function ForgotPassword() {
                   className="auth-icon"
                   style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                 >
-                  {showConfirmPassword ? <FaLockOpen /> : <FaLock />}
+                  {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
               {error && <p className="auth-error">{error}</p>}

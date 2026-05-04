@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { Briefcase } from 'lucide-react'
-import { FaEnvelope, FaLock, FaLockOpen } from 'react-icons/fa'
+import { Briefcase, Eye, EyeOff } from 'lucide-react'
+import { FaEnvelope } from 'react-icons/fa'
 import backgroundImg from '../Assets/Background.jpg'
 import './AuthForm.css'
 
@@ -130,7 +130,7 @@ function TaskerLogin() {
               className="auth-icon"
               style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center' }}
             >
-              {showPassword ? <FaLockOpen /> : <FaLock />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
