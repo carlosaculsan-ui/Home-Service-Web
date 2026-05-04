@@ -42,13 +42,14 @@ const STATUS_STYLES = {
 }
 
 const STATUS_LABELS = {
-  confirmed:   'New Booking',
-  accepted:    'Accepted',
-  on_the_way:  'On The Way',
-  in_progress: 'In Progress',
-  completed:   'Completed',
-  disputed:    'Disputed',
-  rejected:    'Rejected',
+  confirmed:            'New Booking',
+  accepted:             'Accepted',
+  on_the_way:           'On The Way',
+  in_progress:          'In Progress',
+  pending_confirmation: 'Awaiting Confirmation',
+  completed:            'Completed',
+  disputed:             'Disputed',
+  rejected:             'Rejected',
 }
 
 const NAV_ITEMS = [
@@ -694,6 +695,11 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     }
     setSharingLocation(false)
   }
+
+  // Auto-resume if page reloaded while already on_the_way
+  useEffect(() => {
+    if (booking.status === 'on_the_way') startLocationSharing()
+  }, [])
 
   // Stop sharing if booking moves away from on_the_way
   useEffect(() => {
@@ -1346,6 +1352,7 @@ function LeaveRequestSection({ taskerId }) {
   const [leavesLoading, setLeavesLoading] = useState(true)
   const [cancellingId, setCancellingId] = useState(null)
   const [cancelError, setCancelError] = useState('')
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [confirmState, setConfirmState] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
 
@@ -1374,6 +1381,20 @@ function LeaveRequestSection({ taskerId }) {
   }
 
   useEffect(() => { loadLeaves() }, [taskerId])
+
+  useEffect(() => {
+    if (!taskerId) return
+    const ch = supabase
+      .channel(`tasker-leaves-${taskerId}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'tasker_leaves',
+        filter: `tasker_id=eq.${taskerId}`,
+      }, () => loadLeaves())
+      .subscribe()
+    return () => supabase.removeChannel(ch)
+  }, [taskerId])
 
   const firstDay = new Date(viewYear, viewMonth, 1).getDay()
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate()
@@ -1434,15 +1455,22 @@ function LeaveRequestSection({ taskerId }) {
     }
 
     const sorted = [...selectedDates].sort()
-    await supabase.from('tasker_leaves').insert({
+    const { error: insertError } = await supabase.from('tasker_leaves').insert({
       tasker_id: taskerId,
       leave_dates: JSON.stringify(sorted),
       reason: reason.trim(),
       status: 'pending',
     })
+    if (insertError) {
+      setSubmitError('Failed to submit. Please try again.')
+      setSubmitting(false)
+      return
+    }
     setSelectedDates(new Set())
     setReason('')
     setSubmitting(false)
+    setSubmitSuccess(true)
+    setTimeout(() => setSubmitSuccess(false), 3000)
     loadLeaves()
   }
 
@@ -1517,6 +1545,9 @@ function LeaveRequestSection({ taskerId }) {
         {submitError && (
           <p className="text-xs text-red-500 mt-2">{submitError}</p>
         )}
+        {submitSuccess && (
+          <p className="text-xs text-green-600 font-medium mt-2">Leave request submitted successfully!</p>
+        )}
       </div>
 
       {leavesLoading ? (
@@ -1534,7 +1565,7 @@ function LeaveRequestSection({ taskerId }) {
               <div key={leave.id} className="bg-white rounded-2xl shadow-sm p-5">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm font-semibold text-gray-700">
-                    {dates.length} day{dates.length !== 1 ? 's' : ''}: {dates.join(', ')}
+                    {dates.length} day{dates.length !== 1 ? 's' : ''}: {formatDateRanges(dates)}
                   </p>
                   <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
                     {leave.status}
@@ -3905,15 +3936,11 @@ function TaskerDashboard() {
   }
 
   async function load(tid) {
-    console.log('load() called with tasker_id:', tid)
-
-    const { data: bookingRows, error: bookingError } = await supabase
+    const { data: bookingRows } = await supabase
       .from('bookings')
       .select('*, task_options, task_size, taskers_needed, duration_hours, customer_name, customer_phone')
       .eq('tasker_id', tid)
       .order('created_at', { ascending: false })
-
-    console.log('bookingRows:', bookingRows, 'error:', bookingError)
 
     if (!bookingRows || bookingRows.length === 0) {
       setBookings([])
@@ -3929,15 +3956,12 @@ function TaskerDashboard() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) { setLoading(false); return }
         setTaskerEmail(session.user.email ?? '')
-        console.log('session user id:', session.user.id)
 
-        const { data: tasker, error: taskerError } = await supabase
+        const { data: tasker } = await supabase
           .from('taskers')
           .select('id, name, user_id')
           .eq('user_id', session.user.id)
           .maybeSingle()
-
-        console.log('tasker row:', tasker, 'tasker error:', taskerError)
 
         if (!tasker) { setLoading(false); return }
 
@@ -3998,7 +4022,7 @@ function TaskerDashboard() {
       setNotifications(notifData ?? [])
       setAnnouncements(announcementData ?? [])
       if (!notifTabOpen) {
-        setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
+        setUnreadNotifCount(notifData?.filter(n => !n.is_read).length ?? 0)
       }
     }
 
@@ -4007,17 +4031,7 @@ function TaskerDashboard() {
         .from('announcements')
         .select('*')
         .order('created_at', { ascending: false })
-      const { data: notifData } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', taskerUserId)
-        .order('created_at', { ascending: false })
-        .limit(20)
       setAnnouncements(announcementData ?? [])
-      setNotifications(notifData ?? [])
-      if (!notifTabOpen) {
-        setUnreadNotifCount((notifData?.filter(n => !n.is_read).length ?? 0) + (announcementData?.length ?? 0))
-      }
     }
 
     fetchNotifications()
@@ -4042,7 +4056,8 @@ function TaskerDashboard() {
               badge: '/LOGO.svg',
               tag: payload.new.id,
             })
-            n.onclick = () => { window.focus(); setTab('bookings') }
+            const notifTitle = payload.new.title?.toLowerCase() ?? ''
+            n.onclick = () => { window.focus(); setTab(notifTitle.includes('leave request') ? 'leave' : 'bookings') }
           }
         }
       })
@@ -4480,14 +4495,7 @@ function TaskerDashboard() {
       <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
       {notifications.some((n) => !n.is_read) && (
         <button
-          onClick={async () => {
-            await supabase
-              .from('notifications')
-              .update({ is_read: true })
-              .eq('user_id', taskerUserId)
-            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
-            setUnreadNotifCount(0)
-          }}
+          onClick={markAllNotifsRead}
           className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
         >
           Mark all as read
@@ -4530,7 +4538,9 @@ function TaskerDashboard() {
               key={n.id}
               onClick={() => {
                 if (!n.is_read) markOneNotifRead(n.id)
-                setTab('bookings')
+                const title = n.title?.toLowerCase() ?? ''
+                if (title.includes('leave request')) setTab('leave')
+                else setTab('bookings')
               }}
               className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors cursor-pointer ${
                 n.is_read
