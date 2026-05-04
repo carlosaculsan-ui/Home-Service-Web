@@ -652,6 +652,12 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
   const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(null)
   const [confirmState, setConfirmState] = useState(null)
   const openConfirm = (message, onConfirm, danger = false) => setConfirmState({ message, onConfirm, danger })
+  const [disputeResponse, setDisputeResponse] = useState('')
+  const [disputeEvidenceFile, setDisputeEvidenceFile] = useState(null)
+  const [disputeEvidencePreview, setDisputeEvidencePreview] = useState(null)
+  const [disputeSubmitting, setDisputeSubmitting] = useState(false)
+  const [disputeSubmitted, setDisputeSubmitted] = useState(!!booking.tasker_dispute_response)
+  const [disputeError, setDisputeError] = useState('')
   const watchIdRef = useRef(null)
   const locationChannelRef = useRef(null)
 
@@ -850,6 +856,58 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
 
     setShowRejectModal(false)
     onStatusChange()
+  }
+
+  async function handleDisputeSubmit() {
+    if (!disputeResponse.trim()) return
+    setDisputeSubmitting(true)
+    setDisputeError('')
+
+    let evidenceUrl = null
+    if (disputeEvidenceFile) {
+      const ext = disputeEvidenceFile.name.split('.').pop() || 'jpg'
+      const path = `dispute-tasker-evidence/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('booking-assets')
+        .upload(path, disputeEvidenceFile, { contentType: disputeEvidenceFile.type })
+      if (!uploadError) {
+        evidenceUrl = supabase.storage.from('booking-assets').getPublicUrl(path).data.publicUrl
+      }
+    }
+
+    const updatePayload = { tasker_dispute_response: disputeResponse.trim() }
+    if (evidenceUrl) updatePayload.tasker_dispute_evidence_url = evidenceUrl
+
+    const { error: updateError } = await supabase
+      .from('bookings').update(updatePayload).eq('id', booking.id)
+
+    if (updateError) {
+      setDisputeError('Failed to submit. Please try again.')
+      setDisputeSubmitting(false)
+      return
+    }
+
+    const { data: adminProfile } = await supabase
+      .from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle()
+
+    if (adminProfile) {
+      await supabase.from('messages').insert({
+        sender_id: currentUserId,
+        receiver_id: adminProfile.id,
+        booking_id: null,
+        content: `[Dispute Response: Booking #${booking.reference_number ?? booking.id.slice(0, 8).toUpperCase()}] ${disputeResponse.trim()}`,
+        is_read: false,
+      })
+      await supabase.from('notifications').insert({
+        user_id: adminProfile.id,
+        title: 'Tasker Dispute Response',
+        message: `Tasker submitted their side for Booking #${booking.reference_number ?? ''}. Review the dispute.`,
+        is_read: false,
+      })
+    }
+
+    setDisputeSubmitted(true)
+    setDisputeSubmitting(false)
   }
 
   return (
@@ -1255,12 +1313,124 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       )}
 
       {/* Disputed */}
-      {booking.status === 'disputed' && (
-        <div className="pt-1 space-y-1">
-          <p className="text-sm text-orange-600 font-semibold">⚠️ Job Completion Disputed</p>
-          <p className="text-sm text-gray-500">The customer has raised a dispute. An admin is reviewing the case and will notify you of the outcome.</p>
-        </div>
-      )}
+      {booking.status === 'disputed' && (() => {
+        const disputedAt = booking.updated_at
+        const deadlineMs = disputedAt ? new Date(disputedAt).getTime() + 24 * 60 * 60 * 1000 : null
+        const msLeft = deadlineMs ? deadlineMs - Date.now() : null
+        const isPastDeadline = msLeft !== null && msLeft <= 0
+        const hoursLeft = msLeft ? Math.floor(msLeft / (1000 * 60 * 60)) : 0
+        const minsLeft = msLeft ? Math.floor((msLeft % (1000 * 60 * 60)) / (1000 * 60)) : 0
+        const timeLeftLabel = hoursLeft > 0 ? `${hoursLeft}h ${minsLeft}m left` : `${minsLeft}m left`
+        const isUrgent = !isPastDeadline && hoursLeft < 3
+
+        return (
+          <div className="pt-1">
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 space-y-3">
+              <p className="text-sm text-orange-600 font-semibold">⚠️ Job Completion Disputed</p>
+
+              {booking.dispute_reason && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Customer reported</p>
+                  <p className="text-sm text-gray-700">{booking.dispute_reason}</p>
+                </div>
+              )}
+
+              {booking.dispute_evidence_url && (
+                <div className="space-y-1">
+                  <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Customer's evidence</p>
+                  {booking.dispute_evidence_url.match(/\.(mp4|mov|webm|ogg)$/i) ? (
+                    <video src={booking.dispute_evidence_url} controls className="w-40 rounded-lg border border-gray-200" />
+                  ) : (
+                    <a href={booking.dispute_evidence_url} target="_blank" rel="noreferrer">
+                      <img src={booking.dispute_evidence_url} alt="Customer evidence" className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80" />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <div className="border-t border-orange-100 pt-3">
+                {disputeSubmitted ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Your response</p>
+                    <p className="text-sm text-gray-700">{booking.tasker_dispute_response || disputeResponse}</p>
+                    {(booking.tasker_dispute_evidence_url || disputeEvidencePreview) && (
+                      disputeEvidencePreview ? (
+                        <img src={disputeEvidencePreview} alt="Your evidence" className="w-24 h-24 rounded-lg object-cover border border-gray-200 mt-1" />
+                      ) : (
+                        <a href={booking.tasker_dispute_evidence_url} target="_blank" rel="noreferrer">
+                          <img src={booking.tasker_dispute_evidence_url} alt="Your evidence" className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80 mt-1" />
+                        </a>
+                      )
+                    )}
+                    <p className="text-xs text-green-600 font-medium">✓ Response submitted — admin will notify you of the outcome.</p>
+                  </div>
+                ) : isPastDeadline ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-red-500 font-semibold">Response window has passed.</p>
+                    <p className="text-xs text-gray-500">Admin may proceed with only the customer's account. You will be notified of the outcome.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-wide">Your Response</p>
+                      <p className={`text-xs font-semibold ${isUrgent ? 'text-red-500' : 'text-orange-500'}`}>
+                        ⏰ {timeLeftLabel}
+                      </p>
+                    </div>
+                    <p className="text-xs text-gray-400">If you don't respond in time, admin may resolve this dispute without your input.</p>
+                    <textarea
+                      value={disputeResponse}
+                      onChange={(e) => setDisputeResponse(e.target.value)}
+                      placeholder="Explain your side of the story…"
+                      rows={3}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-700 outline-none focus:border-orange-400 resize-none"
+                    />
+                    <div>
+                      {disputeEvidencePreview ? (
+                        <div className="flex items-center gap-2">
+                          {disputeEvidenceFile?.type?.startsWith('video') ? (
+                            <video src={disputeEvidencePreview} className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                          ) : (
+                            <img src={disputeEvidencePreview} alt="Preview" className="w-16 h-16 rounded-lg object-cover border border-gray-200" />
+                          )}
+                          <button
+                            onClick={() => { setDisputeEvidenceFile(null); setDisputeEvidencePreview(null) }}
+                            className="text-xs text-red-400 hover:text-red-600"
+                          >Remove</button>
+                        </div>
+                      ) : (
+                        <label className="flex items-center gap-1.5 text-xs text-blue-600 cursor-pointer w-fit">
+                          <Camera size={13} />
+                          <span className="underline underline-offset-2">Add evidence (optional)</span>
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              if (!file) return
+                              setDisputeEvidenceFile(file)
+                              setDisputeEvidencePreview(URL.createObjectURL(file))
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                    {disputeError && <p className="text-xs text-red-500">{disputeError}</p>}
+                    <button
+                      onClick={handleDisputeSubmit}
+                      disabled={disputeSubmitting || !disputeResponse.trim()}
+                      className="px-4 py-1.5 text-sm font-semibold rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+                    >
+                      {disputeSubmitting ? 'Submitting…' : 'Submit Response'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {sharingLocation && (
         <div className="flex items-center justify-between gap-3 px-3 py-2 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">

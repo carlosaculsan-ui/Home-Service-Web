@@ -2340,6 +2340,24 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
                     )}
                   </div>
                 )}
+                {b.tasker_dispute_response && (
+                  <div className="flex gap-2 items-start">
+                    <span className="text-blue-500 font-medium w-28 flex-shrink-0">Tasker's Side</span>
+                    <span className="text-gray-700">{b.tasker_dispute_response}</span>
+                  </div>
+                )}
+                {b.tasker_dispute_evidence_url && (
+                  <div className="flex gap-2 items-start">
+                    <span className="text-blue-500 font-medium w-28 flex-shrink-0">Tasker Evidence</span>
+                    {b.tasker_dispute_evidence_url.match(/\.(mp4|mov|webm|ogg)$/i) ? (
+                      <video src={b.tasker_dispute_evidence_url} controls className="w-40 rounded-lg border border-gray-200" />
+                    ) : (
+                      <a href={b.tasker_dispute_evidence_url} target="_blank" rel="noreferrer">
+                        <img src={b.tasker_dispute_evidence_url} alt="Tasker evidence" className="w-24 h-24 rounded-lg object-cover border border-gray-200 hover:opacity-80" />
+                      </a>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
