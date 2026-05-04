@@ -8172,20 +8172,12 @@ function Admin() {
     if (!id) return
     const { data } = await supabase
       .from('messages')
-      .select('id, sender_id')
+      .select('id')
       .is('booking_id', null)
       .eq('receiver_id', id)
       .eq('is_read', false)
     if (!data) return
-    // Filter to only tasker senders
-    const senderIds = [...new Set(data.map((m) => m.sender_id).filter(Boolean))]
-    if (senderIds.length === 0) { setInboxUnread(0); return }
-    const { data: taskers } = await supabase
-      .from('taskers')
-      .select('user_id')
-      .in('user_id', senderIds)
-    const taskerUserIds = new Set((taskers ?? []).map((t) => t.user_id))
-    setInboxUnread(data.filter((m) => taskerUserIds.has(m.sender_id)).length)
+    setInboxUnread(data.length)
   }
 
   useEffect(() => {

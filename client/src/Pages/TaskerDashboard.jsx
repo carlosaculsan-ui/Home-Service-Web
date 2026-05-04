@@ -11,7 +11,7 @@ import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile,
+  LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile, CheckCheck, Camera, Video, Mic,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import EmojiPicker from 'emoji-picker-react'
@@ -1681,6 +1681,7 @@ function EarningsSummary({ taskerId, taskerUserId }) {
   const [earningsLoading, setEarningsLoading] = useState(true)
   const [reviews, setReviews] = useState([])
   const [chartWindow, setChartWindow] = useState(new Date().getMonth() < 6 ? 0 : 1)
+  const [chartYear, setChartYear] = useState(new Date().getFullYear())
   const [earningsSubtab, setEarningsSubtab] = useState('overview')
 
   useEffect(() => {
@@ -1737,18 +1738,27 @@ function EarningsSummary({ taskerId, taskerUserId }) {
   // ── Chart data (window 0 = Jan–Jun, window 1 = Jul–Dec) ─────────────────
   const chartWindowStart = chartWindow === 0 ? 0 : 6
   const chartData = Array.from({ length: 6 }, (_, i) => {
-    const yr = now.getFullYear()
     const mo = chartWindowStart + i
     const total = completedBookings
       .filter((b) => {
         if (!b.scheduled_date) return false
         const bd = new Date(b.scheduled_date)
-        return bd.getFullYear() === yr && bd.getMonth() === mo
+        return bd.getFullYear() === chartYear && bd.getMonth() === mo
       })
       .reduce((sum, b) => sum + (b.tasker_payout ?? 0), 0)
     return { month: SHORT_MONTHS[mo], total }
   })
-  const chartWindowLabel = chartWindow === 0 ? 'January – June' : 'July – December'
+  const chartWindowLabel = `${chartWindow === 0 ? 'January – June' : 'July – December'} ${chartYear}`
+  const isAtLatest = chartYear === now.getFullYear() && chartWindow === (now.getMonth() < 6 ? 0 : 1)
+
+  function prevChartWindow() {
+    if (chartWindow === 0) { setChartYear((y) => y - 1); setChartWindow(1) }
+    else setChartWindow(0)
+  }
+  function nextChartWindow() {
+    if (chartWindow === 1) { setChartYear((y) => y + 1); setChartWindow(0) }
+    else setChartWindow(1)
+  }
 
   function fmtEarningsDate(dateStr) {
     if (!dateStr) return '—'
@@ -1838,18 +1848,17 @@ function EarningsSummary({ taskerId, taskerUserId }) {
           <h3 className="font-bold text-gray-800">Monthly Earnings ({chartWindowLabel})</h3>
           <div className="flex items-center gap-1">
             <button
-              onClick={() => setChartWindow(0)}
-              disabled={chartWindow === 0}
-              className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-              aria-label="Previous window"
+              onClick={prevChartWindow}
+              className="p-1.5 rounded-lg transition-colors text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              aria-label="Previous period"
             >
               <ChevronLeft size={16} />
             </button>
             <button
-              onClick={() => setChartWindow(1)}
-              disabled={chartWindow === 1}
+              onClick={nextChartWindow}
+              disabled={isAtLatest}
               className="p-1.5 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100 hover:text-gray-800"
-              aria-label="Next window"
+              aria-label="Next period"
             >
               <ChevronRight size={16} />
             </button>
@@ -1863,7 +1872,7 @@ function EarningsSummary({ taskerId, taskerUserId }) {
               tick={{ fontSize: 11, fill: '#6b7280' }}
               axisLine={false}
               tickLine={false}
-              tickFormatter={(v) => `₱${(v / 1000).toFixed(0)}k`}
+              tickFormatter={(v) => v >= 1000 ? `₱${(v / 1000).toFixed(0)}k` : `₱${v}`}
               width={48}
             />
             <Tooltip
@@ -2020,12 +2029,10 @@ function TaskerEWallet({ userId }) {
     setCashoutErrors({})
     setCashoutApiError('')
     setCashoutFinalAmount(amt)
-    const ref = String(Math.floor(Math.random() * 900000000000) + 100000000000)
     const ts = new Date().toLocaleString('en-US', {
       month: 'long', day: 'numeric', year: 'numeric',
       hour: 'numeric', minute: '2-digit', hour12: true,
     })
-    setCashoutRef(ref)
     setCashoutTimestamp(ts)
     setCashoutScreen(2)
 
@@ -2044,21 +2051,22 @@ function TaskerEWallet({ userId }) {
       return
     }
 
-    const { error: txnError } = await supabase.from('wallet_transactions').insert({
+    const { data: txnData, error: txnError } = await supabase.from('wallet_transactions').insert({
       user_id: userId,
       booking_id: null,
       amount: amt,
       type: 'debit',
       description: `Cashout via ${methodLabel} — ${maskedNumber}`,
       created_at: new Date().toISOString(),
-    })
+    }).select('id').single()
     if (txnError) {
       setCashoutApiError('Cashout sent but transaction log failed. Contact support if your history is missing.')
     }
 
+    setCashoutRef(txnData?.id ? 'TXN-' + txnData.id.slice(0, 8).toUpperCase() : '—')
     setBalance((prev) => prev - amt)
     setTransactions((prev) => [{
-      id: `co-${Date.now()}`,
+      id: txnData?.id ?? `co-${Date.now()}`,
       user_id: userId,
       booking_id: null,
       amount: amt,
@@ -2528,11 +2536,13 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [profileLoading, setProfileLoading] = useState(true)
   const [avgRating, setAvgRating] = useState(null)
   const [reviewCount, setReviewCount] = useState(0)
+  const [reviews, setReviews] = useState([])
+  const [showReviews, setShowReviews] = useState(false)
 
   const [editingPersonal, setEditingPersonal] = useState(false)
   const [editingWork, setEditingWork] = useState(false)
   const [personalFields, setPersonalFields] = useState({ phone: '', address: '', service_area: '' })
-  const [workFields, setWorkFields] = useState({ working_hours: '', availability: '', bio: '' })
+  const [workFields, setWorkFields] = useState({ availability: '', bio: '' })
   const [saving, setSaving] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [toast, setToast] = useState(null)
@@ -2561,12 +2571,17 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         .eq('id', taskerUserId)
         .maybeSingle()
 
-      const { data: reviews } = await supabase
+      const { data: reviewData } = await supabase
         .from('reviews')
-        .select('rating')
+        .select('rating, comment, reviewer_name, created_at')
         .eq('tasker_id', taskerId)
+        .eq('is_hidden', false)
+        .eq('is_flagged', false)
+        .order('created_at', { ascending: false })
 
-      const ratingList = (reviews ?? []).map((r) => r.rating ?? 0)
+      const fetched = reviewData ?? []
+      setReviews(fetched)
+      const ratingList = fetched.map((r) => r.rating ?? 0)
       setReviewCount(ratingList.length)
       setAvgRating(ratingList.length > 0 ? ratingList.reduce((s, v) => s + v, 0) / ratingList.length : null)
 
@@ -2578,8 +2593,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         service_area: merged.service_area ?? '',
       })
       const availVal = Array.isArray(merged.availability) ? merged.availability.join(', ') : (merged.availability ?? '')
-      const wHours = Array.isArray(merged.working_hours) ? merged.working_hours.join(', ') : (merged.working_hours ?? '')
-      setWorkFields({ working_hours: wHours, availability: availVal, bio: merged.bio ?? '' })
+      setWorkFields({ availability: availVal, bio: merged.bio ?? '' })
       setProfileLoading(false)
     }
     fetchProfile()
@@ -2621,7 +2635,6 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   async function handleSaveWork() {
     setSaving(true)
     const { error } = await supabase.from('taskers').update({
-      working_hours: workFields.working_hours,
       availability: workFields.availability,
       bio: workFields.bio,
     }).eq('user_id', taskerUserId)
@@ -2630,7 +2643,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
       showToast('Failed to update profile.', 'error')
       return
     }
-    setProfile(prev => ({ ...prev, working_hours: workFields.working_hours, availability: workFields.availability, bio: workFields.bio }))
+    setProfile(prev => ({ ...prev, availability: workFields.availability, bio: workFields.bio }))
     setEditingWork(false)
     showToast('Profile updated successfully!')
   }
@@ -2659,8 +2672,9 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
   async function handleRemovePhoto() {
     const photo = profile.profile_photo
-    if (photo && !photo.startsWith('http')) {
-      await supabase.storage.from('tasker-files').remove([photo])
+    if (photo) {
+      const match = photo.match(/\/tasker-files\/(.+?)(\?|$)/)
+      if (match) await supabase.storage.from('tasker-files').remove([match[1]])
     }
     await supabase.from('taskers').update({ profile_photo: null }).eq('id', taskerId)
     setProfile(prev => ({ ...prev, profile_photo: null }))
@@ -2725,7 +2739,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             <img src={photoUrl} alt={fullName} className="w-28 h-28 rounded-full object-cover border-4 border-orange-100" />
           ) : (
             <div className="w-28 h-28 rounded-full bg-orange-100 flex items-center justify-center">
-              <span className="text-3xl font-bold text-orange-400">{(profile.first_name?.[0] ?? '?').toUpperCase()}</span>
+              <span className="text-3xl font-bold text-orange-400">{(profile.full_name?.[0] ?? '?').toUpperCase()}</span>
             </div>
           )}
           {photoUrl && !photoUploading && (
@@ -2763,7 +2777,10 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             <p className="text-sm text-orange-500 font-semibold mt-0.5 capitalize">{profile.service_type}</p>
           )}
           {avgRating !== null && (
-            <div className="flex items-center justify-center gap-1.5 mt-1.5">
+            <button
+              onClick={() => setShowReviews(true)}
+              className="flex items-center justify-center gap-1.5 mt-1.5 hover:opacity-75 transition-opacity"
+            >
               <div className="flex items-center gap-0.5">
                 {[1,2,3,4,5].map((s) => (
                   <svg key={s} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
@@ -2773,8 +2790,8 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
                 ))}
               </div>
               <span className="text-sm font-semibold text-gray-700">{avgRating.toFixed(1)}</span>
-              <span className="text-xs text-gray-400">({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
-            </div>
+              <span className="text-xs text-gray-400 underline underline-offset-2">({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
+            </button>
           )}
         </div>
       </div>
@@ -2924,8 +2941,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
             <button
               onClick={() => {
                 const availVal = Array.isArray(profile.availability) ? profile.availability.join(', ') : (profile.availability ?? '')
-                const wHours = Array.isArray(profile.working_hours) ? profile.working_hours.join(', ') : (profile.working_hours ?? '')
-                setWorkFields({ working_hours: wHours, availability: availVal, bio: profile.bio ?? '' })
+                setWorkFields({ availability: availVal, bio: profile.bio ?? '' })
                 setEditingWork(false)
               }}
               className="text-sm px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
@@ -2971,6 +2987,49 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         </button>
       </div>
 
+      {/* Reviews Modal */}
+      {showReviews && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50" onClick={() => setShowReviews(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col max-h-[80vh]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+              <div>
+                <p className="font-bold text-gray-800 text-base">My Reviews</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className="text-orange-400 text-sm">★</span>
+                  <span className="text-sm font-semibold text-gray-700">{avgRating.toFixed(1)}</span>
+                  <span className="text-xs text-gray-400">({reviewCount} review{reviewCount !== 1 ? 's' : ''})</span>
+                </div>
+              </div>
+              <button onClick={() => setShowReviews(false)} className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-bold transition-colors">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+              {reviews.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">No reviews yet.</p>
+              ) : (
+                reviews.map((r, i) => (
+                  <div key={i} className="border-b border-gray-100 pb-4 last:border-0">
+                    <div className="flex items-center gap-1 mb-1">
+                      {[1,2,3,4,5].map((s) => (
+                        <svg key={s} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"
+                          className={`w-3.5 h-3.5 ${s <= (r.rating ?? 0) ? 'text-orange-400' : 'text-gray-200'}`}>
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                      ))}
+                    </div>
+                    {r.comment && <p className="text-sm text-gray-700 leading-relaxed">{r.comment}</p>}
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <span className="text-xs text-gray-500 font-medium">{r.reviewer_name || 'Anonymous'}</span>
+                      <span className="text-gray-300 text-xs">·</span>
+                      <span className="text-xs text-gray-400">{r.created_at ? new Date(r.created_at).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : ''}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Deactivate Confirmation Modal */}
       {showDeactivateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
@@ -3013,9 +3072,20 @@ function ContactAdminChat({ taskerUserId }) {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [mediaFile, setMediaFile] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const [mediaError, setMediaError] = useState('')
+  const [isRecording, setIsRecording] = useState(false)
+  const [interimText, setInterimText] = useState('')
+  const [micDenied, setMicDenied] = useState(false)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const pickerRef = useRef(null)
+  const imageInputRef = useRef(null)
+  const videoInputRef = useRef(null)
+  const recognitionRef = useRef(null)
+  const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
+  const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
   // Fetch admin user_id
   useEffect(() => {
@@ -3032,18 +3102,17 @@ function ContactAdminChat({ taskerUserId }) {
     fetchAdmin()
   }, [])
 
-  // Fetch messages once admin id is known
   async function fetchMessages(adminId) {
     const { data } = await supabase
       .from('messages')
       .select('*')
       .is('booking_id', null)
-      .or(`sender_id.eq.${taskerUserId},receiver_id.eq.${taskerUserId}`)
+      .or(`and(sender_id.eq.${taskerUserId},receiver_id.eq.${adminId}),and(sender_id.eq.${adminId},receiver_id.eq.${taskerUserId})`)
       .order('created_at', { ascending: true })
     setMessages(data ?? [])
   }
 
-  async function markAsRead(adminId) {
+  async function markAsRead() {
     await supabase
       .from('messages')
       .update({ is_read: true })
@@ -3054,7 +3123,7 @@ function ContactAdminChat({ taskerUserId }) {
 
   useEffect(() => {
     if (!adminUserId) return
-    fetchMessages(adminUserId).then(() => markAsRead(adminUserId))
+    fetchMessages(adminUserId).then(() => markAsRead())
     inputRef.current?.focus()
   }, [adminUserId])
 
@@ -3063,15 +3132,12 @@ function ContactAdminChat({ taskerUserId }) {
     if (!adminUserId) return
     const channel = supabase
       .channel(`admin-chat-${taskerUserId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'messages',
-      }, (payload) => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
         const msg = payload.new
         if (
           msg.booking_id === null &&
-          (msg.sender_id === taskerUserId || msg.receiver_id === taskerUserId)
+          ((msg.sender_id === taskerUserId && msg.receiver_id === adminUserId) ||
+           (msg.sender_id === adminUserId && msg.receiver_id === taskerUserId))
         ) {
           setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
           if (msg.receiver_id === taskerUserId) {
@@ -3083,29 +3149,83 @@ function ContactAdminChat({ taskerUserId }) {
     return () => { supabase.removeChannel(channel) }
   }, [adminUserId, taskerUserId])
 
-  // Auto-scroll
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending || !adminUserId) return
+    if ((!text && !mediaFile) || sending || !adminUserId) return
     setSending(true)
     setInput('')
-    await supabase.from('messages').insert({
-      booking_id: null,
-      sender_id: taskerUserId,
-      receiver_id: adminUserId,
-      content: text,
-      is_read: false,
-    })
+
+    if (mediaFile) {
+      const ext = mediaFile.name.split('.').pop()
+      const path = `dispute-evidence/${taskerUserId}-${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage.from('booking-assets').upload(path, mediaFile)
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
+        const isVideo = mediaFile.type.startsWith('video/')
+        const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
+        await supabase.from('messages').insert({ booking_id: null, sender_id: taskerUserId, receiver_id: adminUserId, content: mediaContent, is_read: false })
+      }
+      setMediaFile(null)
+      setMediaPreview(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      if (videoInputRef.current) videoInputRef.current.value = ''
+    }
+
+    if (text) {
+      await supabase.from('messages').insert({ booking_id: null, sender_id: taskerUserId, receiver_id: adminUserId, content: text, is_read: false })
+    }
+
     setSending(false)
     inputRef.current?.focus()
   }
 
-  function handleKeyDown(e) {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMediaError('')
+    if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video')
+      vid.preload = 'metadata'
+      vid.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(vid.src)
+        if (vid.duration > 10) { setMediaError('Video must be 10 seconds or less.'); return }
+        setMediaFile(file)
+        setMediaPreview(URL.createObjectURL(file))
+      }
+      vid.src = URL.createObjectURL(file)
+    } else {
+      setMediaFile(file)
+      setMediaPreview(URL.createObjectURL(file))
+    }
+  }
+
+  function toggleRecording() {
+    if (isRecording) { recognitionRef.current?.stop(); return }
+    setMicDenied(false)
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const rec = new SR()
+    rec.continuous = true
+    rec.interimResults = true
+    rec.lang = 'en-PH'
+    rec.onresult = (e) => {
+      let interim = '', final = ''
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) final += e.results[i][0].transcript
+        else interim += e.results[i][0].transcript
+      }
+      if (final) setInput((prev) => prev + (prev && !prev.endsWith(' ') ? ' ' : '') + final)
+      setInterimText(interim)
+    }
+    rec.onerror = (e) => { if (e.error === 'not-allowed') setMicDenied(true); setIsRecording(false); setInterimText('') }
+    rec.onend = () => { setIsRecording(false); setInterimText('') }
+    recognitionRef.current = rec
+    rec.start()
+    setIsRecording(true)
   }
 
   useEffect(() => {
@@ -3168,18 +3288,26 @@ function ContactAdminChat({ taskerUserId }) {
         ) : (
           messages.map((msg) => {
             const isMine = msg.sender_id === taskerUserId
+            const isImage = msg.content?.startsWith('[image:')
+            const isVideo = msg.content?.startsWith('[video:')
+            const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
             return (
               <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                  isMine
-                    ? 'bg-orange-500 text-white rounded-br-sm'
-                    : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                }`}>
-                  {msg.content}
+                <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
+                  isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
+                  {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
+                  {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
+                  {!mediaUrl && msg.content}
                 </div>
-                <p className="text-xs text-gray-400 mt-1 px-1">
-                  {isMine ? 'You' : 'Admin'} · {fmtTime(msg.created_at)}
-                </p>
+                <div className="flex items-center gap-1 mt-1 px-1">
+                  <p className="text-xs text-gray-400">
+                    {isMine ? 'You' : 'Admin'} · {fmtTime(msg.created_at)}
+                  </p>
+                  {isMine && (
+                    <CheckCheck size={13} className={msg.is_read ? 'text-orange-500' : 'text-gray-300'} />
+                  )}
+                </div>
               </div>
             )
           })
@@ -3187,19 +3315,50 @@ function ContactAdminChat({ taskerUserId }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Media preview */}
+      {mediaPreview && (
+        <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-100 flex-shrink-0">
+          {mediaFile?.type.startsWith('video/') ? (
+            <video src={mediaPreview} className="w-12 h-12 object-cover rounded-lg border border-gray-200" muted />
+          ) : (
+            <img src={mediaPreview} alt="preview" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+          )}
+          <button
+            onClick={() => { setMediaFile(null); setMediaPreview(null); if (imageInputRef.current) imageInputRef.current.value = ''; if (videoInputRef.current) videoInputRef.current.value = '' }}
+            className="text-xs text-red-400 hover:text-red-600"
+          >Remove</button>
+        </div>
+      )}
+      {mediaError && <p className="text-xs text-red-500 px-4 pb-1">{mediaError}</p>}
+
+      {/* Interim speech preview */}
+      {interimText && (
+        <div className="px-4 py-1.5 bg-gray-50 border-t border-gray-100 flex-shrink-0">
+          <p className="text-xs text-gray-400 italic truncate">{interimText}…</p>
+        </div>
+      )}
+
       {/* Input */}
-      <div className="relative flex items-center gap-3 px-4 py-3 border-t border-gray-100 flex-shrink-0">
+      <div className="relative flex items-center gap-2 px-4 py-3 border-t border-gray-100 flex-shrink-0">
         {showEmojiPicker && (
           <div ref={pickerRef} className="absolute bottom-16 right-4 z-50">
             <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
           </div>
         )}
+        <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0" title="Attach photo">
+          <Camera size={20} />
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+        </label>
+        <label className="cursor-pointer text-gray-400 hover:text-orange-500 transition-colors flex-shrink-0" title="Attach video (max 10s)">
+          <Video size={20} />
+          <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+        </label>
         <input
           ref={inputRef}
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
           placeholder="Type a message..."
           className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
         />
@@ -3210,9 +3369,26 @@ function ContactAdminChat({ taskerUserId }) {
         >
           <Smile size={20} />
         </button>
+        {shouldShowMic && (
+          <button
+            type="button"
+            onClick={toggleRecording}
+            title={micDenied ? 'Microphone access denied' : isRecording ? 'Stop recording' : 'Speak your message'}
+            className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${isRecording ? 'text-red-500' : 'text-gray-400 hover:text-orange-500'}`}
+          >
+            {isRecording ? (
+              <span className="flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                <Mic size={18} />
+              </span>
+            ) : (
+              <Mic size={18} />
+            )}
+          </button>
+        )}
         <button
           onClick={handleSend}
-          disabled={!input.trim() || sending}
+          disabled={(!input.trim() && !mediaFile) || sending}
           className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 flex-shrink-0"
         >
           <MessageSquare size={17} />
@@ -3473,7 +3649,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
           {displayed.map((b) => {
             const statusStyle = HISTORY_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'
             const statusLabel = STATUS_LABELS[b.status] ?? b.status?.replace(/_/g, ' ') ?? '—'
-            const refId = 'VE-' + b.id.slice(0, 13).toUpperCase()
+            const refId = b.reference_number ?? ('VE-' + b.id.slice(0, 13).toUpperCase())
             const taskLabel = getHistoryTaskLabel(b)
             return (
               <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-3">
@@ -4280,15 +4456,17 @@ function TaskerDashboard() {
           {tab === 'contact-admin' && (
             <>
               <h2 className="text-xl font-bold text-gray-800 mb-6">Contact Admin</h2>
-              {loading ? (
-                <div className="flex justify-center mt-20">
-                  <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
-                </div>
-              ) : taskerUserId ? (
-                <ContactAdminChat taskerUserId={taskerUserId} />
-              ) : (
-                <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
-              )}
+              <div className="max-w-2xl mx-auto">
+                {loading ? (
+                  <div className="flex justify-center mt-20">
+                    <div className="w-10 h-10 border-4 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : taskerUserId ? (
+                  <ContactAdminChat taskerUserId={taskerUserId} />
+                ) : (
+                  <p className="text-center text-gray-400 mt-20">Tasker profile not found.</p>
+                )}
+              </div>
             </>
           )}
 
