@@ -247,8 +247,8 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
             <Smile size={18} />
           </button>
           {showEmojiPicker && (
-            <div ref={pickerRef} className="absolute bottom-10 right-0 z-50">
-              <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
+            <div ref={pickerRef} className="absolute bottom-10 left-0 sm:left-auto sm:right-0 z-50">
+              <EmojiPicker onEmojiClick={handleEmojiClick} width={Math.min(300, window.innerWidth - 24)} height={380} previewConfig={{ showPreview: false }} />
             </div>
           )}
         </div>
@@ -269,7 +269,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
                   <button
                     type="button"
                     onClick={() => setPhotos((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
+                    className="absolute -top-2 -right-2 w-7 h-7 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
                   >✕</button>
                 </div>
               ))}
@@ -307,7 +307,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
               <button
                 type="button"
                 onClick={() => setVideo(null)}
-                className="absolute top-1.5 right-1.5 w-5 h-5 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
+                className="absolute top-2 right-2 w-7 h-7 bg-gray-700 hover:bg-gray-900 text-white rounded-full text-xs flex items-center justify-center leading-none"
               >✕</button>
             </div>
           ) : (
@@ -602,7 +602,7 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
           </div>
 
           {/* Map */}
-          <div style={{ height: '340px', position: 'relative' }}>
+          <div style={{ height: 'clamp(220px, 45vh, 340px)', position: 'relative' }}>
             {!customerPos && !taskerPos ? (
               <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f9fafb', flexDirection: 'column', gap: '8px' }}>
                 <div style={{ width: '32px', height: '32px', border: '4px solid #f97316', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -625,22 +625,23 @@ function TrackTaskerModal({ booking, onClose, onArrived }) {
           </div>
 
           {/* Stats row */}
-          <div style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid #f3f4f6', gap: '0' }}>
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontSize: '26px', fontWeight: 900, color: '#111827', lineHeight: 1 }}>
-                {remainDist != null ? (remainDist / 1000).toFixed(1) : '—'}
-              </p>
-              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>km away</p>
+          <div style={{ borderTop: '1px solid #f3f4f6' }}>
+            <div style={{ display: 'flex', alignItems: 'center', padding: '12px 20px', gap: '0' }}>
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <p style={{ fontSize: '26px', fontWeight: 900, color: '#111827', lineHeight: 1 }}>
+                  {remainDist != null ? (remainDist / 1000).toFixed(1) : '—'}
+                </p>
+                <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>km away</p>
+              </div>
+              <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
+              <div style={{ flex: 1, textAlign: 'center' }}>
+                <p style={{ fontSize: '26px', fontWeight: 900, color: '#f97316', lineHeight: 1 }}>
+                  {remainSec != null ? formatETA(remainSec) : '—'}
+                </p>
+                <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>est. arrival</p>
+              </div>
             </div>
-            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
-            <div style={{ flex: 1, textAlign: 'center' }}>
-              <p style={{ fontSize: '26px', fontWeight: 900, color: '#f97316', lineHeight: 1 }}>
-                {remainSec != null ? formatETA(remainSec) : '—'}
-              </p>
-              <p style={{ fontSize: '11px', color: '#9ca3af', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>est. arrival</p>
-            </div>
-            <div style={{ width: '1px', height: '40px', background: '#e5e7eb' }} />
-            <div style={{ flex: 2, display: 'flex', alignItems: 'center', gap: '10px', paddingLeft: '16px', fontSize: '12px', color: '#6b7280' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '4px 20px 10px', fontSize: '12px', color: '#6b7280' }}>
               <span>🔵 Tasker</span>
               <span>🏠 You</span>
               {!taskerPos && <span style={{ color: '#f97316', fontSize: '11px' }}>Waiting…</span>}
@@ -1398,7 +1399,7 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
           <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => setShowCompletionPhotoModal(false)}
-              className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+              className="absolute -top-3 -right-3 bg-white rounded-full w-10 h-10 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
             >
               ×
             </button>
@@ -1815,6 +1816,7 @@ function CustomerReviews({ userId }) {
   const [lightboxSrc, setLightboxSrc] = useState(null)
   const [lightboxVideo, setLightboxVideo] = useState(null)
   const [deleteConfirmId, setDeleteConfirmId] = useState(null)
+  const [tooltipReviewId, setTooltipReviewId] = useState(null)
 
   async function fetchReviews(showLoading = false) {
     if (showLoading) setRevLoading(true)
@@ -1959,7 +1961,7 @@ function CustomerReviews({ userId }) {
             : '—'
 
           return (
-            <div key={r.id} className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
+            <div key={r.id} className="bg-white rounded-2xl shadow-sm p-5 space-y-3" onTouchStart={() => setTooltipReviewId(null)}>
               {/* Header */}
               <div className="flex items-center gap-3">
                 {r.taskerPhoto ? (
@@ -1978,7 +1980,7 @@ function CustomerReviews({ userId }) {
                   <p className="text-xs text-gray-400">{dateStr}</p>
                   <button
                     onClick={() => setDeleteConfirmId(r.id)}
-                    className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="w-9 h-9 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="Delete review"
                   >
                     <Trash2 size={14} />
@@ -1991,10 +1993,13 @@ function CustomerReviews({ userId }) {
                 <ReviewStars rating={r.rating ?? 0} />
                 {r.is_flagged && (
                   <div className="relative group">
-                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full cursor-default">
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full cursor-default"
+                      onTouchStart={(e) => { e.stopPropagation(); setTooltipReviewId(prev => prev === r.id ? null : r.id) }}
+                    >
                       ⏳ Under Review
                     </span>
-                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 leading-snug hidden group-hover:block z-10 pointer-events-none">
+                    <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 leading-snug z-10 pointer-events-none ${tooltipReviewId === r.id ? 'block' : 'hidden group-hover:block'}`}>
                       Your review is being checked by our team. It will be visible to others once approved.
                       <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                     </div>
@@ -2084,7 +2089,7 @@ function CustomerSidebar({ tab, setTab, customerName, customerEmail, onLogout, o
           {onClose && (
             <button
               onClick={onClose}
-              className="md:hidden mr-1 p-1 rounded-lg text-white/70 hover:text-white hover:bg-orange-600 transition-colors flex-shrink-0"
+              className="md:hidden mr-1 p-2 rounded-lg text-white/70 hover:text-white hover:bg-orange-600 transition-colors flex-shrink-0"
             >
               <X size={18} />
             </button>
@@ -2350,7 +2355,7 @@ function CustomerProfile({ userId, userEmail }) {
           {avatarUrl && !uploading && (
             <button
               onClick={() => setRemoveConfirm(true)}
-              className="absolute top-1 right-1 w-[22px] h-[22px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer"
+              className="absolute top-1 right-1 w-8 h-8 rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer"
               title="Remove photo"
             >
               <span className="text-white text-[0.65rem] font-bold leading-none">✕</span>
@@ -2531,6 +2536,7 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [hoveredMsgId, setHoveredMsgId] = useState(null)
   const [mediaFile, setMediaFile] = useState(null)
   const [mediaPreview, setMediaPreview] = useState(null)
   const [mediaError, setMediaError] = useState('')
@@ -2547,6 +2553,11 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const recognitionRef = useRef(null)
   const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
   const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
+
+  async function deleteMessage(msgId) {
+    await supabase.from('messages').delete().eq('id', msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+  }
 
   async function fetchMessages() {
     const { data, error } = await supabase
@@ -2716,7 +2727,7 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
       </div>
 
       {/* Messages */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', WebkitOverflowScrolling: 'touch' }} onTouchStart={() => setHoveredMsgId(null)}>
         {chatError ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{chatError}</p>
@@ -2770,9 +2781,24 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
             }
 
             return (
-              <div key={msg.id}>
+              <div
+                key={msg.id}
+                onMouseEnter={() => isMine && setHoveredMsgId(msg.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
+                onTouchStart={(e) => { if (isMine) { e.stopPropagation(); setHoveredMsgId(prev => prev === msg.id ? null : msg.id) } }}
+              >
                 {dateSep}
-                <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', alignItems: 'center', gap: 6 }}>
+                  {isMine && hoveredMsgId === msg.id && (
+                    <button
+                      onClick={() => deleteMessage(msg.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '2px', display: 'flex', alignItems: 'center', flexShrink: 0 }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#ef4444'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#9ca3af'}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                   <div style={{ maxWidth: '82%' }}>
                     <div style={{
                       padding: mediaUrl ? '4px' : '8px 12px',
@@ -3446,7 +3472,7 @@ function EWalletTab({ userId }) {
                 {/* Method selector */}
                 <div className="mb-4">
                   <p className="text-sm font-semibold text-gray-700 mb-2">Select Method</p>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3">
                     <button
                       onClick={() => { setCashoutMethod('gcash'); setCashoutErrors((p) => ({ ...p, method: undefined })) }}
                       className={`flex items-center justify-center gap-2 py-3 rounded-xl border-2 font-semibold text-sm transition-colors ${cashoutMethod === 'gcash' ? 'border-green-500 bg-green-50 text-green-700' : 'border-gray-200 text-gray-500 hover:border-green-300'}`}
@@ -4131,21 +4157,23 @@ function Dashboard() {
 
         {/* Push notification permission banner */}
         {showNotifBanner && (
-          <div className="flex items-center gap-3 px-4 py-3 bg-orange-50 border-b border-orange-100">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3 bg-orange-50 border-b border-orange-100">
             <Bell size={18} className="text-orange-500 flex-shrink-0" />
-            <p className="text-sm text-gray-700 flex-1">Get notified about your bookings in real time.</p>
+            <p className="text-sm text-gray-700 flex-1 min-w-[140px]">Get notified about your bookings in real time.</p>
+            <div className="flex items-center gap-2 ml-auto flex-shrink-0">
             <button
               onClick={handleEnableNotifications}
-              className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0"
+              className="text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 px-3 py-1.5 rounded-lg transition-colors"
             >
-              Enable Notifications
+              Enable
             </button>
             <button
               onClick={() => setShowNotifBanner(false)}
-              className="text-xs text-gray-400 hover:text-gray-600 flex-shrink-0"
+              className="text-xs text-gray-400 hover:text-gray-600"
             >
-              Maybe Later
+              Later
             </button>
+            </div>
           </div>
         )}
 

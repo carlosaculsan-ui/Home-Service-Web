@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send, Phone, Smile, Mic, Camera, Video } from 'lucide-react'
+import { X, Send, Phone, Smile, Mic, Camera, Video, Trash2 } from 'lucide-react'
 import { supabase } from '../supabase'
 import EmojiPicker from 'emoji-picker-react'
 
@@ -16,6 +16,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [hoveredMsgId, setHoveredMsgId] = useState(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const [bookingInfo, setBookingInfo] = useState(null)
@@ -77,6 +78,11 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
       .eq('booking_id', bookingId)
       .eq('receiver_id', currentUserId)
       .eq('is_read', false)
+  }
+
+  async function deleteMessage(msgId) {
+    await supabase.from('messages').delete().eq('id', msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
   }
 
   // ── Init: fetch + mark read + focus input ──────────────────────────────────
@@ -318,7 +324,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex-1 overflow-y-auto px-5 py-4" onTouchStart={() => setHoveredMsgId(null)}>
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-gray-400 text-sm text-center">
@@ -336,19 +342,32 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
                     <div
                       key={msg.id}
                       className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                      onMouseEnter={() => isMine && setHoveredMsgId(msg.id)}
+                      onMouseLeave={() => setHoveredMsgId(null)}
+                      onTouchStart={(e) => { if (isMine) { e.stopPropagation(); setHoveredMsgId(prev => prev === msg.id ? null : msg.id) } }}
                     >
-                      <div
-                        className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
-                          mediaUrl ? '' : 'px-4 py-2.5'
-                        } ${
-                          isMine
-                            ? 'bg-orange-500 text-white rounded-br-sm'
-                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                        }`}
-                      >
-                        {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] block rounded-2xl" />}
-                        {isVideo && <video src={mediaUrl} controls className="max-w-[200px] block rounded-2xl" />}
-                        {!mediaUrl && msg.content}
+                      <div className="flex items-center gap-1.5">
+                        {isMine && hoveredMsgId === msg.id && (
+                          <button
+                            onClick={() => deleteMessage(msg.id)}
+                            className="text-gray-400 hover:text-red-500 transition-colors p-0.5 flex-shrink-0"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                        <div
+                          className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
+                            mediaUrl ? '' : 'px-4 py-2.5'
+                          } ${
+                            isMine
+                              ? 'bg-orange-500 text-white rounded-br-sm'
+                              : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                          }`}
+                        >
+                          {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] block rounded-2xl" />}
+                          {isVideo && <video src={mediaUrl} controls className="max-w-[200px] block rounded-2xl" />}
+                          {!mediaUrl && msg.content}
+                        </div>
                       </div>
                       <p className="text-xs text-gray-400 mt-1 px-1">
                         {isMine ? 'You' : otherUserName} · {formatTime(msg.created_at)}

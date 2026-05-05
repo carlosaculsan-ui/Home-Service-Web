@@ -11,7 +11,7 @@ import L from 'leaflet'
 import {
   Phone, Bot, Car, Wrench, CheckCircle2, MapPin,
   CalendarCheck, CalendarOff, Wallet, Star, UserCog, History,
-  LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile, CheckCheck, Camera, Video, Mic,
+  LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile, CheckCheck, Camera, Video, Mic, Trash2,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import EmojiPicker from 'emoji-picker-react'
@@ -3331,6 +3331,7 @@ function ContactAdminChat({ taskerUserId }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [hoveredMsgId, setHoveredMsgId] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [mediaFile, setMediaFile] = useState(null)
   const [mediaPreview, setMediaPreview] = useState(null)
@@ -3361,6 +3362,11 @@ function ContactAdminChat({ taskerUserId }) {
     }
     fetchAdmin()
   }, [])
+
+  async function deleteMessage(msgId) {
+    await supabase.from('messages').delete().eq('id', msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+  }
 
   async function fetchMessages(adminId) {
     const { data } = await supabase
@@ -3538,7 +3544,7 @@ function ContactAdminChat({ taskerUserId }) {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" onTouchStart={() => setHoveredMsgId(null)}>
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <p className="text-gray-400 text-sm text-center">
@@ -3552,13 +3558,29 @@ function ContactAdminChat({ taskerUserId }) {
             const isVideo = msg.content?.startsWith('[video:')
             const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
             return (
-              <div key={msg.id} className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}>
-                <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
-                  isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
-                  {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
-                  {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
-                  {!mediaUrl && msg.content}
+              <div
+                key={msg.id}
+                className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
+                onMouseEnter={() => isMine && setHoveredMsgId(msg.id)}
+                onMouseLeave={() => setHoveredMsgId(null)}
+                onTouchStart={(e) => { if (isMine) { e.stopPropagation(); setHoveredMsgId(prev => prev === msg.id ? null : msg.id) } }}
+              >
+                <div className="flex items-center gap-1.5">
+                  {isMine && hoveredMsgId === msg.id && (
+                    <button
+                      onClick={() => deleteMessage(msg.id)}
+                      className="text-gray-400 hover:text-red-500 transition-colors p-0.5 flex-shrink-0"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                  <div className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
+                    isMine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                  } ${mediaUrl ? 'p-1' : 'px-4 py-2.5'}`}>
+                    {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] rounded-xl block" />}
+                    {isVideo && <video src={mediaUrl} controls className="max-w-[200px] rounded-xl block" />}
+                    {!mediaUrl && msg.content}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 mt-1 px-1">
                   <p className="text-xs text-gray-400">
