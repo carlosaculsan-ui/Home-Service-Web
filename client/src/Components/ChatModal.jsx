@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Send, Phone, Smile, Mic } from 'lucide-react'
+import { X, Send, Phone, Smile, Mic, Camera, Video } from 'lucide-react'
 import { supabase } from '../supabase'
 import EmojiPicker from 'emoji-picker-react'
 
@@ -19,12 +19,16 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const [bookingInfo, setBookingInfo] = useState(null)
-  const [isCustomer, setIsCustomer] = useState(false)
   const [taskerPhone, setTaskerPhone] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
+  const [mediaFile, setMediaFile] = useState(null)
+  const [mediaPreview, setMediaPreview] = useState(null)
+  const [mediaError, setMediaError] = useState('')
+  const imageInputRef = useRef(null)
+  const videoInputRef = useRef(null)
   const pickerRef = useRef(null)
   const recognitionRef = useRef(null)
   const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
@@ -35,16 +39,11 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     if (!bookingId || !currentUserId) return
 
     async function fetchIntroData() {
-      const [{ data: booking }, { data: profile }, { data: tasker }] = await Promise.all([
+      const [{ data: booking }, { data: tasker }] = await Promise.all([
         supabase
           .from('bookings')
           .select('service, scheduled_date, scheduled_time, reference_number')
           .eq('id', bookingId)
-          .single(),
-        supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', currentUserId)
           .single(),
         supabase
           .from('taskers')
@@ -53,7 +52,6 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           .maybeSingle(),
       ])
       if (booking) setBookingInfo(booking)
-      if (profile?.role === 'customer') setIsCustomer(true)
       if (tasker?.phone) setTaskerPhone(tasker.phone)
     }
 
@@ -141,20 +139,64 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  function handleFileSelect(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMediaError('')
+    if (file.type.startsWith('video/')) {
+      const vid = document.createElement('video')
+      vid.preload = 'metadata'
+      vid.onloadedmetadata = () => {
+        window.URL.revokeObjectURL(vid.src)
+        if (vid.duration > 10) { setMediaError('Video must be 10 seconds or less.'); return }
+        setMediaFile(file)
+        setMediaPreview(URL.createObjectURL(file))
+      }
+      vid.src = URL.createObjectURL(file)
+    } else {
+      setMediaFile(file)
+      setMediaPreview(URL.createObjectURL(file))
+    }
+  }
+
   // ── Send message ─────────────────────────────────────────────────────────────
   async function handleSend() {
     const text = input.trim()
-    if (!text || sending) return
+    if ((!text && !mediaFile) || sending) return
     setSending(true)
     setInput('')
 
-    await supabase.from('messages').insert({
-      booking_id: bookingId,
-      sender_id: currentUserId,
-      receiver_id: otherUserId,
-      content: text,
-      is_read: false,
-    })
+    if (mediaFile) {
+      const ext = mediaFile.name.split('.').pop()
+      const path = `dispute-evidence/${currentUserId}-${Date.now()}.${ext}`
+      const { error: uploadErr } = await supabase.storage.from('booking-assets').upload(path, mediaFile)
+      if (!uploadErr) {
+        const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
+        const isVideo = mediaFile.type.startsWith('video/')
+        const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
+        await supabase.from('messages').insert({
+          booking_id: bookingId,
+          sender_id: currentUserId,
+          receiver_id: otherUserId,
+          content: mediaContent,
+          is_read: false,
+        })
+      }
+      setMediaFile(null)
+      setMediaPreview(null)
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      if (videoInputRef.current) videoInputRef.current.value = ''
+    }
+
+    if (text) {
+      await supabase.from('messages').insert({
+        booking_id: bookingId,
+        sender_id: currentUserId,
+        receiver_id: otherUserId,
+        content: text,
+        is_read: false,
+      })
+    }
 
     setSending(false)
     inputRef.current?.focus()
@@ -231,7 +273,23 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
             <div>
               <p className="font-bold text-gray-800 text-base">Chat with {otherUserName}</p>
-              <p className="text-xs text-gray-400 mt-0.5">Booking #{bookingId?.slice(0, 8)}</p>
+              {bookingInfo && (
+                <p className="text-xs text-gray-400 mt-0.5">
+                  {[
+                    bookingInfo.service,
+                    bookingInfo.scheduled_date && (() => {
+                      const d = new Date(bookingInfo.scheduled_date + 'T00:00:00')
+                      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      if (!bookingInfo.scheduled_time) return dateStr
+                      const [h, min] = bookingInfo.scheduled_time.split(':').map(Number)
+                      const suffix = h < 12 ? 'AM' : 'PM'
+                      const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
+                      return `${dateStr} at ${hour}:${String(min).padStart(2, '0')} ${suffix}`
+                    })(),
+                    bookingInfo.reference_number,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {taskerPhone && (
@@ -259,33 +317,8 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
             </div>
           </div>
 
-          {/* Intro message — customer only */}
-          {isCustomer && bookingInfo && (() => {
-            const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
-            const d = new Date(bookingInfo.scheduled_date + 'T00:00:00')
-            const dateStr = `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`
-            const timeStr = bookingInfo.scheduled_time
-              ? (() => {
-                  const [h, min] = bookingInfo.scheduled_time.split(':').map(Number)
-                  const suffix = h < 12 ? 'AM' : 'PM'
-                  const hour = h === 0 ? 12 : h > 12 ? h - 12 : h
-                  return `${hour}:${String(min).padStart(2, '0')} ${suffix}`
-                })()
-              : ''
-            const formattedDate = timeStr ? `${dateStr} at ${timeStr}` : dateStr
-            return (
-              <div className="mx-4 mt-4 mb-2 bg-orange-50 border border-orange-100 rounded-xl p-4 text-sm">
-                <p className="font-semibold text-gray-800 mb-1">📋 You're connected with {otherUserName}</p>
-                <p className="text-gray-600">Service: <span className="font-medium">{bookingInfo.service}</span></p>
-                <p className="text-gray-600">Scheduled: <span className="font-medium">{formattedDate}</span></p>
-                <p className="text-gray-600">Reference: <span className="font-medium text-orange-500">{bookingInfo.reference_number}</span></p>
-                <p className="text-xs text-gray-400 mt-2">The tasker will respond as soon as possible.</p>
-              </div>
-            )
-          })()}
-
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             {messages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
                 <p className="text-gray-400 text-sm text-center">
@@ -293,31 +326,60 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
                 </p>
               </div>
             ) : (
-              messages.map((msg) => {
-                const isMine = msg.sender_id === currentUserId
-                return (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
-                  >
+              <div className="space-y-3">
+                {messages.map((msg) => {
+                  const isMine = msg.sender_id === currentUserId
+                  const isImage = msg.content?.startsWith('[image:')
+                  const isVideo = msg.content?.startsWith('[video:')
+                  const mediaUrl = (isImage || isVideo) ? msg.content.replace(/^\[(image|video):/, '').replace(/\]$/, '') : null
+                  return (
                     <div
-                      className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                        isMine
-                          ? 'bg-orange-500 text-white rounded-br-sm'
-                          : 'bg-gray-100 text-gray-800 rounded-bl-sm'
-                      }`}
+                      key={msg.id}
+                      className={`flex flex-col ${isMine ? 'items-end' : 'items-start'}`}
                     >
-                      {msg.content}
+                      <div
+                        className={`max-w-[75%] rounded-2xl text-sm leading-relaxed overflow-hidden ${
+                          mediaUrl ? '' : 'px-4 py-2.5'
+                        } ${
+                          isMine
+                            ? 'bg-orange-500 text-white rounded-br-sm'
+                            : 'bg-gray-100 text-gray-800 rounded-bl-sm'
+                        }`}
+                      >
+                        {isImage && <img src={mediaUrl} alt="attachment" className="max-w-[200px] max-h-[200px] block rounded-2xl" />}
+                        {isVideo && <video src={mediaUrl} controls className="max-w-[200px] block rounded-2xl" />}
+                        {!mediaUrl && msg.content}
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1 px-1">
+                        {isMine ? 'You' : otherUserName} · {formatTime(msg.created_at)}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-400 mt-1 px-1">
-                      {isMine ? 'You' : otherUserName} · {formatTime(msg.created_at)}
-                    </p>
-                  </div>
-                )
-              })
+                  )
+                })}
+              </div>
             )}
             <div ref={bottomRef} />
           </div>
+
+          {/* Media preview */}
+          {mediaPreview && (
+            <div className="flex items-center gap-2 px-4 py-2 border-t border-gray-100 flex-shrink-0">
+              {mediaFile?.type.startsWith('video/') ? (
+                <video src={mediaPreview} className="w-12 h-12 object-cover rounded-lg border border-gray-200" muted />
+              ) : (
+                <img src={mediaPreview} alt="preview" className="w-12 h-12 object-cover rounded-lg border border-gray-200" />
+              )}
+              <button
+                onClick={() => { setMediaFile(null); setMediaPreview(null); if (imageInputRef.current) imageInputRef.current.value = ''; if (videoInputRef.current) videoInputRef.current.value = '' }}
+                className="text-xs text-red-500 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          )}
+          {mediaError && (
+            <p className="text-xs text-red-500 px-4 pb-1 flex-shrink-0">{mediaError}</p>
+          )}
 
           {/* Interim speech preview */}
           {interimText && (
@@ -333,6 +395,14 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
                 <EmojiPicker onEmojiClick={handleEmojiClick} width={300} height={380} previewConfig={{ showPreview: false }} />
               </div>
             )}
+            <label className="cursor-pointer flex-shrink-0 text-gray-400 hover:text-orange-500 transition-colors" title="Attach photo">
+              <Camera size={20} />
+              <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+            </label>
+            <label className="cursor-pointer flex-shrink-0 text-gray-400 hover:text-orange-500 transition-colors" title="Attach video (max 10s)">
+              <Video size={20} />
+              <input ref={videoInputRef} type="file" accept="video/*" className="hidden" onChange={handleFileSelect} />
+            </label>
             <input
               ref={inputRef}
               type="text"
@@ -368,7 +438,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
             )}
             <button
               onClick={handleSend}
-              disabled={!input.trim() || sending}
+              disabled={(!input.trim() && !mediaFile) || sending}
               className="p-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white transition-colors disabled:opacity-40 flex-shrink-0"
             >
               <Send size={17} />
