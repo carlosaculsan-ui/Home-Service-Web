@@ -2210,11 +2210,11 @@ function TaskerEWallet({ userId }) {
   }
 
   function closeCashout() {
-    if (cashoutScreen === 2) return
+    if (cashoutScreen === 3) return
     setCashoutOpen(false)
   }
 
-  async function handleCashoutProceed() {
+  function handleCashoutProceed() {
     const errors = {}
     if (!cashoutMethod) errors.method = 'Please select a cashout method.'
     const ph = cashoutNumber.trim()
@@ -2236,16 +2236,24 @@ function TaskerEWallet({ userId }) {
     })
     setCashoutTimestamp(ts)
     setCashoutScreen(2)
+  }
 
-    await new Promise((resolve) => setTimeout(resolve, 2500))
+  async function handleCashoutConfirm() {
+    const ref = Math.floor(100000000000 + Math.random() * 900000000000).toString()
+    setCashoutRef(ref)
+    setCashoutScreen(3)
 
     const methodLabel = cashoutMethod === 'gcash' ? 'GCash' : 'PayMaya'
     const maskedNumber = `09XX-XXX-${cashoutNumber.slice(-4)}`
+    const amt = cashoutFinalAmount
 
-    const { error: rpcError } = await supabase.rpc('increment_wallet_balance', {
-      target_user_id: userId,
-      increment_amount: -amt,
-    })
+    const [{ error: rpcError }] = await Promise.all([
+      supabase.rpc('increment_wallet_balance', {
+        target_user_id: userId,
+        increment_amount: -amt,
+      }),
+      new Promise((resolve) => setTimeout(resolve, 800)),
+    ])
     if (rpcError) {
       setCashoutApiError('Failed to process cashout. Please try again.')
       setCashoutScreen(1)
@@ -2257,14 +2265,13 @@ function TaskerEWallet({ userId }) {
       booking_id: null,
       amount: amt,
       type: 'debit',
-      description: `Cashout via ${methodLabel} — ${maskedNumber}`,
+      description: `Cashout via ${methodLabel} — ${maskedNumber} · Ref: ${ref}`,
       created_at: new Date().toISOString(),
     }).select('id').single()
     if (txnError) {
       setCashoutApiError('Cashout sent but transaction log failed. Contact support if your history is missing.')
     }
 
-    setCashoutRef(txnData?.id ? 'TXN-' + txnData.id.slice(0, 8).toUpperCase() : '—')
     setBalance((prev) => prev - amt)
     setTransactions((prev) => [{
       id: txnData?.id ?? `co-${Date.now()}`,
@@ -2272,11 +2279,11 @@ function TaskerEWallet({ userId }) {
       booking_id: null,
       amount: amt,
       type: 'debit',
-      description: `Cashout via ${methodLabel} — ${maskedNumber}`,
+      description: `Cashout via ${methodLabel} — ${maskedNumber} · Ref: ${ref}`,
       created_at: new Date().toISOString(),
     }, ...prev])
 
-    setCashoutScreen(3)
+    setCashoutScreen(4)
   }
 
   const maskedDisplay = cashoutNumber.length >= 4
@@ -2367,7 +2374,7 @@ function TaskerEWallet({ userId }) {
       {cashoutOpen && (
         <div
           className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center px-4"
-          onClick={cashoutScreen !== 2 ? closeCashout : undefined}
+          onClick={cashoutScreen !== 3 ? closeCashout : undefined}
         >
           <div
             className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 relative"
@@ -2440,7 +2447,7 @@ function TaskerEWallet({ userId }) {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">₱</span>
                     <input
                       type="number"
-                      min="100"
+                      min="80"
                       max={balance ?? 0}
                       value={cashoutAmount}
                       onChange={(e) => { setCashoutAmount(e.target.value); setCashoutErrors((p) => ({ ...p, amount: undefined })) }}
@@ -2469,8 +2476,60 @@ function TaskerEWallet({ userId }) {
               </>
             )}
 
-            {/* Screen 2: Processing */}
+            {/* Screen 2: Confirmation */}
             {cashoutScreen === 2 && (
+              <>
+                <button
+                  onClick={closeCashout}
+                  className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100 transition-colors text-lg font-bold"
+                >✕</button>
+
+                <h3 className="text-lg font-bold text-gray-800 mb-5">Confirm Cashout</h3>
+
+                <div className="bg-gray-50 rounded-xl p-4 space-y-2.5 text-sm mb-5">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Method</span>
+                    <span className="font-semibold text-gray-800">{cashoutMethod === 'gcash' ? 'GCash' : 'PayMaya'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Account Number</span>
+                    <span className="font-semibold text-gray-800">09XX-XXX-{cashoutNumber.slice(-4)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Account Name</span>
+                    <span className="font-semibold text-gray-800">{cashoutName}</span>
+                  </div>
+                  <div className="flex justify-between border-t border-gray-200 pt-2.5">
+                    <span className="text-gray-500">Amount</span>
+                    <span className="font-bold text-orange-600">₱{cashoutFinalAmount.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+
+                {cashoutApiError && (
+                  <div className="mb-4 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg px-4 py-3">
+                    {cashoutApiError}
+                  </div>
+                )}
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setCashoutScreen(1)}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                  <button
+                    onClick={handleCashoutConfirm}
+                    className="flex-1 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-sm font-semibold transition-colors"
+                  >
+                    Confirm
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Screen 3: Processing */}
+            {cashoutScreen === 3 && (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <div className="w-14 h-14 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-6" />
                 <p className="text-base font-bold text-gray-800 mb-1">Processing your cashout...</p>
@@ -2478,8 +2537,8 @@ function TaskerEWallet({ userId }) {
               </div>
             )}
 
-            {/* Screen 3: Success */}
-            {cashoutScreen === 3 && (
+            {/* Screen 4: Success */}
+            {cashoutScreen === 4 && (
               <>
                 <div className="flex flex-col items-center text-center mb-5">
                   <CheckCircle2 className="w-14 h-14 text-green-500 mb-3" />

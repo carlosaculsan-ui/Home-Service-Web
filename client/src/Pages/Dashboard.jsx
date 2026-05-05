@@ -56,29 +56,14 @@ function timeAgo(dateString) {
 
 async function moderateReview(comment) {
   try {
-    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('/api/moderate-review', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 10,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a content moderator for a Philippine home services app. Analyze the given review comment and respond with ONLY one word: "clean" if the content is appropriate, or "flagged" if it contains any of the following: profanity or swear words in English or Filipino/Tagalog, hate speech or discrimination, threats or violent language, sexually explicit content, spam or gibberish, personal attacks or harassment. Respond with ONLY "clean" or "flagged". Nothing else.`,
-          },
-          { role: 'user', content: comment },
-        ],
-      }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comment }),
     })
     const data = await response.json()
-    const result = data.choices?.[0]?.message?.content?.trim()?.toLowerCase()
-    return result === 'flagged' ? 'flagged' : 'clean'
-  } catch (error) {
-    console.error('Moderation error:', error)
+    return data.result === 'flagged' ? 'flagged' : 'clean'
+  } catch {
     return 'clean'
   }
 }
@@ -141,20 +126,23 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
       .single()
 
     let publicUrls = []
+    const uploadedFileNames = []
     if (photos.length > 0) {
       setSubmitMessage('Uploading photos...')
-      for (const file of photos) {
+      const results = await Promise.all(photos.map(async (file, idx) => {
         const fileExt = file.name.split('.').pop()
-        const fileName = `${booking.id}_${Date.now()}.${fileExt}`
-        const { error: uploadError } = await supabase.storage
-          .from('review-images')
-          .upload(fileName, file)
-        if (uploadError) { setStatus('error'); setSubmitMessage(''); return }
-        const { data } = supabase.storage
-          .from('review-images')
-          .getPublicUrl(fileName)
-        publicUrls.push(data.publicUrl)
+        const fileName = `${booking.id}_${Date.now()}_${idx}.${fileExt}`
+        const { error: uploadError } = await supabase.storage.from('review-images').upload(fileName, file)
+        if (uploadError) return { ok: false }
+        const { data } = supabase.storage.from('review-images').getPublicUrl(fileName)
+        return { ok: true, fileName, url: data.publicUrl }
+      }))
+      if (results.some((r) => !r.ok)) {
+        const toRemove = results.filter((r) => r.ok).map((r) => r.fileName)
+        if (toRemove.length > 0) await supabase.storage.from('review-images').remove(toRemove)
+        setStatus('error'); setSubmitMessage(''); return
       }
+      results.forEach((r) => { uploadedFileNames.push(r.fileName); publicUrls.push(r.url) })
     }
 
     let videoUrl = null
@@ -162,13 +150,12 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
       setSubmitMessage('Uploading video...')
       const fileExt = video.name.split('.').pop()
       const fileName = `vid_${booking.id}_${Date.now()}.${fileExt}`
-      const { error: vidUploadError } = await supabase.storage
-        .from('review-images')
-        .upload(fileName, video)
-      if (vidUploadError) { setStatus('error'); setSubmitMessage(''); return }
-      const { data: vidData } = supabase.storage
-        .from('review-images')
-        .getPublicUrl(fileName)
+      const { error: vidUploadError } = await supabase.storage.from('review-images').upload(fileName, video)
+      if (vidUploadError) {
+        if (uploadedFileNames.length > 0) await supabase.storage.from('review-images').remove(uploadedFileNames)
+        setStatus('error'); setSubmitMessage(''); return
+      }
+      const { data: vidData } = supabase.storage.from('review-images').getPublicUrl(fileName)
       videoUrl = vidData.publicUrl
     }
 
@@ -1826,12 +1813,14 @@ function CustomerReviews({ userId }) {
   const [reviews, setReviews] = useState([])
   const [revLoading, setRevLoading] = useState(true)
   const [lightboxSrc, setLightboxSrc] = useState(null)
+  const [lightboxVideo, setLightboxVideo] = useState(null)
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null)
 
   async function fetchReviews(showLoading = false) {
     if (showLoading) setRevLoading(true)
     const { data: reviewRows } = await supabase
       .from('reviews')
-      .select('id, booking_id, tasker_id, rating, comment, images, video, created_at, service')
+      .select('id, booking_id, tasker_id, rating, comment, images, video, created_at, service, is_flagged')
       .eq('client_id', userId)
       .order('created_at', { ascending: false })
 
@@ -1917,13 +1906,29 @@ function CustomerReviews({ userId }) {
   return (
     <div className="space-y-5">
 
-      {/* Lightbox */}
+      {/* Image Lightbox */}
       {lightboxSrc && (
         <div
           className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center px-4"
           onClick={() => setLightboxSrc(null)}
         >
           <img src={lightboxSrc} alt="Review photo" className="max-w-full max-h-[90vh] rounded-xl object-contain" />
+        </div>
+      )}
+
+      {/* Video Lightbox */}
+      {lightboxVideo && (
+        <div
+          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center px-4"
+          onClick={() => setLightboxVideo(null)}
+        >
+          <video
+            src={lightboxVideo}
+            controls
+            autoPlay
+            className="max-w-full max-h-[90vh] rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          />
         </div>
       )}
 
@@ -1972,7 +1977,7 @@ function CustomerReviews({ userId }) {
                 <div className="ml-auto flex items-center gap-3 flex-shrink-0">
                   <p className="text-xs text-gray-400">{dateStr}</p>
                   <button
-                    onClick={() => deleteReview(r.id)}
+                    onClick={() => setDeleteConfirmId(r.id)}
                     className="w-7 h-7 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
                     title="Delete review"
                   >
@@ -1982,7 +1987,20 @@ function CustomerReviews({ userId }) {
               </div>
 
               {/* Stars */}
-              <ReviewStars rating={r.rating ?? 0} />
+              <div className="flex items-center gap-2 flex-wrap">
+                <ReviewStars rating={r.rating ?? 0} />
+                {r.is_flagged && (
+                  <div className="relative group">
+                    <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full cursor-default">
+                      ⏳ Under Review
+                    </span>
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 bg-gray-800 text-white text-xs rounded-lg px-3 py-2 leading-snug hidden group-hover:block z-10 pointer-events-none">
+                      Your review is being checked by our team. It will be visible to others once approved.
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Comment */}
               {r.comment && (
@@ -2002,11 +2020,37 @@ function CustomerReviews({ userId }) {
 
               {/* Video */}
               {r.video && (
-                <video
-                  src={r.video}
-                  controls
-                  className="w-full max-w-xs rounded-xl border border-gray-100 max-h-48"
-                />
+                <div
+                  className="relative w-full max-w-xs cursor-pointer group"
+                  onClick={() => setLightboxVideo(r.video)}
+                >
+                  <video
+                    src={r.video}
+                    className="w-full rounded-xl border border-gray-100 max-h-48 pointer-events-none"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Delete confirmation */}
+              {deleteConfirmId === r.id && (
+                <div className="flex items-center justify-between bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 gap-3">
+                  <p className="text-sm text-red-600 font-medium">Delete this review?</p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDeleteConfirmId(null)}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+                    >Cancel</button>
+                    <button
+                      onClick={() => { deleteReview(r.id); setDeleteConfirmId(null) }}
+                      className="text-xs px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors"
+                    >Delete</button>
+                  </div>
+                </div>
               )}
             </div>
           )
