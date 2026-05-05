@@ -15,19 +15,19 @@ import {
 const FAQS = [
   {
     q: "What's required to become a Tasker?",
-    a: "You need a valid government-issued ID, a smartphone, and a willingness to provide quality service. Some services may require proof of skills or certifications.",
+    a: "You need a valid government-issued ID, a smartphone, and a willingness to provide quality service. Some services may require proof of skills or certifications. All applicants go through a background check and verification before being approved.",
   },
   {
-    q: "Do I need experience to task?",
-    a: "Not necessarily. Many tasks can be done without prior professional experience. However, having relevant skills will help you get more bookings and better reviews.",
+    q: "Can I accept or reject booking requests?",
+    a: "Yes. You have full control over which jobs you accept. You'll receive a notification when a customer books you, and you can choose to accept or reject it. If you don't respond within 30 minutes, the booking is automatically cancelled and the customer is refunded.",
   },
   {
-    q: "How do I get jobs?",
-    a: "Once your profile is approved, customers in your area can find and book you through Hanap.ph. You'll receive booking notifications and can manage your schedule from your dashboard.",
+    q: "What services can I offer?",
+    a: "Hanap.ph currently offers Cleaning, Carpentry, Electrical, Aircon Maintenance, Painting, and Plumbing Repair. During your application, select the services that match your skills and experience.",
   },
   {
     q: "How do I get paid?",
-    a: "Payment is processed securely through the platform after each completed job. Funds are transferred directly to your registered account.",
+    a: "Customers pay upfront through the platform before a job starts. Once you complete a job and mark it as done, your earnings are credited to your Tasker account. You can cash out anytime via GCash or PayMaya.",
   },
   {
     q: "How long does it take for my registration to be processed?",
@@ -35,7 +35,7 @@ const FAQS = [
   },
   {
     q: "Where does Hanap.ph operate?",
-    a: "Hanap.ph currently operates across major cities and municipalities in the Philippines. We're continuously expanding to new areas — check back soon if your location isn't listed yet.",
+    a: "Hanap.ph currently serves all 17 cities of Metro Manila (NCR): Manila, Quezon City, Caloocan, Las Piñas, Makati, Malabon, Mandaluyong, Marikina, Muntinlupa, Navotas, Parañaque, Pasay, Pasig, Pateros, San Juan, Taguig, and Valenzuela.",
   },
 ]
 
@@ -45,13 +45,13 @@ function FAQItem({ q, a }) {
     <div className="border border-gray-200 rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-5 py-4 text-left text-black font-medium hover:bg-gray-50 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 text-left text-gray-800 font-medium hover:bg-gray-50 transition-colors"
       >
         <span>{q}</span>
         {open ? <ChevronUp size={18} className="text-orange-500 flex-shrink-0" /> : <ChevronDown size={18} className="text-black flex-shrink-0" />}
       </button>
       {open && (
-        <div className="px-5 pb-4 text-black text-sm leading-relaxed border-t border-gray-100">
+        <div className="px-5 pb-4 text-gray-600 text-sm leading-relaxed border-t border-gray-100">
           {a}
         </div>
       )}
@@ -179,8 +179,8 @@ function BecomeATaskerLanding() {
           <h1 className="text-2xl md:text-5xl font-extrabold text-black leading-tight">
             Earn money<br />your way
           </h1>
-          <p className="text-black text-lg">
-            See how much you can earn tasking on Hanap.ph
+          <p className="text-gray-600 text-lg">
+            Join hundreds of skilled Taskers earning on their own schedule across Metro Manila.
           </p>
           <Link
             to="/become-a-tasker/apply"
@@ -188,7 +188,7 @@ function BecomeATaskerLanding() {
           >
             Apply Now
           </Link>
-          <p className="text-sm text-black">
+          <p className="text-sm text-gray-500">
             Already a tasker?{' '}
             <Link to="/tasker" className="text-orange-500 hover:underline font-medium">
               Sign in here
@@ -204,7 +204,7 @@ function BecomeATaskerLanding() {
             <h2 className="text-2xl md:text-4xl font-bold text-black mb-4">
               Flexible work, at your fingertips
             </h2>
-            <p className="text-black max-w-md mx-auto">
+            <p className="text-gray-600 max-w-md mx-auto">
               Find local jobs that fit your skills and schedule. With Hanap.ph, you have the freedom and support to be your own boss.
             </p>
           </div>
@@ -229,7 +229,7 @@ function BecomeATaskerLanding() {
               <div key={title} className="flex flex-col items-center md:items-start text-center md:text-left gap-4">
                 <div className="w-12 h-12">{icon}</div>
                 <h3 className="text-xl font-bold text-black">{title}</h3>
-                <p className="text-black leading-relaxed">{desc}</p>
+                <p className="text-gray-600 leading-relaxed">{desc}</p>
               </div>
             ))}
           </div>
@@ -243,15 +243,15 @@ function BecomeATaskerLanding() {
       <section className="bg-gray-50 py-16">
         <div className="max-w-6xl mx-auto px-4 md:px-6 grid grid-cols-1 md:grid-cols-2 gap-10 items-center">
           <div className="rounded-2xl overflow-hidden h-[240px] md:h-[340px]">
-            <img src={Tasker10} alt="What is Hanap.ph" className="w-full h-full object-cover" />
+            <img src={Tasker10} alt="What is Hanap.ph" loading="lazy" className="w-full h-full object-cover" />
           </div>
 
           <div className="flex flex-col gap-4">
             <h2 className="text-2xl md:text-3xl font-extrabold text-black">What is Hanap.ph?</h2>
-            <p className="text-black leading-relaxed">
+            <p className="text-gray-600 leading-relaxed">
               Hanap.ph is the Philippines' trusted home services platform, connecting skilled workers with homeowners who need help — from cleaning and repairs to errands and more.
             </p>
-            <p className="text-black leading-relaxed">
+            <p className="text-gray-600 leading-relaxed">
               We make it simple to find work, build a client base, and grow your income — all from your phone.
             </p>
           </div>
@@ -272,7 +272,7 @@ function BecomeATaskerLanding() {
               {
                 icon: <ClipboardList size={28} className="text-orange-500" />,
                 step: '2. Build your profile',
-                desc: 'Select services you want to offer and set your rate.',
+                desc: 'Add your skills, select services you want to offer, and submit your proposed hourly rate.',
               },
               {
                 icon: <ShieldCheck size={28} className="text-orange-500" />,
@@ -285,7 +285,7 @@ function BecomeATaskerLanding() {
                   {icon}
                 </div>
                 <h3 className="text-lg font-bold text-black">{step}</h3>
-                <p className="text-black text-sm">{desc}</p>
+                <p className="text-gray-600 text-sm">{desc}</p>
               </div>
             ))}
           </div>
@@ -298,16 +298,16 @@ function BecomeATaskerLanding() {
 
           {/* Left - Quote */}
           <div>
-            <span className="text-6xl text-orange-500 font-serif leading-none">"</span>
+            <span className="text-6xl text-orange-500 font-serif leading-none">“</span>
             <p className="text-2xl font-medium text-gray-800 mt-2 leading-relaxed">
               Dati naghahanap pa ako ng trabaho, ngayon ang trabaho ang humahanap sa akin. Salamat Hanap.ph — nakatulong talaga ito sa pamilya ko.
             </p>
-            <p className="text-sm text-gray-500 mt-4">Juan dela Cruz, Quezon City</p>
+            <p className="text-sm text-gray-500 mt-4">Almar C., Quezon City</p>
           </div>
 
           {/* Right - Image */}
           <div className="rounded-lg h-80 overflow-hidden">
-            <img src={Tasker11} alt="Almar" className="w-full h-full object-cover" />
+            <img src={Tasker11} alt="Almar" loading="lazy" className="w-full h-full object-cover" />
           </div>
 
         </div>
@@ -330,7 +330,7 @@ function BecomeATaskerLanding() {
         <h2 className="text-2xl md:text-3xl font-extrabold text-white mb-6">Ready to start earning?</h2>
         <Link
           to="/become-a-tasker/apply"
-          className="w-full md:w-auto inline-block border-2 border-white text-white font-bold px-8 py-3 rounded-xl hover:bg-white hover:text-orange-500 transition-colors text-lg"
+          className="w-full md:w-auto inline-block bg-white text-orange-500 font-bold px-8 py-3 rounded-xl hover:bg-orange-50 transition-colors text-lg"
         >
           Apply Now
         </Link>
