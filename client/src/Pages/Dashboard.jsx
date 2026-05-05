@@ -1072,6 +1072,7 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
   const [selectedProposedDate, setSelectedProposedDate] = useState(null)
   const [proposalLoading, setProposalLoading] = useState(null)
   const [toast, setToast] = useState('')
+  const [toastError, setToastError] = useState('')
   const [showTrackModal, setShowTrackModal] = useState(false)
   const [showReceiptModal, setShowReceiptModal] = useState(false)
   const [showCompletionPhotoModal, setShowCompletionPhotoModal] = useState(false)
@@ -1088,12 +1089,18 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
     if (!selectedProposedDate) return
     setProposalLoading('accept')
     const dateLabel = `${selectedProposedDate.date}${selectedProposedDate.time ? ' at ' + selectedProposedDate.time : ''}`
-    await supabase.from('bookings').update({
+    const { error } = await supabase.from('bookings').update({
       scheduled_date: selectedProposedDate.date,
       scheduled_time: selectedProposedDate.time || null,
       rebook_status: 'accepted',
       status: 'confirmed',
     }).eq('id', booking.id)
+    if (error) {
+      setProposalLoading(null)
+      setToastError('Failed to confirm booking. Please try again.')
+      setTimeout(() => setToastError(''), 4000)
+      return
+    }
     await supabase.from('messages').insert({
       booking_id: booking.id,
       sender_id: userId,
@@ -1109,10 +1116,16 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
 
   async function handleDeclineProposal() {
     setProposalLoading('decline')
-    await supabase.from('bookings').update({
+    const { error } = await supabase.from('bookings').update({
       rebook_status: 'declined',
       status: 'cancelled',
     }).eq('id', booking.id)
+    if (error) {
+      setProposalLoading(null)
+      setToastError('Failed to decline proposal. Please try again.')
+      setTimeout(() => setToastError(''), 4000)
+      return
+    }
     await supabase.from('messages').insert({
       booking_id: booking.id,
       sender_id: userId,
@@ -1184,7 +1197,12 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
       })
     }
     setConfirming(false)
-    if (!error) onCancel()
+    if (error) {
+      setToastError('Failed to confirm completion. Please try again.')
+      setTimeout(() => setToastError(''), 4000)
+      return
+    }
+    onCancel()
   }
 
   async function handleDispute() {
@@ -1192,10 +1210,16 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
     setDisputing(true)
     setDisputeError('')
 
-    await supabase.from('bookings').update({
+    const { error: disputeErr } = await supabase.from('bookings').update({
       status: 'disputed',
       dispute_reason: disputeNote.trim(),
     }).eq('id', booking.id)
+
+    if (disputeErr) {
+      setDisputing(false)
+      setDisputeError('Failed to submit dispute. Please try again.')
+      return
+    }
 
     if (booking.taskerUserId) {
       await supabase.from('notifications').insert({
@@ -1296,7 +1320,8 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
         .eq('status', 'approved')
         .maybeSingle()
       if (!data) {
-        alert('This tasker is no longer available. Please make a new booking.')
+        setToastError('This tasker is no longer available. Please make a new booking.')
+        setTimeout(() => setToastError(''), 4000)
         return
       }
     }
@@ -1378,9 +1403,32 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
         <ReceiptModal booking={booking} onClose={() => setShowReceiptModal(false)} />
       )}
 
+      {booking.completion_photo_url && showCompletionPhotoModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setShowCompletionPhotoModal(false)}
+        >
+          <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => setShowCompletionPhotoModal(false)}
+              className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
+            >
+              ×
+            </button>
+            <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-700 font-medium">
           {toast}
+        </div>
+      )}
+
+      {toastError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700 font-medium">
+          {toastError}
         </div>
       )}
 
@@ -1453,20 +1501,20 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
               : '—'],
             ['Tasker',     booking.taskerName ?? '—'],
             ['Task Size',  booking.task_size ?? '—'],
-            ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.category
-              ? [['Furniture Category', booking.task_options.category]]
+            ...(bookingTaskOpts?.service === 'Carpentry' && bookingTaskOpts?.category
+              ? [['Furniture Category', bookingTaskOpts.category]]
               : []),
-            ...(booking.task_options?.service === 'Carpentry' && booking.task_options?.furniture_dimensions
-              ? [['Dimensions', booking.task_options.furniture_dimensions]]
+            ...(bookingTaskOpts?.service === 'Carpentry' && bookingTaskOpts?.furniture_dimensions
+              ? [['Dimensions', bookingTaskOpts.furniture_dimensions]]
               : []),
-            ...(booking.task_options?.service === 'Painting' && booking.task_options?.what_to_paint === 'Furniture' && booking.task_options?.furniture_category
-              ? [['Furniture Category', booking.task_options.furniture_category], ['Number of Pieces', booking.task_options.furniture_pieces]]
+            ...(bookingTaskOpts?.service === 'Painting' && bookingTaskOpts?.what_to_paint === 'Furniture' && bookingTaskOpts?.furniture_category
+              ? [['Furniture Category', bookingTaskOpts.furniture_category], ['Number of Pieces', bookingTaskOpts.furniture_pieces]]
               : []),
-            ...(booking.task_options?.service === 'Plumbing Repair' && booking.task_options?.sub_option
-              ? [['Specify Problem', booking.task_options.sub_option]]
+            ...(bookingTaskOpts?.service === 'Plumbing Repair' && bookingTaskOpts?.sub_option
+              ? [['Specify Problem', bookingTaskOpts.sub_option]]
               : []),
-            ...(booking.task_options?.service === 'Electrical' && booking.task_options?.sub_option
-              ? [['Specify Work', booking.task_options.sub_option]]
+            ...(bookingTaskOpts?.service === 'Electrical' && bookingTaskOpts?.sub_option
+              ? [['Specify Work', bookingTaskOpts.sub_option]]
               : []),
             ['Address',    booking.address ?? '—'],
           ].map(([label, val]) => (
@@ -1489,16 +1537,12 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
           const helperCount = booking.taskers_needed > 1 ? booking.taskers_needed - 1 : 0
           return (
             <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
-              <div className="flex justify-between text-gray-600">
-                <span>Base Price</span>
-                <span>{fmt(totalPaid)}</span>
-              </div>
               {helperFee > 0 && helperCount > 0 && (
                 <div className="text-gray-400 text-xs">
                   {helperCount} helper{helperCount > 1 ? 's' : ''} assigned
                 </div>
               )}
-              <div className="flex justify-between font-semibold text-gray-800 border-t border-gray-100 pt-1.5">
+              <div className="flex justify-between font-semibold text-gray-800">
                 <span>Total Paid</span>
                 <span>{fmt(totalPaid)}</span>
               </div>
@@ -1583,31 +1627,13 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
               Your tasker has marked this job as complete. Please confirm to finalize the booking.
             </p>
             {booking.completion_photo_url && (
-              <>
-                <button
-                  onClick={() => setShowCompletionPhotoModal(true)}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
-                >
-                  <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
-                  View completion photo
-                </button>
-                {showCompletionPhotoModal && (
-                  <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-                    onClick={() => setShowCompletionPhotoModal(false)}
-                  >
-                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => setShowCompletionPhotoModal(false)}
-                        className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
-                      >
-                        ×
-                      </button>
-                      <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
-                    </div>
-                  </div>
-                )}
-              </>
+              <button
+                onClick={() => setShowCompletionPhotoModal(true)}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+              >
+                <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                View completion photo
+              </button>
             )}
             <div className="flex gap-2 flex-wrap">
               <button
@@ -1676,31 +1702,13 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
               Leave a review to help others find great taskers.
             </p>
             {booking.completion_photo_url && (
-              <>
-                <button
-                  onClick={() => setShowCompletionPhotoModal(true)}
-                  className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
-                >
-                  <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
-                  View completion photo
-                </button>
-                {showCompletionPhotoModal && (
-                  <div
-                    className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-                    onClick={() => setShowCompletionPhotoModal(false)}
-                  >
-                    <div className="relative max-w-lg w-full" onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => setShowCompletionPhotoModal(false)}
-                        className="absolute -top-3 -right-3 bg-white rounded-full w-8 h-8 flex items-center justify-center shadow text-gray-600 hover:text-gray-900 font-bold text-lg leading-none"
-                      >
-                        ×
-                      </button>
-                      <img src={booking.completion_photo_url} alt="Completion photo" className="w-full rounded-xl shadow-lg" />
-                    </div>
-                  </div>
-                )}
-              </>
+              <button
+                onClick={() => setShowCompletionPhotoModal(true)}
+                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2"
+              >
+                <img src={booking.completion_photo_url} alt="Completion photo" className="w-10 h-10 rounded-lg object-cover border border-gray-200 shrink-0" />
+                View completion photo
+              </button>
             )}
             <div className="flex items-center gap-3 flex-wrap">
               {!hasReview && !reviewSubmitted && (
@@ -1788,7 +1796,7 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
               Message Tasker
               {unreadCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
             </button>
@@ -3823,22 +3831,30 @@ function Dashboard() {
     return () => { supabase.removeChannel(channel) }
   }, [userId])
 
+  // Centralised: check n.type when the DB column exists, else fall back to title matching
+  function notifStaysOnPage(n) {
+    if (n.type) return ['announcement', 'interview', 'welcome'].includes(n.type)
+    return (n.title ?? '').includes('📢') || (n.title ?? '').includes('Interview Scheduled') || (n.title ?? '').includes('Welcome')
+  }
+
   async function markAllNotifsRead() {
     if (!userId) return
-    await supabase
+    const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
       .eq('user_id', userId)
       .eq('is_read', false)
+    if (error) return
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })))
     setUnreadNotifCount(0)
   }
 
   async function markOneNotifRead(id) {
-    await supabase
+    const { error } = await supabase
       .from('notifications')
       .update({ is_read: true })
       .eq('id', id)
+    if (error) return
     setNotifications((prev) =>
       prev.map((n) => n.id === id ? { ...n, is_read: true } : n)
     )
@@ -3846,12 +3862,24 @@ function Dashboard() {
   }
 
   async function deleteNotif(id) {
-    await supabase.from('notifications').delete().eq('id', id)
+    const { error } = await supabase.from('notifications').delete().eq('id', id)
+    if (error) return
     setNotifications((prev) => {
       const target = prev.find((n) => n.id === id)
       if (target && !target.is_read) setUnreadNotifCount((c) => Math.max(0, c - 1))
       return prev.filter((n) => n.id !== id)
     })
+  }
+
+  async function clearAllNotifs() {
+    if (!userId) return
+    const { error } = await supabase
+      .from('notifications')
+      .delete()
+      .eq('user_id', userId)
+    if (error) return
+    setNotifications([])
+    setUnreadNotifCount(0)
   }
 
   async function handleLogout() {
@@ -4154,13 +4182,23 @@ function Dashboard() {
             <>
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-xl font-bold text-gray-800">Notifications</h2>
-                {notifications.some((n) => !n.is_read) && (
-                  <button
-                    onClick={markAllNotifsRead}
-                    className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    Mark all as read
-                  </button>
+                {notifications.length > 0 && (
+                  <div className="flex items-center gap-3">
+                    {notifications.some((n) => !n.is_read) && (
+                      <button
+                        onClick={markAllNotifsRead}
+                        className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                    <button
+                      onClick={clearAllNotifs}
+                      className="text-sm text-gray-400 hover:text-red-500 transition-colors"
+                    >
+                      Clear all
+                    </button>
+                  </div>
                 )}
               </div>
               {notifications.length === 0 ? (
@@ -4172,8 +4210,7 @@ function Dashboard() {
                       key={n.id}
                       onClick={() => {
                         if (!n.is_read) markOneNotifRead(n.id)
-                        const isStay = (n.title ?? '').includes('📢') || (n.title ?? '').includes('Interview Scheduled') || (n.title ?? '').includes('Welcome')
-                        if (!isStay) setTab('bookings')
+                        if (!notifStaysOnPage(n)) setTab('bookings')
                       }}
                       className={`w-full text-left rounded-2xl px-4 py-4 border transition-colors cursor-pointer ${
                         n.is_read
@@ -4194,7 +4231,7 @@ function Dashboard() {
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteNotif(n.id) }}
-                            className="w-5 h-5 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors text-xs font-bold leading-none"
+                            className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-red-100 text-gray-400 hover:text-red-500 transition-colors text-xs font-bold leading-none"
                             title="Dismiss"
                           >✕</button>
                         </div>
