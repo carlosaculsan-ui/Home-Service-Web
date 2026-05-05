@@ -2181,15 +2181,21 @@ function CustomerProfile({ userId, userEmail }) {
   const [deactivateError, setDeactivateError] = useState('')
   const [pwResetSent, setPwResetSent] = useState(false)
   const [pwResetLoading, setPwResetLoading] = useState(false)
+  const [removeConfirm, setRemoveConfirm] = useState(false)
 
   useEffect(() => {
     if (!userId) return
     async function fetchProfile() {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
         .select('full_name, phone, avatar_url, address, created_at')
         .eq('id', userId)
         .single()
+      if (error) {
+        setProfLoading(false)
+        showToast('error', 'Failed to load profile. Please refresh.')
+        return
+      }
       if (data) {
         setProfile(data)
         setFullName(data.full_name ?? '')
@@ -2207,9 +2213,16 @@ function CustomerProfile({ userId, userEmail }) {
     setTimeout(() => setToast(null), 3000)
   }
 
+  const MAX_AVATAR_BYTES = 5 * 1024 * 1024
+
   async function handleAvatarUpload(e) {
     const file = e.target.files?.[0]
     if (!file) return
+    if (file.size > MAX_AVATAR_BYTES) {
+      showToast('error', 'Photo must be 5 MB or less.')
+      e.target.value = ''
+      return
+    }
     setUploading(true)
     const path = `customer-avatars/${userId}/avatar`
     const { error: uploadError } = await supabase.storage
@@ -2222,7 +2235,12 @@ function CustomerProfile({ userId, userEmail }) {
     }
     const { data: urlData } = supabase.storage.from('avatars').getPublicUrl(path)
     const publicUrl = `${urlData.publicUrl}?t=${Date.now()}`
-    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
+    const { error: updateError } = await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', userId)
+    if (updateError) {
+      setUploading(false)
+      showToast('error', 'Photo uploaded but failed to save. Please try again.')
+      return
+    }
     setAvatarUrl(publicUrl)
     setUploading(false)
     showToast('success', 'Profile photo updated!')
@@ -2231,8 +2249,14 @@ function CustomerProfile({ userId, userEmail }) {
   async function handleRemoveAvatar() {
     const path = `customer-avatars/${userId}/avatar`
     await supabase.storage.from('avatars').remove([path])
-    await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
+    const { error: dbError } = await supabase.from('profiles').update({ avatar_url: null }).eq('id', userId)
+    if (dbError) {
+      showToast('error', 'Failed to remove photo. Please try again.')
+      setRemoveConfirm(false)
+      return
+    }
     setAvatarUrl(null)
+    setRemoveConfirm(false)
     showToast('success', 'Profile photo removed')
   }
 
@@ -2325,7 +2349,7 @@ function CustomerProfile({ userId, userEmail }) {
           )}
           {avatarUrl && !uploading && (
             <button
-              onClick={handleRemoveAvatar}
+              onClick={() => setRemoveConfirm(true)}
               className="absolute top-1 right-1 w-[22px] h-[22px] rounded-full bg-red-500 border-2 border-white flex items-center justify-center cursor-pointer"
               title="Remove photo"
             >
@@ -2352,6 +2376,19 @@ function CustomerProfile({ userId, userEmail }) {
             disabled={uploading}
           />
         </label>
+        {removeConfirm && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-xl px-4 py-2.5 w-full">
+            <p className="text-sm text-red-600 font-medium flex-1">Remove profile photo?</p>
+            <button
+              onClick={() => setRemoveConfirm(false)}
+              className="text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
+            >Cancel</button>
+            <button
+              onClick={handleRemoveAvatar}
+              className="text-xs px-3 py-1.5 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold transition-colors"
+            >Remove</button>
+          </div>
+        )}
       </div>
 
       {/* Section 2 — Personal Information */}
@@ -2501,6 +2538,7 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
+  const [chatError, setChatError] = useState('')
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -2511,12 +2549,14 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
   const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
   async function fetchMessages() {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('*')
       .is('booking_id', null)
       .or(`sender_id.eq.${customerId},receiver_id.eq.${customerId}`)
       .order('created_at', { ascending: true })
+    if (error) { setChatError('Failed to load messages. Please refresh.'); return }
+    setChatError('')
     setMessages((data ?? []).filter(
       (m) => (m.sender_id === customerId && m.receiver_id === adminId) ||
              (m.sender_id === adminId && m.receiver_id === customerId)
@@ -2557,24 +2597,33 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
     if ((!text && !mediaFile) || sending) return
     setSending(true)
     setInput('')
+    setMediaError('')
 
     if (mediaFile) {
       const ext = mediaFile.name.split('.').pop()
       const path = `dispute-evidence/${customerId}-${Date.now()}.${ext}`
       const { error: uploadErr } = await supabase.storage.from('booking-assets').upload(path, mediaFile)
-      if (!uploadErr) {
-        const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
-        const isVideo = mediaFile.type.startsWith('video/')
-        const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
-        await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: mediaContent, is_read: false })
+      if (uploadErr) {
+        setMediaError('Failed to send attachment. Please try again.')
+        setSending(false)
+        return
       }
+      const { data: urlData } = supabase.storage.from('booking-assets').getPublicUrl(path)
+      const isVideo = mediaFile.type.startsWith('video/')
+      const mediaContent = isVideo ? `[video:${urlData.publicUrl}]` : `[image:${urlData.publicUrl}]`
+      await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: mediaContent, is_read: false })
       setMediaFile(null)
       setMediaPreview(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     if (text) {
-      await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: text, is_read: false })
+      const { error: textErr } = await supabase.from('messages').insert({ booking_id: null, sender_id: customerId, receiver_id: adminId, content: text, is_read: false })
+      if (textErr) {
+        setMediaError('Failed to send message. Please try again.')
+        setSending(false)
+        return
+      }
     }
 
     setSending(false)
@@ -2668,7 +2717,11 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '14px', display: 'flex', flexDirection: 'column', gap: '10px', WebkitOverflowScrolling: 'touch' }}>
-        {messages.length === 0 ? (
+        {chatError ? (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#ef4444', fontSize: '0.85rem', textAlign: 'center' }}>{chatError}</p>
+          </div>
+        ) : messages.length === 0 ? (
           <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#9ca3af', fontSize: '0.85rem', textAlign: 'center' }}>No messages yet.<br />Send a message to get help!</p>
           </div>
@@ -2869,67 +2922,13 @@ function SupportAIChat({ topic, onBack, onTalkToAdmin }) {
         role: m.role === 'bot' ? 'assistant' : 'user',
         content: m.content,
       }))
-      const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      const res = await fetch('/api/ai-support-chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_GROQ_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: 'llama-3.3-70b-versatile',
-          max_tokens: 200,
-          messages: [
-            { role: 'system', content: `You are a helpful customer support assistant for Hanap.ph, a home services platform in the Philippines. Help customers with their questions about bookings, payments, taskers, and services. Be concise, friendly and helpful.
-
-QUICK REPLY RESPONSES:
-When a customer selects one of these quick reply topics, respond accordingly:
-
-"Track my Booking":
-- Tell the customer to go to the "My Bookings" tab in their dashboard
-- Explain the booking status flow: pending_payment → confirmed → accepted → on_the_way → in_progress → completed
-- Each status means: confirmed = payment received, accepted = tasker accepted the job, on_the_way = tasker is coming, in_progress = work has started, completed = job done
-- They also receive real-time notifications for every status change
-
-"Cancel a Booking":
-- Tell the customer they can cancel by clicking the "Cancel Booking" button on their booking card in the "My Bookings" tab
-- Only bookings that are still pending or confirmed can be cancelled
-- Once a tasker is on the way or has started, cancellation may not be possible
-- When a booking is cancelled, the full payment amount is automatically credited to their Hanap.ph E-Wallet instantly — no need to contact support for a refund
-- If a tasker rejects a booking, the full payment is also automatically credited to their Hanap.ph E-Wallet instantly
-- Their E-Wallet balance can be found in the E-Wallet tab in the Dashboard and can be used for future bookings
-- For special cases, they should use "Talk to Admin"
-
-"Payment Issue":
-- Hanap.ph accepts GCash, PayMaya, and Credit/Debit Card via PayMongo
-- Advise the customer to: (1) double-check their payment details, (2) make sure they have sufficient balance, (3) try a different payment method
-- If the issue persists, they should contact admin support directly through the Contact Support tab in their Dashboard
-- If payment was deducted but the booking was not confirmed, tell them to contact admin immediately via the Contact Support tab with their reference number
-- The reference number starts with VE- and can be found on their booking card
-
-"Review Issue":
-- Reviews can only be submitted after a booking is marked as completed
-- They can leave a review from the "My Bookings" tab by clicking the review button on a completed booking
-- Reviews are moderated for appropriate content
-- If they cannot see the review button, the booking may not be completed yet
-
-"Rebooking Help":
-- Customers can rebook a previous service directly from their "My Bookings" tab
-- Click the "Rebook" button on any completed or cancelled booking
-- The system will pre-fill their previous task details and they just need to select a new date and tasker
-- Pricing remains the same as the original booking
-
-"Report a Tasker":
-- Take this seriously and respond with empathy
-- Ask the customer to describe what happened
-- Remind them their concern will be handled professionally
-- Direct them to click "Talk to Admin" to escalate the issue directly to the Hanap.ph team
-- Assure them that Hanap.ph takes tasker conduct seriously` },
-            ...history,
-          ],
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ history }),
       })
       const json = await res.json()
-      const reply = json.choices?.[0]?.message?.content?.trim() ?? 'Sorry, I couldn\'t get a response. Please try again or talk to an admin.'
+      const reply = json.reply ?? 'Sorry, I couldn\'t get a response. Please try again or talk to an admin.'
       setMessages((prev) => [...prev, { role: 'bot', content: reply }])
     } catch {
       setMessages((prev) => [...prev, { role: 'bot', content: 'Something went wrong. Please try again or contact admin support.' }])
