@@ -164,7 +164,7 @@ function BecomeATaskerLanding() {
       <Navbar />
 
       {/* ── Section 1: Hero ─────────────────────────────────────────────── */}
-      <section className="max-w-6xl mx-auto px-4 md:px-6 pt-24 md:pt-28 pb-16 grid grid-cols-1 md:grid-cols-2 gap-10 items-stretch">
+      <section className="max-w-6xl mx-auto px-4 md:px-6 pt-10 md:pt-24 pb-12 md:pb-16 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10 items-stretch">
         {/* Left: tasker photo */}
         <div className="rounded-2xl overflow-hidden h-64 md:h-[480px]">
           <img
@@ -299,7 +299,7 @@ function BecomeATaskerLanding() {
           {/* Left - Quote */}
           <div>
             <span className="text-6xl text-orange-500 font-serif leading-none">“</span>
-            <p className="text-2xl font-medium text-gray-800 mt-2 leading-relaxed">
+            <p className="text-lg sm:text-2xl font-medium text-gray-800 mt-2 leading-relaxed">
               Dati naghahanap pa ako ng trabaho, ngayon ang trabaho ang humahanap sa akin. Salamat Hanap.ph — nakatulong talaga ito sa pamilya ko.
             </p>
             <p className="text-sm text-gray-500 mt-4">Almar C., Quezon City</p>

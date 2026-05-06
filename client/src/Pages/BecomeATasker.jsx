@@ -58,13 +58,9 @@ function BecomeATasker() {
     age: '',
     gender: '',
     postalCode: '',
-    birthday: '',
-    category: '',
     availType: '',
     partTimeShift: '',
-    travelDistance: '',
     serviceRole: '',
-    hourlyRate: '',
     experience: '',
     resume: null,
     hasValidId: false,
@@ -342,7 +338,6 @@ function BecomeATasker() {
       is_available: false,
       rating: 0,
       reviews_count: 0,
-      hourly_rate: parseFloat(formData.hourlyRate) || 0,
       has_valid_id: formData.hasValidId,
       id_type: formData.hasValidId ? (formData.idType || null) : null,
       has_nbi_clearance: formData.hasNbiClearance,
@@ -350,7 +345,6 @@ function BecomeATasker() {
       has_certificates: formData.hasCertificates,
       ...uploadedUrls,
     }
-    console.log('INSERT DATA:', JSON.stringify(insertData))
     const { error } = await supabase.from('taskers').insert(insertData)
     setSubmitting(false)
     setUploadProgress('')
@@ -475,7 +469,7 @@ function BecomeATasker() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center px-4 relative"
+      className="min-h-screen flex items-center justify-center px-4 py-8 relative"
       style={{
         backgroundImage: `url(${backgroundImg})`,
         backgroundSize: 'cover',
@@ -497,7 +491,7 @@ function BecomeATasker() {
             {steps.map((_, i) => (
               <div
                 key={i}
-                className={`h-1.5 rounded-full transition-all ${i < step ? 'bg-blue-800' : 'bg-gray-200'}`}
+                className={`h-1.5 rounded-full transition-all ${i < step ? 'bg-orange-500' : 'bg-gray-200'}`}
                 style={{ width: i === step - 1 ? '20px' : '8px' }}
               />
             ))}
@@ -505,14 +499,14 @@ function BecomeATasker() {
         </div>
 
         {/* Left Sidebar Panel */}
-        <div className="hidden md:block w-1/3 bg-white rounded-2xl shadow-lg p-8 h-[600px] max-h-[600px]">
+        <div className="hidden md:block w-1/3 bg-white rounded-2xl shadow-lg p-8">
           <div className="flex flex-col h-full">
             {steps.map((s, i) => (
               <div key={i} className={`flex flex-col ${i < steps.length - 1 ? 'flex-1' : ''}`}>
                 <div className="flex items-center gap-3">
                   <div
                     className={`w-8 h-8 flex items-center justify-center rounded-full transition-colors ${{
-                      true: 'bg-blue-800 text-white',
+                      true: 'bg-orange-500 text-white',
                       false: 'border-2 border-gray-300 text-gray-400',
                     }[step === i + 1]}`}
                   >
@@ -532,7 +526,7 @@ function BecomeATasker() {
                   <div className="ml-[15px] flex-1">
                     <div
                       className={`w-0.5 h-full transition-colors ${
-                        step > i + 1 ? 'bg-[#312e81]' : 'bg-gray-300'
+                        step > i + 1 ? 'bg-orange-400' : 'bg-gray-300'
                       }`}
                     />
                   </div>
@@ -543,7 +537,7 @@ function BecomeATasker() {
         </div>
 
         {/* Right Content Panel */}
-        <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-lg p-5 md:p-8 h-[600px] max-h-[600px] overflow-y-auto">
+        <div className="w-full md:w-2/3 bg-white rounded-2xl shadow-lg p-5 md:p-8 overflow-y-auto max-h-[calc(100vh-8rem)]">
           {step === 1 && (
             <>
               {/* Brand header */}
@@ -554,7 +548,7 @@ function BecomeATasker() {
               <h2 className="text-lg font-bold text-gray-800 mb-3">Information Details</h2>
 
               {/* Row 1: Name fields */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-1">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-1">
                 <div>
                   <input
                     type="text"
@@ -688,18 +682,22 @@ function BecomeATasker() {
                     <div className="flex gap-4">
                       <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="gender"
+                          value="Male"
                           checked={formData.gender === 'Male'}
-                          onChange={() => { setFormData(prev => ({ ...prev, gender: prev.gender === 'Male' ? '' : 'Male' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
+                          onChange={() => { setFormData(prev => ({ ...prev, gender: 'Male' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
                           className="accent-orange-500"
                         />
                         Male
                       </label>
                       <label className="flex items-center gap-1 text-sm text-gray-700 cursor-pointer">
                         <input
-                          type="checkbox"
+                          type="radio"
+                          name="gender"
+                          value="Female"
                           checked={formData.gender === 'Female'}
-                          onChange={() => { setFormData(prev => ({ ...prev, gender: prev.gender === 'Female' ? '' : 'Female' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
+                          onChange={() => { setFormData(prev => ({ ...prev, gender: 'Female' })); setErrors(prev => ({ ...prev, gender: undefined })) }}
                           className="accent-orange-500"
                         />
                         Female
@@ -767,7 +765,7 @@ function BecomeATasker() {
                 {errors.availType && <p className="text-red-500 text-xs mb-2">{errors.availType}</p>}
                 {formData.availType === 'Half Day' && (
                   <div className="mt-1">
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-3">
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                         <input
                           type="radio"
@@ -777,7 +775,7 @@ function BecomeATasker() {
                           onChange={() => { setFormData(prev => ({ ...prev, partTimeShift: 'AM' })); setErrors(prev => ({ ...prev, partTimeShift: undefined })) }}
                           className="accent-orange-500"
                         />
-                        AM (7:00 AM - 12:00 PM)
+                        AM <span className="text-gray-400">(7:00 AM – 12:00 PM)</span>
                       </label>
                       <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
                         <input
@@ -788,7 +786,7 @@ function BecomeATasker() {
                           onChange={() => { setFormData(prev => ({ ...prev, partTimeShift: 'PM' })); setErrors(prev => ({ ...prev, partTimeShift: undefined })) }}
                           className="accent-orange-500"
                         />
-                        PM (1:00 PM - 5:00 PM)
+                        PM <span className="text-gray-400">(1:00 PM – 5:00 PM)</span>
                       </label>
                     </div>
                     {errors.partTimeShift && <p className="text-red-500 text-xs mt-1">{errors.partTimeShift}</p>}
@@ -833,13 +831,13 @@ function BecomeATasker() {
               <div className="flex justify-between">
                 <button
                   onClick={handleBack}
-                  className="px-4 py-2 bg-gray-300 rounded-md"
+                  className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-xl transition-colors"
                 >
                   Back
                 </button>
                 <button
                   onClick={handleNext}
-                  className="px-4 py-2 bg-orange-500 text-white rounded-md"
+                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors"
                 >
                   Proceed
                 </button>
@@ -1038,7 +1036,7 @@ function BecomeATasker() {
                   </label>
 
                   {formData.hasCertificates && (
-                    <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {[
                         { key: 'certificate1', id: 'cert1-upload', previewUrl: cert1PreviewUrl, label: 'Certificate / Document 1' },
                         { key: 'certificate2', id: 'cert2-upload', previewUrl: cert2PreviewUrl, label: 'Certificate / Document 2' },
@@ -1104,8 +1102,8 @@ function BecomeATasker() {
               </div>
 
               <div className="flex justify-between mt-2">
-                <button onClick={handleBack} className="px-4 py-2 bg-gray-300 rounded-md">Back</button>
-                <button onClick={handleNext} className="px-4 py-2 bg-orange-500 text-white rounded-md">Proceed</button>
+                <button onClick={handleBack} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-xl transition-colors">Back</button>
+                <button onClick={handleNext} className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors">Proceed</button>
               </div>
             </>
           )}
@@ -1118,19 +1116,19 @@ function BecomeATasker() {
                 <CheckCircle2 size={64} className="text-green-500 mb-4" />
                 <h2 className="text-2xl font-bold text-gray-800 mb-2">Application Submitted!</h2>
                 <p className="text-gray-600 mb-6">We will review your application and contact you within 3-5 business days.</p>
-                <button onClick={() => navigate('/')} className="px-6 py-2 bg-orange-500 text-white rounded-md">
+                <button onClick={() => navigate('/')} className="px-6 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors">
                   Go Back to Home
                 </button>
               </div>
             ) : (
               <>
                 <h2 className="text-lg font-bold text-gray-800 mb-4">Review &amp; Submit</h2>
-                <div className="max-h-[420px] overflow-y-auto space-y-5 pr-1">
+                <div className="space-y-5 pr-1">
 
                   {/* Personal Information */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Personal Information</h3>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <div><span className="text-gray-400">First Name</span><p className="font-semibold text-gray-800">{formData.firstName || '—'}</p></div>
                       <div><span className="text-gray-400">Middle Name</span><p className="font-semibold text-gray-800">{formData.middleName || '—'}</p></div>
                       <div><span className="text-gray-400">Last Name</span><p className="font-semibold text-gray-800">{formData.lastName || '—'}</p></div>
@@ -1148,12 +1146,12 @@ function BecomeATasker() {
                   {/* Service Information */}
                   <div>
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-2">Service Information</h3>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                       <div><span className="text-gray-400">Service Role</span><p className="font-semibold text-gray-800">{formData.serviceRole || '—'}</p></div>
                       <div><span className="text-gray-400">Availability</span><p className="font-semibold text-gray-800">
                         {formData.availType === 'Full Day' ? 'Full Day' : formData.availType === 'Half Day' && formData.partTimeShift ? `Half Day - ${formData.partTimeShift}` : '—'}
                       </p></div>
-                      {formData.experience && <div className="col-span-2"><span className="text-gray-400">Experience</span><p className="font-semibold text-gray-800">{formData.experience}</p></div>}
+{formData.experience && <div className="col-span-2"><span className="text-gray-400">Experience</span><p className="font-semibold text-gray-800">{formData.experience}</p></div>}
                     </div>
                   </div>
 
@@ -1218,12 +1216,12 @@ function BecomeATasker() {
                 </div>
 
                 <div className="mt-4 flex justify-between items-center">
-                  <button onClick={handleBack} className="px-4 py-2 bg-gray-300 rounded-md">Back</button>
+                  <button onClick={handleBack} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-xl transition-colors">Back</button>
                   {submitError && <p className="text-sm text-red-500 text-center flex-1 px-2">{submitError}</p>}
                   <button
                     onClick={handleSubmit}
                     disabled={submitting}
-                    className="px-4 py-2 bg-orange-500 text-white rounded-md disabled:opacity-50"
+                    className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-xl transition-colors disabled:opacity-50"
                   >
                     {submitting ? (uploadProgress || 'Submitting...') : 'Submit Application'}
                   </button>
