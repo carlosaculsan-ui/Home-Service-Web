@@ -27,7 +27,8 @@
       "Bash(curl -s http://localhost:5000/api/stats)",
       "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:5000/api/stats\" -UseBasicParsing -TimeoutSec 3; $r.Content } catch { \"SERVER NOT RUNNING: $_\" })",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\" -Directory)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(findstr /N \"const NAV_ITEMS\\\\|function ProfileManagement\\\\|function BookingsTab\\\\|activeTab\\\\|toggles\\\\|checkbox\" TaskerDashboard.jsx)"
     ]
   }
 }

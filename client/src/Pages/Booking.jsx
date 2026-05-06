@@ -846,7 +846,7 @@ function detectCustomerCity(address) {
   return cities.find(city => cleaned.includes(city.toLowerCase())) ?? null
 }
 
-function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions, taskAddress }) {
+function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, taskersNeeded, estimatedTotal, taskOptions, taskAddress, isUrgent }) {
   const [nearestActive, setNearestActive] = useState(false)
   const [travelWarningTasker, setTravelWarningTasker] = useState(null)
 
@@ -940,6 +940,12 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
         )}
         {taskersError && (
           <p className="text-sm text-red-400 text-center py-8">Failed to load taskers. Please try again.</p>
+        )}
+        {!loadingTaskers && !taskersError && isUrgent && displayedTaskers.length === 0 && (
+          <div className="text-center py-10 space-y-2">
+            <p className="text-sm font-semibold text-gray-700">No taskers available for urgent bookings right now.</p>
+            <p className="text-xs text-gray-400">Please try a standard booking or check back later.</p>
+          </div>
         )}
         {!loadingTaskers && !taskersError && displayedTaskers.map((tasker) => (
           <TaskerCard
@@ -4355,6 +4361,7 @@ function Booking() {
           profile_photo: t.profile_photo ?? null,
           availability: t.availability?.trim() ?? null,
           service_area: t.service_area ?? null,
+          accepts_urgent: t.accepts_urgent ?? false,
         })))
       }
       setLoadingTaskers(false)
@@ -4448,14 +4455,18 @@ function Booking() {
           (() => {
             const taskDurationForFilter = getTaskDuration(taskOptions)
             const isFullDayTask = taskDurationForFilter >= 8
-            const visibleTaskers = isFullDayTask
+            let visibleTaskers = isFullDayTask
               ? taskers.filter(t => !t.availability || t.availability.trim() === 'Full Day' || t.availability.trim() === 'Full Time')
               : taskers
+            if (taskOptions?.is_urgent) {
+              visibleTaskers = visibleTaskers.filter(t => t.accepts_urgent === true)
+            }
             return (
               <Step2
                 onSelect={handleOpenModal}
                 onBack={() => setStep(0)}
                 taskers={visibleTaskers}
+                isUrgent={taskOptions?.is_urgent ?? false}
                 loadingTaskers={loadingTaskers}
                 taskersError={taskersError}
                 taskersNeeded={taskersNeeded}

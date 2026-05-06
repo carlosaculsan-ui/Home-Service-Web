@@ -2803,8 +2803,9 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
   const [editingPersonal, setEditingPersonal] = useState(false)
   const [editingWork, setEditingWork] = useState(false)
   const [personalFields, setPersonalFields] = useState({ phone: '', address: '', service_area: '' })
-  const [workFields, setWorkFields] = useState({ availability: '', bio: '' })
+  const [workFields, setWorkFields] = useState({ availability: '', bio: '', accepts_urgent: false })
   const [saving, setSaving] = useState(false)
+  const [urgentToggling, setUrgentToggling] = useState(false)
   const [photoUploading, setPhotoUploading] = useState(false)
   const [toast, setToast] = useState(null)
   const [showDeactivateModal, setShowDeactivateModal] = useState(false)
@@ -2854,7 +2855,7 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
         service_area: merged.service_area ?? '',
       })
       const availVal = Array.isArray(merged.availability) ? merged.availability.join(', ') : (merged.availability ?? '')
-      setWorkFields({ availability: availVal, bio: merged.bio ?? '' })
+      setWorkFields({ availability: availVal, bio: merged.bio ?? '', accepts_urgent: merged.accepts_urgent ?? false })
       setProfileLoading(false)
     }
     fetchProfile()
@@ -2907,6 +2908,18 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
     setProfile(prev => ({ ...prev, availability: workFields.availability, bio: workFields.bio }))
     setEditingWork(false)
     showToast('Profile updated successfully!')
+  }
+
+  async function handleToggleUrgent() {
+    const newVal = !profile.accepts_urgent
+    setUrgentToggling(true)
+    const { error } = await supabase.from('taskers').update({ accepts_urgent: newVal }).eq('user_id', taskerUserId)
+    setUrgentToggling(false)
+    if (error) {
+      showToast('Failed to update urgent setting.', 'error')
+      return
+    }
+    setProfile(prev => ({ ...prev, accepts_urgent: newVal }))
   }
 
   async function handlePhotoUpload(e) {
@@ -3195,14 +3208,32 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
               <p className="text-sm text-gray-800 leading-relaxed">{profile.bio || 'Not provided'}</p>
             )}
           </div>
+
         </div>
+
+        {/* Urgent Bookings standalone toggle — Plumbing only */}
+        {profile.role === 'Plumbing' && (
+          <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold text-gray-800">🚨 Accept Urgent Bookings</p>
+              <p className="text-xs text-gray-400 mt-0.5">When enabled, you appear in urgent same-day booking requests.</p>
+            </div>
+            <button
+              onClick={handleToggleUrgent}
+              disabled={urgentToggling}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${profile.accepts_urgent ? 'bg-orange-500' : 'bg-gray-200'} ${urgentToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${profile.accepts_urgent ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+        )}
 
         {editingWork && (
           <div className="flex gap-2 mt-5 justify-end">
             <button
               onClick={() => {
                 const availVal = Array.isArray(profile.availability) ? profile.availability.join(', ') : (profile.availability ?? '')
-                setWorkFields({ availability: availVal, bio: profile.bio ?? '' })
+                setWorkFields({ availability: availVal, bio: profile.bio ?? '', accepts_urgent: profile.accepts_urgent ?? false })
                 setEditingWork(false)
               }}
               className="text-sm px-4 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
