@@ -122,9 +122,6 @@ function buildPriceBreakdown(taskOptions) {
       ? `Furniture Painting — ${taskOptions.furniture_category} × ${taskOptions.furniture_pieces}`
       : `${taskOptions.what_to_paint} Painting (${taskOptions.area})`
     lines.push({ label: paintLabel, price: taskOptions.base_price })
-    if (taskOptions.paint_cost > 0) {
-      lines.push({ label: 'Paint (by Tasker)', price: taskOptions.paint_cost })
-    }
   } else if (service === 'Plumbing Repair') {
     lines.push({ label: taskOptions.problem, price: taskOptions.base_price })
   }
@@ -1778,11 +1775,6 @@ function Step1({ service, onContinue, initialState }) {
     { value: 'Entertainment',      example: 'e.g. TV Stand, Display Cabinet, Bar Counter' },
     { value: 'Campaign / Outdoor', example: 'e.g. Folding Table, Folding Chair, Picnic Bench' },
   ]
-  const PAINTING_PAINT_COSTS = {
-    'Small':  tp('Painting', 'Paint Cost - Small'),
-    'Medium': tp('Painting', 'Paint Cost - Medium'),
-    'Large':  tp('Painting', 'Paint Cost - Large'),
-  }
   const PAINTING_EXTRAS_PRICES = {
     'Primer Coat':           tp('Painting', 'Extra - Primer Coat'),
     'Two Coats':             tp('Painting', 'Extra - Two Coats'),
@@ -1828,9 +1820,8 @@ function Step1({ service, onContinue, initialState }) {
   const paintingBasePrice = paintingIsFurniture
     ? (paintingFurnitureCategory ? (PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0) * paintingFurniturePieces : 0)
     : (paintingWhat && paintingArea ? (PAINTING_BASE_PRICES[paintingWhat]?.[paintingArea] ?? 0) : 0)
-  const paintingPaintCost = 0
   const paintingExtrasTotal = paintingExtras.reduce((sum, e) => sum + (PAINTING_EXTRAS_PRICES[e] ?? 0), 0)
-  const paintingFinalPrice = paintingBasePrice + paintingPaintCost + paintingExtrasTotal
+  const paintingFinalPrice = paintingBasePrice + paintingExtrasTotal
 
   const taskersNeeded = (() => {
     const isCleaning = service?.toLowerCase() === 'cleaning'
@@ -1860,6 +1851,7 @@ function Step1({ service, onContinue, initialState }) {
     const isPainting = service?.toLowerCase() === 'painting'
     if (isPainting) {
       if (paintingIsFurniture) {
+        if (paintingFurniturePieces >= 9) return 3
         if (paintingFurniturePieces >= 3) return 2
         return 1
       }
@@ -3037,13 +3029,13 @@ function Step1({ service, onContinue, initialState }) {
                 <span className="w-8 text-center font-semibold text-gray-800 text-base">{paintingFurniturePieces}</span>
                 <button
                   type="button"
-                  onClick={() => setPaintingFurniturePieces(p => Math.min(8, p + 1))}
+                  onClick={() => setPaintingFurniturePieces(p => Math.min(15, p + 1))}
                   className="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center text-gray-600 hover:border-orange-400 hover:text-orange-500 transition-colors font-bold text-lg"
                 >+</button>
                 <span className="text-sm text-gray-500 ml-1">
                   {paintingFurnitureCategory
                     ? `× ₱${(PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0).toLocaleString()} = ₱${((PAINTING_FURNITURE_PRICES[paintingFurnitureCategory] ?? 0) * paintingFurniturePieces).toLocaleString()}`
-                    : ''}
+                    : 'max 15 pieces'}
                 </span>
               </div>
             </div>
@@ -3056,7 +3048,7 @@ function Step1({ service, onContinue, initialState }) {
               {[
                 { value: 'Primer Coat',           price: '+₱400' },
                 { value: 'Two Coats',             price: '+₱500' },
-                { value: 'Wall Putty / Patching', price: '+₱300' },
+                ...(!paintingIsFurniture ? [{ value: 'Wall Putty / Patching', price: '+₱300' }] : []),
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${paintingExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
@@ -3264,7 +3256,7 @@ function Step1({ service, onContinue, initialState }) {
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 mb-2 text-base">Tell us the details of your task</p>
         <p className="text-sm text-gray-400 italic mb-3">
-          Start the conversation and tell your Tasker what you need done. This helps us show you only qualified and available Taskers for the job.
+          Describe what you need done. This helps us match you with the right qualified and available Taskers for the job.
         </p>
         <div className="relative">
           <textarea
