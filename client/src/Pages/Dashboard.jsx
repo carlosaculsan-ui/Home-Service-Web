@@ -11,6 +11,7 @@ import { supabase } from '../supabase'
 import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
+import { toDisplayName } from '../utils/serviceNames'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
@@ -212,7 +213,7 @@ function ReviewModal({ booking, userId, onClose, onSuccess }) {
           ✕
         </button>
         <h2 className="text-lg font-bold text-gray-800 mb-1">Rate &amp; Review</h2>
-        <p className="text-sm text-gray-500 mb-4">{booking.service} · {booking.taskerName}</p>
+        <p className="text-sm text-gray-500 mb-4">{toDisplayName(booking.service)} · {booking.taskerName}</p>
 
         <p className="text-sm font-semibold text-gray-600 mb-2">Your Rating <span className="text-red-400">*</span></p>
         <div className="flex gap-1 mb-4">
@@ -1462,7 +1463,7 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
 
       <div className="bg-white rounded-2xl shadow-md p-6 space-y-3">
         <div className="flex items-center justify-between">
-          <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
+          <p className="font-bold text-gray-800 capitalize text-lg">{toDisplayName(booking.service)}</p>
           <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${statusClass}`}>
             {statusLabel}
           </span>
@@ -1974,7 +1975,7 @@ function CustomerReviews({ userId }) {
                 )}
                 <div className="min-w-0">
                   <p className="font-semibold text-gray-800 text-sm leading-tight">{r.taskerName}</p>
-                  <p className="text-xs text-gray-400 capitalize">{r.service}</p>
+                  <p className="text-xs text-gray-400 capitalize">{toDisplayName(r.service)}</p>
                 </div>
                 <div className="ml-auto flex items-center gap-3 flex-shrink-0">
                   <p className="text-xs text-gray-400">{dateStr}</p>

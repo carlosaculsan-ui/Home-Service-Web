@@ -15,6 +15,7 @@ import Tasker5 from '../Assets/tasker5.jpg'
 import Tasker6 from '../Assets/Tasker6.jpg'
 import Tasker7 from '../Assets/Tasker7.jpg'
 import Tasker8 from '../Assets/Tasker8.jpg'
+import { toDisplayName } from '../utils/serviceNames'
 
 
 const taskerImages = {
@@ -35,7 +36,9 @@ const roleQuotes = {
   'Painting':       "Every wall is a canvas. I bring color and life to your space.",
   'Electrical':     "Safety first, always. I make sure your home is wired right and worry-free.",
   'Carpentry':      "Wood, nails, and craftsmanship — I build things that last a lifetime.",
-  'Aircon Cleaning':"A well-maintained aircon means a comfortable home. I keep yours running like new.",
+  'Aircon Cleaning':    "A well-maintained aircon means a comfortable home. I keep yours running like new.",
+  'Aircon Maintenance': "A well-maintained aircon means a comfortable home. I keep yours running like new.",
+  'Plumbing Repair':    "No leak is too small, no pipe too old. I fix it right the first time.",
 }
 
 
@@ -113,7 +116,7 @@ function ProfileModal({ tasker, onClose, justOpenedRef }) {
           <div className="px-6 py-5 space-y-4">
             {[
               { label: 'NAME',            value: tasker.name,      style: { color: '#fff', fontWeight: 700, fontSize: '1.1rem' } },
-              { label: 'SERVICE',         value: tasker.role,      style: { color: '#f97316', fontWeight: 600 } },
+              { label: 'SERVICE',         value: toDisplayName(tasker.role), style: { color: '#f97316', fontWeight: 600 } },
               { label: 'STARS',           value: `★ ${tasker.rating ?? '—'}`, style: { color: '#facc15', fontWeight: 600 } },
               { label: 'TASKS COMPLETED', value: tasksCompleted,   style: { color: '#fff', fontWeight: 700 } },
               { label: 'AREA',            value: tasker.service_area ?? '—', style: { color: '#9ca3af' } },
@@ -315,7 +318,7 @@ function TaskerShowcase() {
                     {tasker.name}
                   </h3>
                   <p className="text-orange-400 font-semibold text-sm mb-2">
-                    {tasker.role}
+                    {toDisplayName(tasker.role)}
                   </p>
 
                   <div className="flex items-center justify-between mb-3">

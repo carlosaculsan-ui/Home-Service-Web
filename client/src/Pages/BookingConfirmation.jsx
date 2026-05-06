@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { CheckCircle2, Wallet } from 'lucide-react'
+import { toDisplayName } from '../utils/serviceNames'
 import { toPng } from 'html-to-image'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -346,7 +347,7 @@ export default function BookingConfirmation() {
               {[
                 ['Receipt Date', receiptDate],
                 ['Customer',     booking?.customer_name ?? '—'],
-                ['Service',      booking?.service ?? '—'],
+                ['Service',      toDisplayName(booking?.service ?? '—')],
                 ['Tasker',       taskerName],
                 ['Scheduled',    fmtDate(booking?.scheduled_date, booking?.scheduled_time)],
                 ['Address',      booking?.address ?? '—'],

@@ -7,6 +7,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { supabase } from '../supabase'
 import LocationMap from '../Components/LocationMap'
+import { toDisplayName } from '../utils/serviceNames'
 import Groq from 'groq-sdk'
 import { ClipboardList, Users, CalendarDays, Pencil, User, Phone, Mail, MapPin, Info, CheckCircle2, Smartphone, CreditCard, Bot, Home, FileText, Star, Wallet, Mic } from 'lucide-react'
 
@@ -1100,13 +1101,13 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
             <span className="font-medium">{tasker?.name}</span> · {summaryDate}
           </p>
         </div>
-        <span className="text-xs text-gray-400 capitalize whitespace-nowrap">{service}</span>
+        <span className="text-xs text-gray-400 capitalize whitespace-nowrap">{toDisplayName(service)}</span>
       </div>
 
       {/* Section 2 – Booking Details */}
       <div className="border border-gray-200 rounded-xl p-5">
         <p className="font-bold text-gray-800 text-base mb-3">Booking Details</p>
-        <DetailRow label="Service" value={service} valueClass="capitalize" />
+        <DetailRow label="Service" value={toDisplayName(service)} valueClass="capitalize" />
         <DetailRow label="Tasker" value={tasker?.name} />
         <DetailRow label="Date &amp; Time" value={formattedDate} />
         {taskDuration && <DetailRow label="Est. Duration" value={`${taskDuration} hours`} />}

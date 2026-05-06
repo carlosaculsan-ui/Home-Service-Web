@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { getServiceIcon } from '../utils/serviceIcons'
+import { toDisplayName } from '../utils/serviceNames'
 import background2Img from '../Assets/Background2.jpg'
 import cleaningImg from '../Assets/Cleaning.png'
 import plumbingImg from '../Assets/Plumbing.png'
@@ -16,7 +17,7 @@ const IMAGE_MAP = {
   'Electrical': electricianImg,
   'Carpentry': carpentryImg,
   'Painting': paintingImg,
-  'Aircon Cleaning': airconImg,
+  'Aircon Maintenance': airconImg,
 }
 
 function Services() {
@@ -80,7 +81,7 @@ function Services() {
               </div>
 
               {/* Title */}
-              <h3 className="text-xl font-bold text-gray-900 mb-4">{service.title}</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">{toDisplayName(service.title)}</h3>
 
               {/* Bullet point descriptions */}
               <ul className="text-sm text-gray-600 mb-6 space-y-2">

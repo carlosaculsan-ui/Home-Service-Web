@@ -14,6 +14,7 @@ import {
   LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile, CheckCheck, Camera, Video, Mic, Trash2,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
+import { toDisplayName } from '../utils/serviceNames'
 import EmojiPicker from 'emoji-picker-react'
 import BreakRoom from '../Components/BreakRoom'
 import {
@@ -956,7 +957,7 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
         </div>
       )}
       <div className="flex items-center justify-between">
-        <p className="font-bold text-gray-800 capitalize text-lg">{booking.service}</p>
+        <p className="font-bold text-gray-800 capitalize text-lg">{toDisplayName(booking.service)}</p>
         <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize ${
           booking.status === 'cancelled' ? 'bg-red-100 text-red-600' : statusClass
         }`}>
@@ -2115,7 +2116,7 @@ function EarningsSummary({ taskerId, taskerUserId }) {
                   <tr key={b.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-5 py-3 text-gray-600 whitespace-nowrap">{fmtEarningsDate(b.scheduled_date)}</td>
                     <td className="px-5 py-3 text-gray-700 font-medium whitespace-nowrap">{b.customer_name ?? '—'}</td>
-                    <td className="px-5 py-3 text-gray-600 capitalize whitespace-nowrap">{b.service ?? '—'}</td>
+                    <td className="px-5 py-3 text-gray-600 capitalize whitespace-nowrap">{toDisplayName(b.service ?? '—')}</td>
                     <td className="px-5 py-3 text-gray-600 text-right whitespace-nowrap">
                       {b.duration_hours != null ? `${b.duration_hours} hr${b.duration_hours !== 1 ? 's' : ''}` : '—'}
                     </td>
@@ -3956,7 +3957,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
                 {/* Details grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
                   {[
-                    ['Service',    b.service ?? '—'],
+                    ['Service',    toDisplayName(b.service ?? '—')],
                     ['Task',       taskLabel],
                     ['Duration',   b.duration_hours ? `${b.duration_hours} hr${b.duration_hours !== 1 ? 's' : ''}` : '—'],
                     ['Customer',   b.customer_name ?? '—'],
@@ -4125,7 +4126,7 @@ function BookingsCalendarModal({ bookings, onClose }) {
                   <div key={b.id} className="flex items-center justify-between bg-orange-50 rounded-lg px-3 py-2">
                     <div>
                       <p className="text-sm font-semibold text-gray-800">{b.customer_name ?? '—'}</p>
-                      <p className="text-xs text-orange-500">{b.service ?? '—'}</p>
+                      <p className="text-xs text-orange-500">{toDisplayName(b.service ?? '—')}</p>
                     </div>
                     <span className="text-xs text-gray-400">{b.scheduled_time ?? ''}</span>
                   </div>
@@ -4931,7 +4932,7 @@ function TaskerDashboard() {
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.85rem', margin: '0 0 1px' }}>{convo.customerName}</p>
-                      <p style={{ color: '#6b7280', fontSize: '0.72rem', margin: '0 0 2px' }}>{convo.service}</p>
+                      <p style={{ color: '#6b7280', fontSize: '0.72rem', margin: '0 0 2px' }}>{toDisplayName(convo.service)}</p>
                       <p style={{ color: '#9ca3af', fontSize: '0.72rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {convo.lastMsg?.startsWith('[image:') ? '📷 Photo' : convo.lastMsg?.startsWith('[video:') ? '🎥 Video' : convo.lastMsg}
                       </p>

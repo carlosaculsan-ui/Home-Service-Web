@@ -23,7 +23,7 @@ const FAQS = [
   },
   {
     q: "What services can I offer?",
-    a: "Hanap.ph currently offers Cleaning, Carpentry, Electrical, Aircon Maintenance, Painting, and Plumbing Repair. During your application, select the services that match your skills and experience.",
+    a: "Hanap.ph currently offers Cleaning, Carpentry, Electrical, Aircon Services, Painting, and Plumbing. During your application, select the services that match your skills and experience.",
   },
   {
     q: "How do I get paid?",
@@ -63,7 +63,7 @@ const SERVICES = [
   { label: 'Cleaning',   rate: 150 },
   { label: 'Electrical', rate: 200 },
   { label: 'Plumbing',   rate: 200 },
-  { label: 'Aircon',     rate: 250 },
+  { label: 'Aircon Services', rate: 250 },
   { label: 'Carpentry',  rate: 200 },
   { label: 'Painting',   rate: 175 },
 ]

@@ -2585,7 +2585,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
 
 const EMPTY_FORM = { icon: '', title: '', description: '', is_active: true }
 
-const KNOWN_SERVICES = ['Cleaning', 'Plumbing', 'Electrical', 'Carpentry', 'Aircon Cleaning', 'Painting']
+const KNOWN_SERVICES = ['Cleaning', 'Plumbing Repair', 'Electrical', 'Carpentry', 'Aircon Maintenance', 'Painting']
 
 const EMPTY_ADD_FORM = { service_name: '', task_size: '', price: '' }
 
@@ -3452,10 +3452,10 @@ function ReviewsPanel() {
         >
           <option value="all">All Services</option>
           <option value="Cleaning">Cleaning</option>
-          <option value="Plumbing">Plumbing</option>
+          <option value="Plumbing Repair">Plumbing</option>
           <option value="Electrical">Electrical</option>
           <option value="Carpentry">Carpentry</option>
-          <option value="Aircon Cleaning">Aircon Cleaning</option>
+          <option value="Aircon Maintenance">Aircon Services</option>
           <option value="Painting">Painting</option>
         </select>
       </div>
