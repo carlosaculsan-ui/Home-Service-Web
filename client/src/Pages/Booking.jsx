@@ -76,6 +76,7 @@ function getTaskDuration(taskOptions) {
     return 8
   }
   if (service === 'Aircon Maintenance') {
+    if (taskOptions.aircon_type === 'Install') return 8
     if (taskOptions.units >= 5) return 8
     if (taskOptions.units >= 3) return 6
     return 3
@@ -1608,7 +1609,7 @@ function Step1({ service, onContinue, initialState }) {
       fetch(`/nominatim/search?format=json&q=${encodeURIComponent(val)}&countrycodes=ph&limit=5`)
         .then(r => r.json())
         .then(data => setAddressSuggestions(data || []))
-        .catch(() => {})
+        .catch(() => { setLocationError('Address suggestions unavailable. Please type your address manually.') })
         .finally(() => setAddressSearching(false))
     }, 500)
   }
@@ -3934,7 +3935,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                   if (!uploadError) {
                     bookingImageUrl = supabase.storage.from('tasker-files').getPublicUrl(path).data.publicUrl
                   }
-                } catch {}
+                } catch (err) {
+                  console.warn('Booking image upload failed, proceeding without image:', err)
+                }
               }
 
               let insertError = null
@@ -3995,6 +3998,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                   deduct_amount: walletDeduction,
                 })
                 if (deductError) {
+                  if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
                   setSaveError('Insufficient wallet balance. Please try again.')
                   setSaving(false)
                   return
@@ -4034,32 +4038,20 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
 
               // Step 7 — Create Payment Intent
               if (paymentMethod === 'card') setIsProcessingPayment(true)
-              const piRes = await fetch('https://api.paymongo.com/v1/payment_intents', {
+              const piRes = await fetch('/api/paymongo/create-intent', {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  data: {
-                    attributes: {
-                      amount: Math.round(remainingAmount * 100),
-                      currency: 'PHP',
-                      payment_method_allowed: [paymentMethod],
-                      capture_type: 'automatic',
-                    },
-                  },
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ amount: remainingAmount, payment_method_allowed: [paymentMethod] }),
               })
               const piData = await piRes.json()
               if (!piRes.ok) {
-                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
+                if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
                 setSaveError(piData?.errors?.[0]?.detail || 'Failed to create payment. Please try again.')
                 setSaving(false)
                 setIsProcessingPayment(false)
                 return
               }
-              const piId = piData.data.id
+              const piId = piData.id
 
               // Step 8 — Create Payment Method
               const expYear = parseInt(cardDetails.exp_year)
@@ -4088,7 +4080,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               })
               const pmData = await pmRes.json()
               if (!pmRes.ok) {
-                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
+                if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
                 setSaveError(pmData?.errors?.[0]?.detail || 'Failed to create payment method. Please try again.')
                 setSaving(false)
                 setIsProcessingPayment(false)
@@ -4100,35 +4092,25 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               const returnUrl = paymentMethod === 'card'
                 ? `${window.location.origin}/booking-confirmation`
                 : `${window.location.origin}/payment-complete`
-              const attachRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}/attach`, {
+              const attachRes = await fetch('/api/paymongo/attach-method', {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  data: {
-                    attributes: {
-                      payment_method: pmId,
-                      return_url: returnUrl,
-                    },
-                  },
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pi_id: piId, pm_id: pmId, return_url: returnUrl }),
               })
               const attachData = await attachRes.json()
               if (!attachRes.ok) {
-                if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
+                if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
                 setSaveError(attachData?.errors?.[0]?.detail || 'Failed to process payment. Please try again.')
                 setSaving(false)
                 setIsProcessingPayment(false)
                 return
               }
 
-              const attachStatus = attachData.data?.attributes?.status
+              const attachStatus = attachData.status
 
               // Step 10 — Open PayMongo in new tab (GCash / PayMaya) and poll main tab
               if (attachStatus === 'awaiting_next_action') {
-                window.open(attachData.data.attributes.next_action.redirect.url, '_blank')
+                window.open(attachData.next_action_url, '_blank')
                 setShowQrModal(false)
                 setSaving(false)
                 const capturedPiId = piId
@@ -4142,13 +4124,9 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                     return
                   }
                   try {
-                    const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${capturedPiId}`, {
-                      headers: {
-                        'Authorization': `Basic ${btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':')}`,
-                      },
-                    })
+                    const piRes = await fetch(`/api/paymongo/get-intent/${capturedPiId}`)
                     const piData = await piRes.json()
-                    const piStatus = piData?.data?.attributes?.status
+                    const piStatus = piData?.status
                     if (piStatus === 'succeeded') {
                       clearInterval(pollingIntervalRef.current)
                       pollingIntervalRef.current = null
@@ -4157,8 +4135,12 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                       clearInterval(pollingIntervalRef.current)
                       pollingIntervalRef.current = null
                       setPollingError('Payment failed. Please try again.')
+                    } else if (pollingError) {
+                      setPollingError('')
                     }
-                  } catch (_) {}
+                  } catch {
+                    setPollingError('Connection issue while checking payment status. Still waiting...')
+                  }
                 }, 3000)
                 console.log('polling started', capturedPiId)
               // Step 11 — Payment succeeded immediately (card payments)
@@ -4167,15 +4149,13 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
               } else if (attachStatus === 'succeeded') {
                 window.location.href = `${window.location.origin}/booking-confirmation?payment_intent_id=${piId}`
               } else {
-                if (paymentMethod === 'card') {
-                  await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref)
-                }
+                if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
                 setSaveError('Payment could not be processed. Please try again.')
                 setSaving(false)
                 setIsProcessingPayment(false)
               }
             } catch (err) {
-              if (paymentMethod === 'card') await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
+              if (!isContinuePayment) await supabase.from('bookings').update({ status: 'cancelled' }).eq('reference_number', ref).catch(() => {})
               setSaveError(err?.message || 'Payment setup failed. Please try again.')
               setSaving(false)
               setIsProcessingPayment(false)

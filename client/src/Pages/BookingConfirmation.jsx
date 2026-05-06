@@ -73,7 +73,6 @@ function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
     lines.push({ label: `${taskOptions.type} — ${taskOptions.category ?? taskOptions.item ?? ''}`, price: combinedBase })
   } else if (service === 'Electrical') {
     lines.push({ label: taskOptions.sub_option ? `${taskOptions.type} — ${taskOptions.sub_option}` : taskOptions.type, price: combinedBase })
-    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
   } else if (service === 'Aircon Maintenance') {
     const u = taskOptions.units || 1
     lines.push({ label: `${taskOptions.aircon_type} × ${u} unit${u > 1 ? 's' : ''} (${taskOptions.service_type})`, price: combinedBase })
@@ -84,7 +83,9 @@ function buildPriceBreakdown(taskOptions, helperFee, helperCount) {
     }
   } else if (service === 'Plumbing Repair') {
     lines.push({ label: taskOptions.sub_option ? `${taskOptions.problem} — ${taskOptions.sub_option}` : taskOptions.problem, price: combinedBase })
-    lines.push({ label: `Urgency (${taskOptions.urgency})`, price: taskOptions.urgency_surcharge ?? 0 })
+    if ((taskOptions.urgency_surcharge ?? 0) > 0) {
+      lines.push({ label: 'Urgency (Urgent)', price: taskOptions.urgency_surcharge })
+    }
   }
 
   if (helperFee > 0 && helperCount > 0) {
@@ -175,14 +176,10 @@ export default function BookingConfirmation() {
       }
 
       try {
-        const piRes = await fetch(`https://api.paymongo.com/v1/payment_intents/${piId}`, {
-          headers: {
-            'Authorization': 'Basic ' + btoa(import.meta.env.VITE_PAYMONGO_SECRET_KEY + ':'),
-          },
-        })
+        const piRes = await fetch(`/api/paymongo/get-intent/${piId}`)
         const piData = await piRes.json()
-        const piStatus = piData?.data?.attributes?.status
-        const paymentId = piData?.data?.attributes?.payments?.[0]?.id ?? piId
+        const piStatus = piData?.status
+        const paymentId = piData?.payment_id ?? piId
 
         if (piStatus !== 'succeeded') {
           setStatus('failed')
