@@ -17,6 +17,7 @@ const IMAGE_MAP = {
   'Electrical': electricianImg,
   'Carpentry': carpentryImg,
   'Painting': paintingImg,
+  'Aircon Cleaning': airconImg,
   'Aircon Maintenance': airconImg,
 }
 
