@@ -16,7 +16,12 @@
       "Bash(sed \"s/supabase\\\\.from\\('//\")",
       "Bash(sed \"s/'$//\")",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\Admin\\\\Downloads\\\\home-service-web\\\\client\\\\src\" -Recurse -Filter \"*ustomer*\")",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "Bash(curl http://localhost:5000/api/stats)",
+      "Bash(node index.js)",
+      "Bash(ping -n 3 127.0.0.1)",
+      "PowerShell(Invoke-RestMethod http://localhost:5000/api/stats)",
+      "PowerShell(curl.exe http://localhost:5000/api/stats)"
     ]
   }
 }

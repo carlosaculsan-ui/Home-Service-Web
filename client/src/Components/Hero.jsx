@@ -7,6 +7,7 @@ function Hero() {
   const [role, setRole] = useState(null);
   const [text, setText] = useState("");
   const [showContacts, setShowContacts] = useState(false);
+  const [stats, setStats] = useState({ bookings: 0, taskers: 0 });
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -24,6 +25,19 @@ function Hero() {
 
   useEffect(() => {
     setTimeout(() => setShow(true), 200);
+  }, []);
+
+  useEffect(() => {
+    async function fetchStats() {
+      try {
+        const res = await fetch(`${import.meta.env.DEV ? 'http://localhost:5000' : ''}/api/stats`)
+        const data = await res.json()
+        setStats({ bookings: data.bookings ?? 0, taskers: data.taskers ?? 0 })
+      } catch {
+        setStats({ bookings: 0, taskers: 0 })
+      }
+    }
+    fetchStats()
   }, []);
 
   return (
@@ -90,7 +104,7 @@ function Hero() {
                         .getElementById("services")
                         ?.scrollIntoView({ behavior: "smooth" })
                     }
-                    className="px-6 py-2.5 bg-orange-500 text-white rounded-lg font-semibold"
+                    className="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold transition-colors"
                   >
                     Get Started
                   </button>
@@ -145,18 +159,18 @@ function Hero() {
                 {/* STATS */}
                 <div className="flex flex-wrap gap-4 pt-2 border-t border-white/20 w-full">
                   <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1000" : "opacity-0 translate-y-6"}`}>
-                    <h3 className="text-2xl font-bold text-orange-400">500+</h3>
-                    <p className="text-xs text-gray-400">Clients</p>
+                    <h3 className="text-2xl font-bold text-orange-400">{stats.bookings}+</h3>
+                    <p className="text-xs text-gray-400">Bookings</p>
                   </div>
 
                   <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1100" : "opacity-0 translate-y-6"}`}>
-                    <h3 className="text-2xl font-bold text-orange-400">8+</h3>
+                    <h3 className="text-2xl font-bold text-orange-400">{stats.taskers}+</h3>
                     <p className="text-xs text-gray-400">Taskers</p>
                   </div>
 
                   <div className={`transition-all duration-700 ${show ? "opacity-100 translate-y-0 delay-1200" : "opacity-0 translate-y-6"}`}>
-                    <h3 className="text-2xl font-bold text-orange-400">24/7</h3>
-                    <p className="text-xs text-gray-400">Support</p>
+                    <h3 className="text-2xl font-bold text-orange-400">17</h3>
+                    <p className="text-xs text-gray-400">Cities Served</p>
                   </div>
                 </div>
               </div>

@@ -10,6 +10,22 @@ app.get("/", (req, res) => {
   res.send("Backend Connected Successfully");
 });
 
+app.get('/api/stats', async (req, res) => {
+  try {
+    const base = process.env.SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const headers = { 'apikey': key, 'Authorization': `Bearer ${key}`, 'Prefer': 'count=exact', 'Range': '0-0' }
+    const [bookingsRes, taskersRes] = await Promise.all([
+      fetch(`${base}/rest/v1/bookings?status=eq.completed&select=id`, { headers }),
+      fetch(`${base}/rest/v1/taskers?status=eq.approved&select=id`, { headers }),
+    ])
+    const parse = (res) => parseInt(res.headers.get('content-range')?.split('/')[1] ?? '0')
+    res.json({ bookings: parse(bookingsRes), taskers: parse(taskersRes) })
+  } catch {
+    res.json({ bookings: 0, taskers: 0 })
+  }
+});
+
 const SUPPORT_SYSTEM_PROMPT = `You are Hana, a friendly and helpful customer support assistant for Hanap.ph — a Philippine home services platform based in Metro Manila. You assist logged-in customers with their bookings, payments, taskers, disputes, and account concerns. Answer in the same language the customer uses (Filipino or English). Be warm, concise, and helpful.
 
 ABOUT HANAP.PH:

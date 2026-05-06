@@ -55,14 +55,9 @@ function WhyChooseUs() {
 
   useEffect(() => {
     async function fetchStats() {
-      const [
-        { count: bookings },
-        { data: reviews },
-        { count: taskers },
-      ] = await Promise.all([
-        supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+      const [statsRes, { data: reviews }] = await Promise.all([
+        fetch(`${import.meta.env.DEV ? 'http://localhost:5000' : ''}/api/stats`).then(r => r.json()),
         supabase.from('reviews').select('rating').eq('is_hidden', false).eq('is_flagged', false),
-        supabase.from('taskers').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
       ])
 
       const avg = reviews && reviews.length > 0
@@ -70,9 +65,9 @@ function WhyChooseUs() {
         : 0
 
       setStatsData({
-        bookings: bookings ?? 0,
-        rating: Math.round(avg * 10),   // store as integer (e.g. 47 = 4.7), animate then divide
-        taskers: taskers ?? 0,
+        bookings: statsRes.bookings ?? 0,
+        rating: Math.round(avg * 10),
+        taskers: statsRes.taskers ?? 0,
       })
     }
     fetchStats()
@@ -106,9 +101,9 @@ function WhyChooseUs() {
       <div className="max-w-6xl mx-auto">
         {/* Heading */}
         <h2 className="text-4xl font-bold mb-12">
-          <span className="text-gray-900">Introduction To </span>
-          <span className="text-orange-500">Best Services</span>
-          <span className="text-gray-900"> Provider.</span>
+          <span className="text-gray-900">Why Choose </span>
+          <span className="text-orange-500">Hanap.ph</span>
+          <span className="text-gray-900">?</span>
         </h2>
 
         {/* Feature Boxes */}
