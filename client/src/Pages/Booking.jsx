@@ -475,7 +475,9 @@ function ScheduleModal({ tasker, taskOptions, onClose, onConfirm }) {
             )}
 
             <p className="text-xs text-gray-400 mb-4">
-              Choose your task date and start time. You can chat to adjust task details or change start time after confirming.
+              {isFullDay
+                ? 'Choose your task date. Full-day tasks start at 7:00 AM. You can chat to adjust task details after confirming.'
+                : 'Choose your task date and start time. You can chat to adjust task details or change start time after confirming.'}
             </p>
 
             <div className="border-t border-gray-100 mb-3" />
@@ -740,7 +742,7 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
                 details
               </button>
             </div>
-            <p className="text-sm text-gray-500 mb-1">{tasker.role}</p>
+            <p className="text-sm text-gray-500 mb-1">{toDisplayName(tasker.role)}</p>
             <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker.rating ?? 0).toFixed(1)}</span>
@@ -795,13 +797,13 @@ function TaskerCard({ tasker, onSelect, taskersNeeded, estimatedTotal, taskOptio
           onClick={() => onSelect(tasker)}
           className="w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 rounded-xl transition-colors text-base"
         >
-          Select &amp; Continue
+          Check Availability
         </button>
 
         <div className="flex items-start gap-2 bg-gray-50 border border-gray-100 rounded-lg px-3 py-2">
           <ClipboardList size={16} className="mt-0.5 text-gray-400 flex-shrink-0" />
           <p className="text-xs text-gray-500">
-            Next, confirm your details to get connected with your Tasker.
+            Next, pick your preferred date and time with this Tasker.
           </p>
         </div>
       </div>
@@ -876,7 +878,7 @@ function Step2({ onSelect, onBack, taskers, loadingTaskers, taskersError, tasker
       <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl p-4">
         <Users size={24} className="text-blue-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
-          Filter and sort to find your Tasker. Then view their availability to request your date and time.
+          Sort to find your Tasker. Then view their availability to request your date and time.
         </p>
       </div>
 
@@ -1084,7 +1086,9 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
       : `${MONTH_NAMES[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()} at ${time}`
     : ''
   const summaryDate = date
-    ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${time?.toLowerCase()}`
+    ? taskDuration >= 8
+      ? `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()} · Full Day`
+      : `${SHORT_MONTHS[date.getMonth()]} ${date.getDate()}, ${time?.toLowerCase()}`
     : ''
 
   return (
@@ -1204,7 +1208,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
           )}
           <div>
             <p className="font-bold text-gray-800 text-base leading-tight">{tasker?.name}</p>
-            <p className="text-sm text-orange-500 font-medium">{tasker?.role}</p>
+            <p className="text-sm text-orange-500 font-medium">{toDisplayName(tasker?.role)}</p>
             <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-600">
               <span className="text-yellow-500">★</span>
               <span className="font-semibold">{(tasker?.rating ?? 0).toFixed(1)}</span>
@@ -1335,7 +1339,7 @@ function Step3({ service, tasker, date, time, taskSize, taskAddress, taskLandmar
       <div className="flex items-start gap-3 bg-orange-50 border border-orange-100 rounded-xl p-4">
         <Info size={18} className="text-orange-400 flex-shrink-0" />
         <p className="text-sm text-gray-600">
-          Your contact information will be shared with your Tasker once payment is confirmed. Please proceed to payment to finalize your booking.
+          Your contact information will be shared with your Tasker once payment is confirmed.
         </p>
       </div>
 
@@ -3554,7 +3558,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                 : 'Scan with your PayMaya app to pay'}
             </p>
             <p className="text-xs text-gray-400 text-center">
-              This is a simulation — proceed to confirm your payment below
+              You'll be redirected to PayMongo to complete your payment.
             </p>
             <button
               onClick={() => submitButtonRef.current?.click()}
@@ -3584,7 +3588,7 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
         <div className="space-y-1 text-sm text-gray-700">
           <div className="flex justify-between">
             <span className="text-gray-500">Service</span>
-            <span className="capitalize">{service}</span>
+            <span>{toDisplayName(service)}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-gray-500">Tasker</span>
@@ -4144,7 +4148,6 @@ const rate = parseInt(tasker?.price?.replace(/[^0-9]/g, '') || '0')
                     setPollingError('Connection issue while checking payment status. Still waiting...')
                   }
                 }, 3000)
-                console.log('polling started', capturedPiId)
               // Step 11 — Payment succeeded immediately (card payments)
               // Do NOT update to 'confirmed' here — BookingConfirmation.jsx finds the
               // 'pending_payment' booking and confirms it after verifying with PayMongo.
