@@ -103,7 +103,7 @@ function buildPriceBreakdown(taskOptions) {
     'Cleaning':          { 'With Laundry': 200, 'With Appliances': 250 },
     'Carpentry':         { 'Materials Included': 500, 'Varnishing / Finishing': 350, 'Hauling / Debris Removal': 200 },
     'Electrical':        { 'Materials Included': 400, 'Additional Outlet/Switch': 300, 'Circuit Breaker Check': 250 },
-    'Aircon Maintenance':{ 'Same Day Service': 300 },
+    'Aircon Maintenance':{},
     'Painting':          { 'Primer Coat': 400, 'Two Coats': 500, 'Wall Putty / Patching': 300 },
     'Plumbing Repair':   { 'Materials Included': 400, 'Multiple Points (2+ faucets/drains)': 300, 'Waterproofing': 500 },
   }
@@ -1814,8 +1814,7 @@ function Step1({ service, onContinue, initialState }) {
     : (airconType && airconServiceType ? (AIRCON_PRICES[airconType]?.[airconServiceType] ?? 0) : 0)
   const airconBasePrice = (airconPricePerUnit + airconHpModifier) * airconUnits
   const airconFreonTotal = airconExtras.includes('Freon Recharge') ? 500 * airconUnits : 0
-  const airconSameDayTotal = airconExtras.includes('Same Day Service') ? 300 : 0
-  const airconExtrasTotal = airconFreonTotal + airconSameDayTotal
+  const airconExtrasTotal = airconFreonTotal
   const airconFinalPrice = airconBasePrice + airconExtrasTotal
 
   // Plumbing pricing
@@ -1885,7 +1884,7 @@ function Step1({ service, onContinue, initialState }) {
     if (service?.toLowerCase() === 'electrical' && electricalType)
       return { service: 'Electrical', type: electricalType }
     if (service?.toLowerCase() === 'aircon cleaning')
-      return { service: 'Aircon Maintenance', units: airconUnits }
+      return { service: 'Aircon Maintenance', units: airconUnits, aircon_type: airconServiceCategory === 'installation' ? 'Install' : airconType }
     if (service?.toLowerCase() === 'painting' && (paintingArea || paintingFurnitureCategory))
       return { service: 'Painting', area: paintingIsFurniture ? (paintingFurniturePieces >= 3 ? 'Large' : 'Small') : paintingArea }
     if (service?.toLowerCase() === 'plumbing repair' && plumbingProblem)
@@ -2078,8 +2077,8 @@ function Step1({ service, onContinue, initialState }) {
         setError('Please complete all required task options before continuing.')
         return
       }
-      if (!imagePreview) {
-        setError('A photo of the service area is required for Aircon bookings. Please upload an image before continuing.')
+      if (airconServiceCategory === 'installation' && !imagePreview) {
+        setError('A photo of the installation area is required. Please upload an image before continuing.')
         return
       }
     }
@@ -2831,7 +2830,7 @@ function Step1({ service, onContinue, initialState }) {
                         <input type="radio" name="airconHpTier" value={tier} checked={airconHpTier === tier} onChange={() => setAirconHpTier(tier)} className="accent-orange-500 w-4 h-4" />
                         <span className="text-sm font-medium text-gray-700">{tier}</span>
                       </div>
-                      <span className="text-sm text-gray-500">{mod === 0 ? '+₱0' : `+₱${mod.toLocaleString()}/unit`}</span>
+                      <span className="text-sm text-gray-500">{mod === 0 ? 'Base rate' : `+₱${mod.toLocaleString()}/unit`}</span>
                     </label>
                   ))
               }
@@ -2867,7 +2866,6 @@ function Step1({ service, onContinue, initialState }) {
             <div className="space-y-2">
               {[
                 { value: 'Freon Recharge', label: 'Freon Recharge', price: `+₱${(500 * airconUnits).toLocaleString()} (₱500 × ${airconUnits})` },
-                { value: 'Same Day Service', label: 'Same Day Service', price: '+₱300' },
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${airconExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
@@ -3337,12 +3335,12 @@ function Step1({ service, onContinue, initialState }) {
 
         <div className="mt-4">
           <p className="text-sm font-medium text-gray-600 mb-2">
-            {service?.toLowerCase() === 'aircon cleaning'
-              ? <><span className="text-red-500">*</span> Required: Upload a photo of your aircon unit / area</>
+            {service?.toLowerCase() === 'aircon cleaning' && airconServiceCategory === 'installation'
+              ? <><span className="text-red-500">*</span> Required: Upload a photo of the installation area</>
               : 'Optional: Upload a photo of the damage'
             }
           </p>
-          {service?.toLowerCase() !== 'aircon cleaning' && (
+          {!(service?.toLowerCase() === 'aircon cleaning' && airconServiceCategory === 'installation') && (
             <p className="text-sm italic text-gray-400 mt-1 mb-3">Let Hanap AI detect and analyze your home issue automatically!</p>
           )}
           <input
