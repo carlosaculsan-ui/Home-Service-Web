@@ -30,8 +30,8 @@ function Hero() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch(`${import.meta.env.DEV ? 'http://localhost:5000' : ''}/api/stats`)
-        const data = await res.json()
+        const { data, error } = await supabase.rpc('get_public_stats')
+        if (error) throw error
         setStats({ bookings: data.bookings ?? 0, taskers: data.taskers ?? 0 })
       } catch {
         setStats({ bookings: 0, taskers: 0 })

@@ -56,7 +56,7 @@ function WhyChooseUs() {
   useEffect(() => {
     async function fetchStats() {
       const [statsRes, { data: reviews }] = await Promise.all([
-        fetch(`${import.meta.env.DEV ? 'http://localhost:5000' : ''}/api/stats`).then(r => r.json()),
+        supabase.rpc('get_public_stats').then(({ data, error }) => error ? { bookings: 0, taskers: 0 } : data),
         supabase.from('reviews').select('rating').eq('is_hidden', false).eq('is_flagged', false),
       ])
 
