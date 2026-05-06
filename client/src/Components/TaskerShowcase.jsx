@@ -50,24 +50,15 @@ function getQuote(role) {
 function ProfileModal({ tasker, onClose, justOpenedRef }) {
   const avatar = tasker.profile_photo || taskerImages[tasker.avatar_url]
   const [modalLoading, setModalLoading] = useState(true)
-  const [tasksCompleted, setTasksCompleted] = useState(0)
   const [dateJoined, setDateJoined] = useState(null)
 
   useEffect(() => {
     async function fetchModalData() {
-      const [{ count }, { data: profile }] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select('id', { count: 'exact', head: true })
-          .eq('tasker_id', tasker.id)
-          .eq('status', 'completed'),
-        supabase
-          .from('profiles')
-          .select('created_at')
-          .eq('id', tasker.user_id)
-          .single(),
-      ])
-      setTasksCompleted(count ?? 0)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('created_at')
+        .eq('id', tasker.user_id)
+        .single()
       setDateJoined(
         profile?.created_at
           ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', day: '2-digit', year: 'numeric' })
@@ -76,7 +67,7 @@ function ProfileModal({ tasker, onClose, justOpenedRef }) {
       setModalLoading(false)
     }
     fetchModalData()
-  }, [tasker.id, tasker.user_id])
+  }, [tasker.user_id])
 
   return (
     <div
@@ -118,7 +109,7 @@ function ProfileModal({ tasker, onClose, justOpenedRef }) {
               { label: 'NAME',            value: tasker.name,      style: { color: '#fff', fontWeight: 700, fontSize: '1.1rem' } },
               { label: 'SERVICE',         value: toDisplayName(tasker.role), style: { color: '#f97316', fontWeight: 600 } },
               { label: 'STARS',           value: `★ ${tasker.rating ?? '—'}`, style: { color: '#facc15', fontWeight: 600 } },
-              { label: 'TASKS COMPLETED', value: tasksCompleted,   style: { color: '#fff', fontWeight: 700 } },
+              { label: 'TASKS COMPLETED', value: tasker.jobsCompleted, style: { color: '#fff', fontWeight: 700 } },
               { label: 'AREA',            value: tasker.service_area ?? '—', style: { color: '#9ca3af' } },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between" style={{ borderBottom: '1px solid rgba(255,255,255,0.07)', paddingBottom: '0.75rem' }}>
