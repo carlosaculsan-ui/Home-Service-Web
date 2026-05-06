@@ -1691,7 +1691,6 @@ function Step1({ service, onContinue, initialState }) {
   ]
 
   const CARPENTRY_EXTRAS_PRICES = {
-    'Materials Included':       tp('Carpentry', 'Extra - Materials Included'),
     'Varnishing / Finishing':   tp('Carpentry', 'Extra - Varnishing / Finishing'),
     'Hauling / Debris Removal': tp('Carpentry', 'Extra - Hauling / Debris Removal'),
   }
@@ -1702,12 +1701,11 @@ function Step1({ service, onContinue, initialState }) {
     { value: 'Install Lights', price: tp('Electrical', 'Install Lights') },
   ]
   const ELECTRICAL_SUB_OPTIONS = {
-    'Install Outlet': ['Standard Wall Outlet', 'USB Outlet', 'Outdoor/Weatherproof Outlet', 'Extension Box Installation'],
+    'Install Outlet': ['Standard Wall Outlet', 'USB Outlet', 'Outdoor/Weatherproof Outlet'],
     'Repair Wiring':  ['Tripping Breaker', 'Dead Outlet / Switch', 'Exposed / Damaged Wiring', 'Flickering Lights'],
     'Install Lights': ['Ceiling Light / Downlight', 'Wall Sconce', 'LED Strip Lights', 'Outdoor / Security Light'],
   }
   const ELECTRICAL_EXTRAS_PRICES = {
-    'Materials Included':       tp('Electrical', 'Extra - Materials Included'),
     'Additional Outlet/Switch': tp('Electrical', 'Extra - Additional Outlet/Switch'),
     'Circuit Breaker Check':    tp('Electrical', 'Extra - Circuit Breaker Check'),
   }
@@ -1743,10 +1741,9 @@ function Step1({ service, onContinue, initialState }) {
   const PLUMBING_SUB_OPTIONS = {
     'Leaking Faucet': ['Kitchen Faucet', 'Bathroom Faucet', 'Shower Head', 'Outdoor Faucet'],
     'Clogged Drain':  ['Kitchen Sink', 'Bathroom Sink', 'Floor Drain', 'Toilet Bowl'],
-    'Pipe Repair':    ['Minor Leak (visible drip)', 'Burst Pipe', 'Pipe Joint Repair', 'Water Pressure Issue'],
+    'Pipe Repair':    ['Minor Leak (visible drip)', 'Burst Pipe', 'Pipe Joint Repair', 'Pipe Corrosion / Deterioration'],
   }
   const PLUMBING_EXTRAS_PRICES = {
-    'Materials Included':                   tp('Plumbing Repair', 'Extra - Materials Included'),
     'Multiple Points (2+ faucets/drains)':  tp('Plumbing Repair', 'Extra - Multiple Points (2+ faucets/drains)'),
     'Waterproofing':                        tp('Plumbing Repair', 'Extra - Waterproofing'),
   }
@@ -1841,7 +1838,9 @@ function Step1({ service, onContinue, initialState }) {
       return twoTaskerCategories.includes(carpentryCategory) ? 2 : 1
     }
     if (isElectrical) {
-      return electricalType === 'Repair Wiring' ? 2 : 1
+      if (electricalType === 'Repair Wiring')
+        return ['Tripping Breaker', 'Exposed / Damaged Wiring'].includes(electricalSubOption) ? 2 : 1
+      return 1
     }
     if (isAircon) {
       if (airconUnits >= 5) return 3
@@ -2379,16 +2378,21 @@ function Step1({ service, onContinue, initialState }) {
                 { value: 'Medium (2-3 rooms)',   label: 'Medium (2–3 rooms / 21–50 sqm)' },
                 { value: 'Large (whole house)',  label: 'Large (whole house / 51 sqm and above)' },
               ].map((area) => (
-                <label key={area.value} className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <input
-                    type="radio"
-                    name="cleaningArea"
-                    value={area.value}
-                    checked={cleaningArea === area.value}
-                    onChange={() => { setCleaningArea(area.value); setCleaningExtras([]) }}
-                    className="accent-orange-500 w-4 h-4"
-                  />
-                  <span className="text-sm font-medium text-gray-700">{area.label}</span>
+                <label key={area.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningArea === area.value ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="cleaningArea"
+                      value={area.value}
+                      checked={cleaningArea === area.value}
+                      onChange={() => { setCleaningArea(area.value); setCleaningExtras([]) }}
+                      className="accent-orange-500 w-4 h-4"
+                    />
+                    <span className="text-sm font-medium text-gray-700">{area.label}</span>
+                  </div>
+                  <span className="text-sm text-gray-500">
+                    {cleaningType && (BASE_PRICES[cleaningType]?.[area.value] ?? 0) > 0 ? `₱${(BASE_PRICES[cleaningType][area.value]).toLocaleString()}` : ''}
+                  </span>
                 </label>
               ))}
             </div>
@@ -2399,11 +2403,11 @@ function Step1({ service, onContinue, initialState }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'With Laundry', price: '+₱200' },
-                { value: 'With Appliances', price: '+₱250' },
+                { value: 'With Laundry', price: '+₱200', desc: 'Includes washing and folding of clothes' },
+                ...(cleaningType !== 'Deep Cleaning' ? [{ value: 'With Appliances', price: '+₱250', desc: 'Cleaning inside ref, microwave, oven, and other appliances' }] : []),
               ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
+                <label key={opt.value} className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${cleaningExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       checked={cleaningExtras.includes(opt.value)}
@@ -2412,11 +2416,14 @@ function Step1({ service, onContinue, initialState }) {
                           e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
                         )
                       }}
-                      className="accent-orange-500 w-4 h-4"
+                      className="accent-orange-500 w-4 h-4 mt-0.5"
                     />
-                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{opt.desc}</p>
+                    </div>
                   </div>
-                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                  <span className="text-sm text-orange-500 font-medium shrink-0">{opt.price}</span>
                 </label>
               ))}
             </div>
@@ -2522,8 +2529,9 @@ function Step1({ service, onContinue, initialState }) {
           </div>
 
           {/* Dimensions — optional free text, appears after category selected */}
-          <div style={{ overflow: 'hidden', maxHeight: carpentryCategory ? '120px' : '0', opacity: carpentryCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
-            <p className="font-semibold text-gray-700 text-sm mb-2">Dimensions <span className="text-gray-400 font-normal">(optional)</span></p>
+          <div style={{ overflow: 'hidden', maxHeight: carpentryCategory ? '150px' : '0', opacity: carpentryCategory ? 1 : 0, transition: 'max-height 0.3s ease, opacity 0.3s ease' }}>
+            <p className="font-semibold text-gray-700 text-sm mb-1">Dimensions <span className="text-gray-400 font-normal">(optional)</span></p>
+            <p className="text-xs text-gray-400 mb-2">Helps your tasker arrive prepared with the right materials and tools.</p>
             <input
               type="text"
               value={carpentryDimensions}
@@ -2538,11 +2546,11 @@ function Step1({ service, onContinue, initialState }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Varnishing / Finishing', price: '+₱350' },
-                { value: 'Hauling / Debris Removal', price: '+₱200' },
+                { value: 'Varnishing / Finishing', price: '+₱350', desc: 'Sanding and applying varnish or paint finish after repair or installation.' },
+                ...(carpentryType === 'Repair' ? [{ value: 'Hauling / Debris Removal', price: '+₱200', desc: 'Removal and disposal of broken parts, wood scraps, and debris after the job.' }] : []),
               ].map((opt) => (
-                <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
-                  <div className="flex items-center gap-3">
+                <label key={opt.value} className={`flex items-start justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${carpentryExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                  <div className="flex items-start gap-3">
                     <input
                       type="checkbox"
                       checked={carpentryExtras.includes(opt.value)}
@@ -2551,11 +2559,14 @@ function Step1({ service, onContinue, initialState }) {
                           e.target.checked ? [...prev, opt.value] : prev.filter(x => x !== opt.value)
                         )
                       }}
-                      className="accent-orange-500 w-4 h-4"
+                      className="accent-orange-500 w-4 h-4 mt-0.5"
                     />
-                    <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                    <div>
+                      <span className="text-sm font-medium text-gray-700">{opt.value}</span>
+                      <p className="text-xs text-gray-400 mt-0.5">{opt.desc}</p>
+                    </div>
                   </div>
-                  <span className="text-sm text-orange-500 font-medium">{opt.price}</span>
+                  <span className="text-sm text-orange-500 font-medium shrink-0">{opt.price}</span>
                 </label>
               ))}
             </div>
@@ -2652,8 +2663,8 @@ function Step1({ service, onContinue, initialState }) {
             <p className="font-semibold text-gray-700 text-sm mb-2">Extras <span className="text-gray-400 font-normal">(optional)</span></p>
             <div className="space-y-2">
               {[
-                { value: 'Additional Outlet/Switch', price: '+₱300' },
-                { value: 'Circuit Breaker Check', price: '+₱250' },
+                ...(electricalType !== 'Install Lights' ? [{ value: 'Additional Outlet/Switch', price: '+₱300' }] : []),
+                ...(electricalType !== 'Repair Wiring' ? [{ value: 'Circuit Breaker Check', price: '+₱250' }] : []),
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${electricalExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
@@ -3151,7 +3162,7 @@ function Step1({ service, onContinue, initialState }) {
                     name="plumbingSubOption"
                     value={sub}
                     checked={plumbingSubOption === sub}
-                    onChange={() => { setPlumbingSubOption(sub); setPlumbingUrgency(''); setPlumbingExtras([]) }}
+                    onChange={() => { setPlumbingSubOption(sub); setPlumbingUrgency(sub === 'Burst Pipe' ? 'urgent' : ''); setPlumbingExtras([]) }}
                     className="accent-orange-500 w-4 h-4"
                   />
                   <span className="text-sm font-medium text-gray-700">{sub}</span>
@@ -3186,7 +3197,7 @@ function Step1({ service, onContinue, initialState }) {
             <div className="space-y-2">
               {[
                 { value: 'Multiple Points (2+ faucets/drains)', price: '+₱300' },
-                { value: 'Waterproofing',                       price: '+₱500' },
+                ...(plumbingProblem === 'Pipe Repair' ? [{ value: 'Waterproofing', price: '+₱500' }] : []),
               ].map((opt) => (
                 <label key={opt.value} className={`flex items-center justify-between gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${plumbingExtras.includes(opt.value) ? 'border-orange-400 bg-orange-50' : 'border-gray-200 hover:border-gray-300'}`}>
                   <div className="flex items-center gap-3">
