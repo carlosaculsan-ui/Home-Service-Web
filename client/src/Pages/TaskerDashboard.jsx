@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
 import { toDisplayName } from '../utils/serviceNames'
+import { getPlatformFeeRate } from '../utils/platformSettings'
 import EmojiPicker from 'emoji-picker-react'
 import BreakRoom from '../Components/BreakRoom'
 import {
@@ -638,6 +639,7 @@ function NavigationOverlay({ address, onClose, onStartJob, actionLoading }) {
 }
 
 function TaskCard({ booking, onStatusChange, currentUserId }) {
+  const [feeRate, setFeeRate] = useState(0.10)
   const [actionLoading, setActionLoading] = useState(null)
   const [statusError, setStatusError] = useState('')
   const [showChat, setShowChat] = useState(false)
@@ -702,6 +704,8 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
     }
     setSharingLocation(false)
   }
+
+  useEffect(() => { getPlatformFeeRate().then(r => setFeeRate(r)) }, [])
 
   // Auto-resume if page reloaded while already on_the_way
   useEffect(() => {
@@ -1084,11 +1088,11 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
               </div>
             )}
             <div className="flex justify-between text-green-700 font-medium">
-              <span>Your Payout (90%)</span>
+              <span>Your Payout ({Math.round((1 - feeRate) * 100)}%)</span>
               <span>{fmt(booking.tasker_payout)}</span>
             </div>
             <div className="flex justify-between text-gray-400">
-              <span>Platform Fee (10%)</span>
+              <span>Platform Fee ({Math.round(feeRate * 100)}%)</span>
               <span>{fmt(booking.platform_fee)}</span>
             </div>
           </div>
@@ -1881,10 +1885,13 @@ const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct
 function EarningsSummary({ taskerId, taskerUserId }) {
   const [completedBookings, setCompletedBookings] = useState([])
   const [earningsLoading, setEarningsLoading] = useState(true)
+  const [feeRate, setFeeRate] = useState(0.10)
   const [reviews, setReviews] = useState([])
   const [chartWindow, setChartWindow] = useState(new Date().getMonth() < 6 ? 0 : 1)
   const [chartYear, setChartYear] = useState(new Date().getFullYear())
   const [earningsSubtab, setEarningsSubtab] = useState('overview')
+
+  useEffect(() => { getPlatformFeeRate().then(r => setFeeRate(r)) }, [])
 
   useEffect(() => {
     async function fetchEarnings() {
@@ -2100,8 +2107,8 @@ function EarningsSummary({ taskerId, taskerUserId }) {
                 <th className="text-left px-5 py-3 font-semibold whitespace-nowrap">Service</th>
                 <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Duration</th>
                 <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Amount Paid</th>
-                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Your Earnings (90%)</th>
-                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Platform Fee (10%)</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Your Earnings ({Math.round((1 - feeRate) * 100)}%)</th>
+                <th className="text-right px-5 py-3 font-semibold whitespace-nowrap">Platform Fee ({Math.round(feeRate * 100)}%)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -3878,6 +3885,9 @@ function BookingHistory({ taskerId, taskerUserId }) {
   const [openChatId, setOpenChatId] = useState(null)
   const [openReviewId, setOpenReviewId] = useState(null)
   const [histPage, setHistPage] = useState(1)
+  const [feeRate, setFeeRate] = useState(0.10)
+
+  useEffect(() => { getPlatformFeeRate().then(r => setFeeRate(r)) }, [])
 
   useEffect(() => {
     if (!taskerId) return
@@ -4026,11 +4036,11 @@ function BookingHistory({ taskerId, taskerUserId }) {
                         </div>
                       )}
                       <div className="flex justify-between text-green-700 font-medium">
-                        <span>Your Payout (90%)</span>
+                        <span>Your Payout ({Math.round((1 - feeRate) * 100)}%)</span>
                         <span>{fmt(b.tasker_payout)}</span>
                       </div>
                       <div className="flex justify-between text-gray-400">
-                        <span>Platform Fee (10%)</span>
+                        <span>Platform Fee ({Math.round(feeRate * 100)}%)</span>
                         <span>{fmt(b.platform_fee)}</span>
                       </div>
                     </div>

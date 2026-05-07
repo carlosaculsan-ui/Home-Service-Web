@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import ConfirmModal from '../Components/ConfirmModal'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
+import { getPlatformFeeRate } from '../utils/platformSettings'
 import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
@@ -2001,8 +2002,13 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
     openConfirm(`Force-complete booking ${b.reference_number ?? b.id}? This will release the payout to the tasker immediately.`, async () => {
     setForceCompleteProcessing(b.id)
 
-    const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
-    const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+    let platform_fee = b.platform_fee != null ? Number(b.platform_fee) : null
+    let tasker_payout = b.tasker_payout != null ? Number(b.tasker_payout) : null
+    if (platform_fee == null && b.estimated_total != null) {
+      const feeRate = await getPlatformFeeRate()
+      platform_fee = b.estimated_total * feeRate
+      tasker_payout = b.estimated_total * (1 - feeRate)
+    }
     const updatePayload = { status: 'completed' }
     if (platform_fee != null) {
       updatePayload.platform_fee = platform_fee
@@ -2037,8 +2043,13 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
   function handleDisputeForceComplete(b) {
     openConfirm(`Rule in favor of the tasker for booking ${b.reference_number ?? b.id}? This will force-complete the job and release full payout to the tasker.`, async () => {
       setForceCompleteProcessing(b.id)
-      const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
-      const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+      let platform_fee = b.platform_fee != null ? Number(b.platform_fee) : null
+      let tasker_payout = b.tasker_payout != null ? Number(b.tasker_payout) : null
+      if (platform_fee == null && b.estimated_total != null) {
+        const feeRate = await getPlatformFeeRate()
+        platform_fee = b.estimated_total * feeRate
+        tasker_payout = b.estimated_total * (1 - feeRate)
+      }
       const updatePayload = { status: 'completed' }
       if (platform_fee != null) { updatePayload.platform_fee = platform_fee; updatePayload.tasker_payout = tasker_payout }
       const { error } = await supabase.from('bookings').update(updatePayload).eq('id', b.id)
@@ -2065,8 +2076,9 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
       const total = Number(b.estimated_total) || 0
       const customerRefund = total * 0.40
       const remaining = total * 0.60
-      const tasker_payout = remaining * 0.90
-      const platform_fee = remaining * 0.10
+      const feeRate = await getPlatformFeeRate()
+      const tasker_payout = remaining * (1 - feeRate)
+      const platform_fee = remaining * feeRate
 
       await supabase.from('bookings').update({ status: 'completed', platform_fee, tasker_payout }).eq('id', b.id)
 
@@ -4242,6 +4254,11 @@ function DashboardPanel({ setTab, setBookingFilter }) {
   const [leaderboardSort, setLeaderboardSort] = useState('jobs')
   const [showAllTaskers, setShowAllTaskers] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [feeRate, setFeeRate] = useState(0.10)
+  const [feeRateInput, setFeeRateInput] = useState('')
+  const [feeRateSaving, setFeeRateSaving] = useState(false)
+  const [feeRateSuccess, setFeeRateSuccess] = useState(false)
+  const [feeRateError, setFeeRateError] = useState('')
   const currentYear = new Date().getFullYear()
 
   useEffect(() => {
@@ -4327,6 +4344,10 @@ function DashboardPanel({ setTab, setBookingFilter }) {
         return { ...t, jobs: jobCounts[t.id] || 0, rejected: rejectedCounts[t.id] || 0, avgRating }
       }).sort((a, b) => b.jobs - a.jobs || b.avgRating - a.avgRating)
       setTopTaskers(leaderboard)
+
+      const { data: settingsData } = await supabase
+        .from('platform_settings').select('fee_rate').eq('id', 1).single()
+      if (settingsData) setFeeRate(Number(settingsData.fee_rate))
 
       setLoading(false)
     }
@@ -4475,6 +4496,30 @@ function DashboardPanel({ setTab, setBookingFilter }) {
     }
   }, [])
 
+  async function handleSaveFeeRate() {
+    const parsed = parseFloat(feeRateInput)
+    if (isNaN(parsed) || parsed <= 0 || parsed >= 100) {
+      setFeeRateError('Enter a number between 0 and 100 (exclusive).')
+      return
+    }
+    setFeeRateSaving(true)
+    setFeeRateError('')
+    const newRate = parsed / 100
+    const { error } = await supabase
+      .from('platform_settings')
+      .update({ fee_rate: newRate, updated_at: new Date().toISOString() })
+      .eq('id', 1)
+    setFeeRateSaving(false)
+    if (error) {
+      setFeeRateError('Failed to save. Check your permissions.')
+    } else {
+      setFeeRate(newRate)
+      setFeeRateInput('')
+      setFeeRateSuccess(true)
+      setTimeout(() => setFeeRateSuccess(false), 3000)
+    }
+  }
+
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
   const monthlyData = months.map((month, i) => ({
     month,
@@ -4550,7 +4595,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="mb-2"><DollarSign className="w-8 h-8 text-emerald-500" /></div>
           <div className="text-2xl md:text-4xl font-bold text-emerald-600">{'₱' + platformEarnings.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           <div className="text-xs md:text-sm text-gray-500 mt-1">Platform Earnings</div>
-          <div className="text-xs text-gray-400 mt-1">Hanap.ph 10% cut</div>
+          <div className="text-xs text-gray-400 mt-1">Hanap.ph {Math.round(feeRate * 100)}% cut</div>
         </div>
 
         {/* This Month's Earnings card */}
@@ -4569,6 +4614,35 @@ function DashboardPanel({ setTab, setBookingFilter }) {
           <div className="text-xs text-gray-400 mt-1">Paid out to helpers</div>
         </div>
 
+      </div>
+
+      {/* Platform Fee Setting */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-gray-700">Platform Fee Rate</p>
+          <p className="text-xs text-gray-400 mt-0.5">Currently <span className="font-semibold text-gray-600">{Math.round(feeRate * 100)}% platform / {Math.round((1 - feeRate) * 100)}% tasker</span>. Changes apply to all new bookings.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="1"
+            max="99"
+            step="1"
+            placeholder="New % (e.g. 15)"
+            value={feeRateInput}
+            onChange={e => { setFeeRateInput(e.target.value); setFeeRateError('') }}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-36 focus:outline-none focus:ring-2 focus:ring-orange-400"
+          />
+          <button
+            onClick={handleSaveFeeRate}
+            disabled={feeRateSaving || !feeRateInput}
+            className="px-4 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold transition-colors"
+          >
+            {feeRateSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+        {feeRateError && <p className="text-xs text-red-500">{feeRateError}</p>}
+        {feeRateSuccess && <p className="text-xs text-green-600">Fee rate updated.</p>}
       </div>
 
       {/* Chart + Recent Bookings */}
@@ -6667,8 +6741,8 @@ function TransactionsPanel() {
         const b = refundDetailModal
         const total = Number(b.estimated_total ?? 0)
         const helperFee = b.helper_fee !== null && b.helper_fee !== undefined ? Number(b.helper_fee) : total * 0.30
-        const platformFee = b.platform_fee !== null && b.platform_fee !== undefined ? Number(b.platform_fee) : total * 0.10
-        const taskerPayout = b.tasker_payout !== null && b.tasker_payout !== undefined ? Number(b.tasker_payout) : total * 0.90
+        const platformFee = b.platform_fee !== null && b.platform_fee !== undefined ? Number(b.platform_fee) : total * platformFeeRate
+        const taskerPayout = b.tasker_payout !== null && b.tasker_payout !== undefined ? Number(b.tasker_payout) : total * (1 - platformFeeRate)
         const fmt = (n) => '₱' + n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
         const refundedAt = b.created_at ? new Date(b.created_at).toLocaleString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : '—'
         return (
@@ -8204,7 +8278,12 @@ function Admin() {
   const [blackoutDates, setBlackoutDates] = useState(new Set())
   const [blackoutLoading, setBlackoutLoading] = useState(false)
   const [blackoutConfirming, setBlackoutConfirming] = useState(false)
+  const [platformFeeRate, setPlatformFeeRate] = useState(0.10)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    getPlatformFeeRate().then(r => setPlatformFeeRate(r))
+  }, [])
 
   async function fetchReminders() {
     const { data } = await supabase.from('admin_reminders').select('id, date, text').order('created_at')

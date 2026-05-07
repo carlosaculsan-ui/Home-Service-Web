@@ -12,6 +12,7 @@ import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, He
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { toDisplayName } from '../utils/serviceNames'
+import { getPlatformFeeRate } from '../utils/platformSettings'
 import { MapContainer, TileLayer, useMap } from 'react-leaflet'
 import L from 'leaflet'
 
@@ -1156,8 +1157,12 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
 
   async function handleConfirmComplete() {
     setConfirming(true)
-    const platform_fee = booking.estimated_total != null ? booking.estimated_total * 0.10 : null
-    const tasker_payout = booking.estimated_total != null ? booking.estimated_total * 0.90 : null
+    let platform_fee = null, tasker_payout = null
+    if (booking.estimated_total != null) {
+      const feeRate = await getPlatformFeeRate()
+      platform_fee = booking.estimated_total * feeRate
+      tasker_payout = booking.estimated_total * (1 - feeRate)
+    }
     const updatePayload = { status: 'completed' }
     if (platform_fee != null) {
       updatePayload.platform_fee = platform_fee
@@ -3803,9 +3808,10 @@ function Dashboard() {
       b.pending_confirmation_at &&
       new Date(b.pending_confirmation_at) < new Date(Date.now() - 24 * 60 * 60 * 1000)
     )
+    const feeRate = await getPlatformFeeRate()
     for (const b of overdue) {
-      const platform_fee = b.estimated_total != null ? b.estimated_total * 0.10 : null
-      const tasker_payout = b.estimated_total != null ? b.estimated_total * 0.90 : null
+      const platform_fee = b.estimated_total != null ? b.estimated_total * feeRate : null
+      const tasker_payout = b.estimated_total != null ? b.estimated_total * (1 - feeRate) : null
       const updatePayload = { status: 'completed' }
       if (platform_fee != null) {
         updatePayload.platform_fee = platform_fee

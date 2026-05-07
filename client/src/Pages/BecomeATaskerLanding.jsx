@@ -11,6 +11,7 @@ import {
   UserPlus, ClipboardList, ShieldCheck,
   ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { getPlatformFeeRate } from '../utils/platformSettings'
 
 const FAQS = [
   {
@@ -78,8 +79,11 @@ function motivationalLine(income) {
 function EarningsCalculator() {
   const [hours, setHours] = useState(20)
   const [service, setService] = useState(SERVICES[0])
+  const [taskerRate, setTaskerRate] = useState(0.90)
 
-  const monthly = Math.round(service.rate * 0.90 * hours * 4)
+  useEffect(() => { getPlatformFeeRate().then(r => setTaskerRate(1 - r)) }, [])
+
+  const monthly = Math.round(service.rate * taskerRate * hours * 4)
   const formatted = '₱' + monthly.toLocaleString('en-PH')
 
   return (
