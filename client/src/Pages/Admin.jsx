@@ -5,6 +5,7 @@ import ConfirmModal from '../Components/ConfirmModal'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
 import { getPlatformFeeRate } from '../utils/platformSettings'
 import { createDailyRoom } from '../utils/dailyCall'
+import JitsiCall from '../Components/JitsiCall'
 import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
@@ -5334,7 +5335,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
             <p className="text-white text-sm font-semibold">{callType === 'voice' ? 'Voice' : 'Video'} call with {otherUserName}</p>
             <button onClick={endCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
           </div>
-          <iframe src={callRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+          <JitsiCall roomUrl={callRoomUrl} onEnd={endCall} />
         </div>
       </div>
     )}
@@ -9046,7 +9047,7 @@ function Admin() {
               <p className="text-white text-sm font-semibold">{globalCallType === 'voice' ? 'Voice' : 'Video'} call</p>
               <button onClick={endGlobalCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
             </div>
-            <iframe src={globalCallRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+            <JitsiCall roomUrl={globalCallRoomUrl} onEnd={endGlobalCall} />
           </div>
         </div>
       )}

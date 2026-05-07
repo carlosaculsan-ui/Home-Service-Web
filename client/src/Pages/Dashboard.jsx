@@ -11,6 +11,7 @@ import { supabase } from '../supabase'
 import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic, Phone } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
+import JitsiCall from '../Components/JitsiCall'
 import { toDisplayName } from '../utils/serviceNames'
 import { getPlatformFeeRate } from '../utils/platformSettings'
 import { createDailyRoom } from '../utils/dailyCall'
@@ -3040,7 +3041,7 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
             <p className="text-white text-sm font-semibold">{callType === 'voice' ? 'Voice' : 'Video'} call with Admin Support</p>
             <button onClick={endCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
           </div>
-          <iframe src={callRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+          <JitsiCall roomUrl={callRoomUrl} onEnd={endCall} />
         </div>
       </div>
     )}
@@ -4746,7 +4747,7 @@ function Dashboard() {
             <span className="text-white text-sm font-medium">{globalCallType === 'voice' ? 'Voice' : 'Video'} Call</span>
             <button onClick={endGlobalCall} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">End Call</button>
           </div>
-          <iframe src={globalCallRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+          <JitsiCall roomUrl={globalCallRoomUrl} onEnd={endGlobalCall} />
         </div>
       )}
     </div>

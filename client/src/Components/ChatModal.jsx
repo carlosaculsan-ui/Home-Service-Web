@@ -3,6 +3,7 @@ import { X, Send, Phone, Smile, Mic, Camera, Video, Trash2 } from 'lucide-react'
 import { supabase } from '../supabase'
 import EmojiPicker from 'emoji-picker-react'
 import { createDailyRoom } from '../utils/dailyCall'
+import JitsiCall from './JitsiCall'
 
 function formatTime(iso) {
   if (!iso) return ''
@@ -287,8 +288,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     setCallError('')
     try {
       const roomUrl = await createDailyRoom()
-      const jitsiConfig = '#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false'
-      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0${jitsiConfig}` : `${roomUrl}${jitsiConfig}`
+      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0` : roomUrl
       const { data, error } = await supabase.from('calls')
         .insert({ room_url: effectiveUrl, caller_id: currentUserId, receiver_id: otherUserId, status: 'ringing' })
         .select('id').single()
@@ -580,7 +580,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
               <p className="text-white text-sm font-semibold">{callType === 'voice' ? 'Voice' : 'Video'} call with {otherUserName}</p>
               <button onClick={endCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
             </div>
-            <iframe src={callRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+            <JitsiCall roomUrl={callRoomUrl} onEnd={endCall} />
           </div>
         </div>
       )}

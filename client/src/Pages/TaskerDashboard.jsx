@@ -14,6 +14,7 @@ import {
   LogOut, Menu, X, MessageSquare, MessageCircle, Headset, Home, Bell, ChevronLeft, ChevronRight, Gamepad2, Smile, CheckCheck, Camera, Video, Mic, Trash2,
 } from 'lucide-react'
 import ChatModal from '../Components/ChatModal'
+import JitsiCall from '../Components/JitsiCall'
 import { toDisplayName } from '../utils/serviceNames'
 import { getPlatformFeeRate } from '../utils/platformSettings'
 import EmojiPicker from 'emoji-picker-react'
@@ -5175,7 +5176,7 @@ function TaskerDashboard() {
             <span className="text-white text-sm font-medium">{globalCallType === 'voice' ? 'Voice' : 'Video'} Call</span>
             <button onClick={endGlobalCall} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">End Call</button>
           </div>
-          <iframe src={globalCallRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+          <JitsiCall roomUrl={globalCallRoomUrl} onEnd={endGlobalCall} />
         </div>
       )}
     </div>
