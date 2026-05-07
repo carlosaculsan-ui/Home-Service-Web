@@ -5451,9 +5451,10 @@ function AdminMessagesPanel({ adminUserId }) {
 
   async function fetchComposeUsers() {
     setComposeLoading(true)
-    const [{ data: tData }, { data: hData }] = await Promise.all([
+    const [{ data: tData }, { data: hData }, { data: cData }] = await Promise.all([
       supabase.from('taskers').select('id, name, user_id, profile_photo').eq('status', 'approved').order('name'),
       supabase.from('helpers').select('id, name, user_id').eq('is_archived', false).not('user_id', 'is', null),
+      supabase.from('profiles').select('id, full_name').eq('role', 'customer').order('full_name'),
     ])
     const users = []
     ;(tData ?? []).forEach((t) => {
@@ -5466,6 +5467,10 @@ function AdminMessagesPanel({ adminUserId }) {
     })
     ;(hData ?? []).forEach((h) => {
       users.push({ userId: h.user_id, name: h.name, photoUrl: null, role: 'helper' })
+    })
+    ;(cData ?? []).forEach((c) => {
+      if (!c.id) return
+      users.push({ userId: c.id, name: c.full_name || 'Unknown', photoUrl: null, role: 'customer' })
     })
     setComposeUsers(users)
     setComposeLoading(false)
@@ -5548,7 +5553,7 @@ function AdminMessagesPanel({ adminUserId }) {
               <input
                 autoFocus
                 type="text"
-                placeholder="Search taskers & helpers..."
+                placeholder="Search taskers, helpers & customers..."
                 value={composeSearch}
                 onChange={(e) => setComposeSearch(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 outline-none focus:border-orange-400 transition-colors"
@@ -5581,9 +5586,11 @@ function AdminMessagesPanel({ adminUserId }) {
                       )}
                       <p className="flex-1 text-sm font-semibold text-gray-800 truncate">{u.name}</p>
                       <span className={`flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                        u.role === 'tasker' ? 'bg-blue-100 text-blue-600' : 'bg-purple-100 text-purple-600'
+                        u.role === 'tasker' ? 'bg-blue-100 text-blue-600'
+                        : u.role === 'helper' ? 'bg-purple-100 text-purple-600'
+                        : 'bg-green-100 text-green-600'
                       }`}>
-                        {u.role === 'tasker' ? 'Tasker' : 'Helper'}
+                        {u.role === 'tasker' ? 'Tasker' : u.role === 'helper' ? 'Helper' : 'Customer'}
                       </span>
                     </button>
                   ))
