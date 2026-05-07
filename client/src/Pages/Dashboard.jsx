@@ -3694,6 +3694,7 @@ function Dashboard() {
   const [bookings, setBookings] = useState([])
   const [bookingFilter, setBookingFilter] = useState('all')
   const [bookingSearch, setBookingSearch] = useState('')
+  const [bookingPage, setBookingPage] = useState(1)
   const [userId, setUserId] = useState(null)
   const [loading, setLoading] = useState(true)
   const [customerName, setCustomerName] = useState('')
@@ -4224,7 +4225,7 @@ function Dashboard() {
                     <input
                       type="text"
                       value={bookingSearch}
-                      onChange={(e) => setBookingSearch(e.target.value)}
+                      onChange={(e) => { setBookingSearch(e.target.value); setBookingPage(1) }}
                       placeholder="Search by service, tasker name or reference number…"
                       className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
                     />
@@ -4252,7 +4253,7 @@ function Dashboard() {
                     ].map(({ value, label }) => (
                       <button
                         key={value}
-                        onClick={() => setBookingFilter(value)}
+                        onClick={() => { setBookingFilter(value); setBookingPage(1) }}
                         className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
                           bookingFilter === value
                             ? 'bg-orange-500 text-white border-orange-500'
@@ -4264,27 +4265,71 @@ function Dashboard() {
                     ))}
                   </div>
 
-                  <div className="space-y-4">
-                    {(() => {
-                      const q = bookingSearch.trim().toLowerCase()
-                      const filtered = bookings.filter((b) => {
-                        const matchesStatus = bookingFilter === 'all' || b.status === bookingFilter
-                        const matchesSearch = !q ||
-                          (b.service ?? '').toLowerCase().includes(q) ||
-                          (b.tasker_name ?? '').toLowerCase().includes(q) ||
-                          (b.reference_number ?? '').toLowerCase().includes(q)
-                        return matchesStatus && matchesSearch
-                      })
-                      if (filtered.length === 0) return (
-                        <p className="text-center text-gray-400 py-10">
-                          {bookings.length === 0 ? 'No bookings yet.' : 'No bookings match your search.'}
-                        </p>
-                      )
-                      return filtered.map((booking) => (
-                        <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} onOpenAdminChat={() => { setJumpToAdminChat(true); setTab('support') }} />
-                      ))
-                    })()}
-                  </div>
+                  {(() => {
+                    const PAGE_SIZE = 10
+                    const q = bookingSearch.trim().toLowerCase()
+                    const filtered = bookings.filter((b) => {
+                      const matchesStatus = bookingFilter === 'all' || b.status === bookingFilter
+                      const matchesSearch = !q ||
+                        (b.service ?? '').toLowerCase().includes(q) ||
+                        (b.tasker_name ?? '').toLowerCase().includes(q) ||
+                        (b.reference_number ?? '').toLowerCase().includes(q)
+                      return matchesStatus && matchesSearch
+                    })
+                    if (filtered.length === 0) return (
+                      <p className="text-center text-gray-400 py-10">
+                        {bookings.length === 0 ? 'No bookings yet.' : 'No bookings match your search.'}
+                      </p>
+                    )
+                    const totalPages = Math.ceil(filtered.length / PAGE_SIZE)
+                    const safePage = Math.min(bookingPage, totalPages)
+                    const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+                    return (
+                      <>
+                        <div className="space-y-4">
+                          {paginated.map((booking) => (
+                            <BookingCard key={booking.id} booking={booking} userId={userId} onCancel={() => load(userId)} onOpenAdminChat={() => { setJumpToAdminChat(true); setTab('support') }} />
+                          ))}
+                        </div>
+                        {totalPages > 1 && (
+                          <div className="flex items-center justify-between mt-6">
+                            <p className="text-sm text-gray-500">
+                              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} of {filtered.length} bookings
+                            </p>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => setBookingPage(p => Math.max(1, p - 1))}
+                                disabled={safePage === 1}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                              >
+                                ‹
+                              </button>
+                              {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                                <button
+                                  key={n}
+                                  onClick={() => setBookingPage(n)}
+                                  className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-semibold transition-colors ${
+                                    n === safePage
+                                      ? 'bg-orange-500 text-white border-orange-500'
+                                      : 'border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500'
+                                  }`}
+                                >
+                                  {n}
+                                </button>
+                              ))}
+                              <button
+                                onClick={() => setBookingPage(p => Math.min(totalPages, p + 1))}
+                                disabled={safePage === totalPages}
+                                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                              >
+                                ›
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )
+                  })()}
                 </>
               )}
             </>

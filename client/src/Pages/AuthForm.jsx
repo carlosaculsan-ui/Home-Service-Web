@@ -34,6 +34,7 @@ function AuthForm() {
 
   const navigate = useNavigate()
   const signingUpRef = useRef(false)
+  const routedRef = useRef(false)
 
   // OTP countdown
   useEffect(() => {
@@ -54,6 +55,8 @@ function AuthForm() {
   }
 
   async function routeByRole(session) {
+    if (routedRef.current) return
+    routedRef.current = true
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -76,6 +79,7 @@ function AuthForm() {
       await supabase.auth.signOut()
       setError('Admins must log in through the Admin Login page.')
       setLoading(false)
+      routedRef.current = false
       return
     }
 
@@ -117,12 +121,15 @@ function AuthForm() {
     e.preventDefault()
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    routedRef.current = false
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
       setLoading(false)
+      return
     }
-    // role check and navigation handled by onAuthStateChange
+    await routeByRole(data.session)
+    setLoading(false)
   }
 
   const handleSignup = async (e) => {

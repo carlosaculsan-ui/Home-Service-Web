@@ -3877,6 +3877,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
   const [search, setSearch] = useState('')
   const [openChatId, setOpenChatId] = useState(null)
   const [openReviewId, setOpenReviewId] = useState(null)
+  const [histPage, setHistPage] = useState(1)
 
   useEffect(() => {
     if (!taskerId) return
@@ -3915,7 +3916,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
         {HISTORY_FILTERS.map(({ key, label }) => (
           <button
             key={key}
-            onClick={() => setFilter(key)}
+            onClick={() => { setFilter(key); setHistPage(1) }}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
               filter === key
                 ? 'bg-orange-500 text-white border-orange-500'
@@ -3931,7 +3932,7 @@ function BookingHistory({ taskerId, taskerUserId }) {
       <input
         type="text"
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={(e) => { setSearch(e.target.value); setHistPage(1) }}
         placeholder="Search by customer name or booking ID..."
         className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-xl outline-none focus:border-orange-400 transition-colors"
       />
@@ -3961,9 +3962,15 @@ function BookingHistory({ taskerId, taskerUserId }) {
         <div className="flex justify-center mt-20">
           <p className="text-gray-400 text-base font-medium">No bookings found.</p>
         </div>
-      ) : (
+      ) : (() => {
+        const PAGE_SIZE = 10
+        const totalPages = Math.ceil(displayed.length / PAGE_SIZE)
+        const safePage = Math.min(histPage, totalPages)
+        const paginated = displayed.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+        return (
+          <>
         <div className="space-y-3">
-          {displayed.map((b) => {
+          {paginated.map((b) => {
             const statusStyle = HISTORY_STATUS_STYLES[b.status] ?? 'bg-gray-100 text-gray-500'
             const statusLabel = STATUS_LABELS[b.status] ?? b.status?.replace(/_/g, ' ') ?? '—'
             const refId = b.reference_number ?? ('VE-' + b.id.slice(0, 13).toUpperCase())
@@ -4053,7 +4060,45 @@ function BookingHistory({ taskerId, taskerUserId }) {
             )
           })}
         </div>
-      )}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mt-6">
+            <p className="text-sm text-gray-500">
+              Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, displayed.length)} of {displayed.length} bookings
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setHistPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                ‹
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                <button
+                  key={n}
+                  onClick={() => setHistPage(n)}
+                  className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-semibold transition-colors ${
+                    n === safePage
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500'
+                  }`}
+                >
+                  {n}
+                </button>
+              ))}
+              <button
+                onClick={() => setHistPage(p => Math.min(totalPages, p + 1))}
+                disabled={safePage === totalPages}
+                className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+              >
+                ›
+              </button>
+            </div>
+          </div>
+        )}
+          </>
+        )
+      })()}
     </div>
   )
 }
@@ -4184,6 +4229,7 @@ function TaskerDashboard() {
   const [bookings, setBookings] = useState([])
   const [bookingSearch, setBookingSearch] = useState('')
   const [bookingStatusFilter, setBookingStatusFilter] = useState('all')
+  const [bookingPage, setBookingPage] = useState(1)
   const [showBookingCalendar, setShowBookingCalendar] = useState(false)
   const [taskerId, setTaskerId] = useState(null)
   const [taskerUserId, setTaskerUserId] = useState(null)
@@ -4629,7 +4675,7 @@ function TaskerDashboard() {
                   <input
                     type="text"
                     value={bookingSearch}
-                    onChange={(e) => setBookingSearch(e.target.value)}
+                    onChange={(e) => { setBookingSearch(e.target.value); setBookingPage(1) }}
                     placeholder="Search by customer name or reference number…"
                     className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-lg text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-transparent"
                   />
@@ -4648,7 +4694,7 @@ function TaskerDashboard() {
                   {STATUS_FILTER_TABS.map((s) => (
                     <button
                       key={s.key}
-                      onClick={() => setBookingStatusFilter(s.key)}
+                      onClick={() => { setBookingStatusFilter(s.key); setBookingPage(1) }}
                       className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                         bookingStatusFilter === s.key
                           ? 'bg-orange-500 text-white'
@@ -4683,13 +4729,57 @@ function TaskerDashboard() {
                       {bookings.length === 0 ? 'No tasks assigned yet.' : 'No bookings match your search.'}
                     </p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {filteredBookings.map((booking) => (
-                      <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
-                    ))}
-                  </div>
-                )}
+                ) : (() => {
+                  const PAGE_SIZE = 10
+                  const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE)
+                  const safePage = Math.min(bookingPage, totalPages)
+                  const paginated = filteredBookings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+                  return (
+                    <>
+                      <div className="space-y-4">
+                        {paginated.map((booking) => (
+                          <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
+                        ))}
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between mt-6">
+                          <p className="text-sm text-gray-500">
+                            Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredBookings.length)} of {filteredBookings.length} bookings
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => setBookingPage(p => Math.max(1, p - 1))}
+                              disabled={safePage === 1}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                            >
+                              ‹
+                            </button>
+                            {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                              <button
+                                key={n}
+                                onClick={() => setBookingPage(n)}
+                                className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-semibold transition-colors ${
+                                  n === safePage
+                                    ? 'bg-orange-500 text-white border-orange-500'
+                                    : 'border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500'
+                                }`}
+                              >
+                                {n}
+                              </button>
+                            ))}
+                            <button
+                              onClick={() => setBookingPage(p => Math.min(totalPages, p + 1))}
+                              disabled={safePage === totalPages}
+                              className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                            >
+                              ›
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )
+                })()}
               </>
             )
           })()}

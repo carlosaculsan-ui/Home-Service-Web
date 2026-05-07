@@ -1843,6 +1843,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
   const [loading, setLoading] = useState(true)
   const [deleteErrors, setDeleteErrors] = useState({})
   const [bookingSearch, setBookingSearch] = useState('')
+  const [bookingPage, setBookingPage] = useState(1)
   const [cancelModal, setCancelModal] = useState(null)
   const [cancelReason, setCancelReason] = useState('')
   const [cancelNote, setCancelNote] = useState('')
@@ -2225,7 +2226,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
         <input
           type="text"
           value={bookingSearch}
-          onChange={e => setBookingSearch(e.target.value)}
+          onChange={e => { setBookingSearch(e.target.value); setBookingPage(1) }}
           placeholder="Search by reference, customer, or tasker name..."
           className="w-full pl-9 pr-9 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:border-orange-400 bg-white shadow-sm"
         />
@@ -2252,7 +2253,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
         ].map(({ value, label }) => (
           <button
             key={value}
-            onClick={() => setBookingFilter(value)}
+            onClick={() => { setBookingFilter(value); setBookingPage(1) }}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
               bookingFilter === value
                 ? 'bg-orange-500 text-white border-orange-500'
@@ -2263,7 +2264,7 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
           </button>
         ))}
         <button
-          onClick={() => setBookingFilter('all')}
+          onClick={() => { setBookingFilter('all'); setBookingPage(1) }}
           className={`ml-auto px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${
             bookingFilter === 'all'
               ? 'bg-orange-500 text-white border-orange-500'
@@ -2278,7 +2279,14 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
             : `${filteredBookings.length} found`}
         </span>
       </div>
-      {filteredBookings.map((b) => {
+      {(() => {
+        const PAGE_SIZE = 10
+        const totalPages = Math.ceil(filteredBookings.length / PAGE_SIZE)
+        const safePage = Math.min(bookingPage, Math.max(1, totalPages))
+        const paginated = filteredBookings.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+        return (
+          <>
+            {paginated.map((b) => {
         const isOverdue30m = b.status === 'confirmed' && b.confirmed_at && new Date(b.confirmed_at) < new Date(Date.now() - 30 * 60 * 1000)
         return (
         <div key={b.id} className={`bg-white rounded-2xl shadow-sm border p-5 ${isOverdue30m ? 'border-red-300' : 'border-gray-100'}`}>
@@ -2471,6 +2479,45 @@ function BookingsPanel({ bookingFilter, setBookingFilter, adminUserId }) {
           </div>
         </div>
       )})}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-6">
+                <p className="text-sm text-gray-500">
+                  Showing {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredBookings.length)} of {filteredBookings.length} bookings
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setBookingPage(p => Math.max(1, p - 1))}
+                    disabled={safePage === 1}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                  >
+                    ‹
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setBookingPage(n)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg border text-sm font-semibold transition-colors ${
+                        n === safePage
+                          ? 'bg-orange-500 text-white border-orange-500'
+                          : 'border-gray-200 text-gray-600 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500'
+                      }`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setBookingPage(p => Math.min(totalPages, p + 1))}
+                    disabled={safePage === totalPages}
+                    className="w-8 h-8 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-orange-50 hover:border-orange-300 hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-sm"
+                  >
+                    ›
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
 
     {/* Dispute Chat Modal */}
@@ -5135,6 +5182,17 @@ function AdminMessagesPanel({ adminUserId }) {
   const [composeSearch, setComposeSearch] = useState('')
   const [composeUsers, setComposeUsers] = useState([])
   const [composeLoading, setComposeLoading] = useState(false)
+  const [hoveredConvId, setHoveredConvId] = useState(null)
+
+  async function deleteConversation(userId) {
+    await supabase
+      .from('messages')
+      .delete()
+      .is('booking_id', null)
+      .or(`and(sender_id.eq.${adminUserId},receiver_id.eq.${userId}),and(sender_id.eq.${userId},receiver_id.eq.${adminUserId})`)
+    setConversations(prev => prev.filter(c => c.userId !== userId))
+    if (selectedTasker?.userId === userId) setSelectedTasker(null)
+  }
 
   async function fetchConversations() {
     if (!adminUserId) return
@@ -5369,10 +5427,12 @@ function AdminMessagesPanel({ adminUserId }) {
               <p className="text-center text-gray-400 text-sm py-10 px-4">No messages yet.</p>
             ) : (
               conversations.map((c) => (
-                <button
+                <div
                   key={c.userId}
                   onClick={() => openConversation(c)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 ${
+                  onMouseEnter={() => setHoveredConvId(c.userId)}
+                  onMouseLeave={() => setHoveredConvId(null)}
+                  className={`relative w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-gray-50 hover:bg-orange-50 cursor-pointer ${
                     selectedTasker?.userId === c.userId ? 'bg-orange-50' : ''
                   }`}
                 >
@@ -5401,12 +5461,19 @@ function AdminMessagesPanel({ adminUserId }) {
                     </div>
                     <p className="text-xs text-gray-500 truncate">{c.lastMessage}</p>
                   </div>
-                  {c.unreadCount > 0 && (
+                  {hoveredConvId === c.userId ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); deleteConversation(c.userId) }}
+                      className="w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors flex-shrink-0"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  ) : c.unreadCount > 0 ? (
                     <span className="w-5 h-5 bg-orange-500 text-white text-xs font-bold rounded-full flex items-center justify-center flex-shrink-0">
                       {c.unreadCount > 9 ? '9+' : c.unreadCount}
                     </span>
-                  )}
-                </button>
+                  ) : null}
+                </div>
               ))
             )}
           </div>
