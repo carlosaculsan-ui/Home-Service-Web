@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import ConfirmModal from '../Components/ConfirmModal'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
 import { getPlatformFeeRate } from '../utils/platformSettings'
+import { createDailyRoom } from '../utils/dailyCall'
 import {
   Bot, Star, Eye, Trash2, AlertTriangle, X,
   LayoutDashboard, Users, UserCheck, ClipboardList,
@@ -4887,6 +4888,13 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
   const [micDenied, setMicDenied] = useState(false)
+  const [callStatus, setCallStatus] = useState(null)
+  const [callRoomUrl, setCallRoomUrl] = useState(null)
+  const [callType, setCallType] = useState(null)
+  const [callId, setCallId] = useState(null)
+  const [incomingCall, setIncomingCall] = useState(null)
+  const [callError, setCallError] = useState('')
+  const callIdRef = useRef(null)
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
   const pickerRef = useRef(null)
@@ -4962,6 +4970,68 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  useEffect(() => { callIdRef.current = callId }, [callId])
+
+  useEffect(() => {
+    return () => {
+      if (callIdRef.current) supabase.from('calls').update({ status: 'ended' }).eq('id', callIdRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!adminUserId || !otherUserId) return
+    const channel = supabase
+      .channel(`vcall-admin-${adminUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, (payload) => {
+        const c = payload.new
+        if (c.receiver_id === adminUserId && c.caller_id === otherUserId && c.status === 'ringing')
+          setIncomingCall({ id: c.id, roomUrl: c.room_url, type: c.room_url?.includes('?video=0') ? 'voice' : 'video' })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, (payload) => {
+        const c = payload.new
+        const isOurs = (c.caller_id === adminUserId && c.receiver_id === otherUserId) ||
+                       (c.caller_id === otherUserId && c.receiver_id === adminUserId)
+        if (!isOurs) return
+        if (c.status === 'active' && c.caller_id === adminUserId) setCallStatus('active')
+        if (c.status === 'ended' || c.status === 'declined') {
+          setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null); setIncomingCall(null)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId, otherUserId])
+
+  async function startCall(type) {
+    setCallError('')
+    try {
+      const roomUrl = await createDailyRoom()
+      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0` : roomUrl
+      const { data, error } = await supabase.from('calls')
+        .insert({ room_url: effectiveUrl, caller_id: adminUserId, receiver_id: otherUserId, status: 'ringing' })
+        .select('id').single()
+      if (error) throw error
+      setCallRoomUrl(effectiveUrl); setCallId(data.id); setCallType(type); setCallStatus('calling')
+    } catch {
+      setCallError('Could not start call. Try again.')
+      setTimeout(() => setCallError(''), 4000)
+    }
+  }
+
+  async function acceptCall() {
+    await supabase.from('calls').update({ status: 'active' }).eq('id', incomingCall.id)
+    setCallRoomUrl(incomingCall.roomUrl); setCallId(incomingCall.id); setCallType(incomingCall.type); setCallStatus('active'); setIncomingCall(null)
+  }
+
+  async function declineCall() {
+    await supabase.from('calls').update({ status: 'declined' }).eq('id', incomingCall.id)
+    setIncomingCall(null)
+  }
+
+  async function endCall() {
+    if (callIdRef.current) await supabase.from('calls').update({ status: 'ended' }).eq('id', callIdRef.current)
+    setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null)
+  }
 
   async function handleSend() {
     const text = input.trim()
@@ -5059,6 +5129,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   }
 
   return (
+    <>
     <div className="flex flex-col h-full">
       {/* Chat header */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-100 flex-shrink-0">
@@ -5075,28 +5146,51 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
           </div>
         )}
         <p className="font-semibold text-gray-800 text-sm flex-1">{otherUserName}</p>
-        {otherUserPhone && (
-          <div className="relative group flex-shrink-0 md:hidden">
-            <a
-              href={`tel:${otherUserPhone}`}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold transition-colors"
-            >
-              <Phone size={13} />
-              Call
-            </a>
-            <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
-              <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
-                Call {otherUserName} directly
-              </div>
-            </div>
-          </div>
-        )}
+        <button
+          onClick={() => startCall('voice')}
+          disabled={!!callStatus || !!incomingCall}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <Phone size={13} />
+          Voice
+        </button>
+        <button
+          onClick={() => startCall('video')}
+          disabled={!!callStatus || !!incomingCall}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <Video size={13} />
+          Video
+        </button>
         {onBack && (
           <button onClick={onBack} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
             <X size={16} />
           </button>
         )}
       </div>
+
+      {incomingCall && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            {incomingCall?.type === 'voice' ? <Phone size={15} className="text-blue-600 animate-pulse" /> : <Video size={15} className="text-blue-600 animate-pulse" />}
+            <p className="text-sm font-semibold text-blue-800">Incoming {incomingCall?.type === 'voice' ? 'voice' : 'video'} call from {otherUserName}</p>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={acceptCall} className="px-3 py-1.5 rounded-full bg-green-500 hover:bg-green-600 text-white text-xs font-bold transition-colors">Accept</button>
+            <button onClick={declineCall} className="px-3 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold transition-colors">Decline</button>
+          </div>
+        </div>
+      )}
+      {callStatus === 'calling' && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse inline-block" />
+            <p className="text-sm font-semibold text-blue-800">{callType === 'voice' ? 'Voice calling' : 'Video calling'} {otherUserName}…</p>
+          </div>
+          <button onClick={endCall} className="px-3 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold transition-colors">Cancel</button>
+        </div>
+      )}
+      {callError && <p className="text-xs text-red-500 px-4 py-2 bg-red-50 border-b border-red-100 flex-shrink-0">{callError}</p>}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" onTouchStart={() => setHoveredMsgId(null)}>
@@ -5261,6 +5355,18 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         </button>
       </div>
     </div>
+    {callStatus === 'active' && callRoomUrl && (
+      <div className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4">
+        <div className="w-full max-w-3xl flex flex-col rounded-2xl overflow-hidden shadow-2xl" style={{ height: '80vh' }}>
+          <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900 flex-shrink-0">
+            <p className="text-white text-sm font-semibold">{callType === 'voice' ? 'Voice' : 'Video'} call with {otherUserName}</p>
+            <button onClick={endCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
+          </div>
+          <iframe src={callRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
