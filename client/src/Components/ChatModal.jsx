@@ -21,6 +21,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   const inputRef = useRef(null)
   const [bookingInfo, setBookingInfo] = useState(null)
   const [taskerPhone, setTaskerPhone] = useState(null)
+  const [customerPhone, setCustomerPhone] = useState(null)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [interimText, setInterimText] = useState('')
@@ -43,7 +44,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
       const [{ data: booking }, { data: tasker }] = await Promise.all([
         supabase
           .from('bookings')
-          .select('service, scheduled_date, scheduled_time, reference_number')
+          .select('service, scheduled_date, scheduled_time, reference_number, customer_phone')
           .eq('id', bookingId)
           .single(),
         supabase
@@ -52,7 +53,10 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
           .eq('user_id', otherUserId)
           .maybeSingle(),
       ])
-      if (booking) setBookingInfo(booking)
+      if (booking) {
+        setBookingInfo(booking)
+        if (booking.customer_phone) setCustomerPhone(booking.customer_phone)
+      }
       if (tasker?.phone) setTaskerPhone(tasker.phone)
     }
 
@@ -301,10 +305,10 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
               )}
             </div>
             <div className="flex items-center gap-2">
-              {taskerPhone && (
-                <div className="relative group">
+              {(taskerPhone || customerPhone) && (
+                <div className="relative group md:hidden">
                   <a
-                    href={`tel:${taskerPhone}`}
+                    href={`tel:${taskerPhone || customerPhone}`}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold transition-colors"
                   >
                     <Phone size={13} />
@@ -312,7 +316,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
                   </a>
                   <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
                     <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
-                      Call tasker directly
+                      {taskerPhone ? 'Call tasker directly' : 'Call customer directly'}
                     </div>
                   </div>
                 </div>

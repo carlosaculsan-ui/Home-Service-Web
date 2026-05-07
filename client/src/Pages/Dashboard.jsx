@@ -8,7 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic } from 'lucide-react'
+import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic, Phone } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
 import { toDisplayName } from '../utils/serviceNames'
@@ -2733,6 +2733,20 @@ function SupportInlineChat({ customerId, adminId, onBack }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ fontWeight: 700, color: '#1f2937', fontSize: '0.875rem', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Admin Support</p>
           <p style={{ fontSize: '0.68rem', color: '#9ca3af', margin: 0 }}>Hanap.ph Support Team</p>
+        </div>
+        <div className="relative group md:hidden" style={{ flexShrink: 0 }}>
+          <a
+            href="tel:09500435479"
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '6px 12px', borderRadius: '999px', background: '#dcfce7', color: '#15803d', fontSize: '0.75rem', fontWeight: 700, textDecoration: 'none' }}
+          >
+            <Phone size={13} />
+            Call
+          </a>
+          <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+            <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+              Call Hanap.ph directly
+            </div>
+          </div>
         </div>
       </div>
 

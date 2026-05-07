@@ -11,7 +11,7 @@ import {
   Wifi, WifiOff, Archive, RotateCcw, MessageSquare, Send,
   TrendingUp, TrendingDown, DollarSign, Calendar, ChevronRight, Megaphone,
   CreditCard, Search, Smile, Download, Printer, SquarePen, BarChart2,
-  Camera, Video, Mic,
+  Camera, Video, Mic, Phone,
 } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import GCashLogo from '../Assets/GCash_logo.png'
@@ -4875,7 +4875,7 @@ function DashboardPanel({ setTab, setBookingFilter }) {
 
 // ─── Admin Messages Tab ───────────────────────────────────────────────────────
 
-function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPhoto, onBack }) {
+function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPhoto, otherUserPhone, onBack }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -5075,6 +5075,22 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
           </div>
         )}
         <p className="font-semibold text-gray-800 text-sm flex-1">{otherUserName}</p>
+        {otherUserPhone && (
+          <div className="relative group flex-shrink-0 md:hidden">
+            <a
+              href={`tel:${otherUserPhone}`}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-green-100 hover:bg-green-200 text-green-700 text-xs font-semibold transition-colors"
+            >
+              <Phone size={13} />
+              Call
+            </a>
+            <div className="absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-10 pointer-events-none">
+              <div className="bg-gray-800 text-white text-xs rounded-lg px-2.5 py-1.5 whitespace-nowrap shadow-lg">
+                Call {otherUserName} directly
+              </div>
+            </div>
+          </div>
+        )}
         {onBack && (
           <button onClick={onBack} className="p-1.5 rounded-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
             <X size={16} />
@@ -5294,7 +5310,7 @@ function AdminMessagesPanel({ adminUserId }) {
     // Fetch tasker rows by user_id
     const { data: taskers } = await supabase
       .from('taskers')
-      .select('id, name, user_id, profile_photo')
+      .select('id, name, user_id, profile_photo, phone')
       .in('user_id', otherIds)
 
     const taskerMap = {}
@@ -5306,7 +5322,7 @@ function AdminMessagesPanel({ adminUserId }) {
     const helperUserIds = new Set()
     if (missingIds.length > 0) {
       const [{ data: profiles }, { data: helperRows }] = await Promise.all([
-        supabase.from('profiles').select('id, full_name, role').in('id', missingIds),
+        supabase.from('profiles').select('id, full_name, role, phone').in('id', missingIds),
         supabase.from('helpers').select('user_id').in('user_id', missingIds).eq('is_archived', false),
       ])
       ;(profiles ?? []).forEach((p) => { profileMap[p.id] = p })
@@ -5341,6 +5357,7 @@ function AdminMessagesPanel({ adminUserId }) {
         name,
         photoUrl,
         role,
+        phone: tasker?.phone ?? profile?.phone ?? null,
         lastMessage: msg.content,
         lastTime: msg.created_at,
         unreadCount,
@@ -5562,6 +5579,7 @@ function AdminMessagesPanel({ adminUserId }) {
             otherUserId={selectedTasker.userId}
             otherUserName={selectedTasker.name}
             otherUserPhoto={selectedTasker.photoUrl}
+            otherUserPhone={selectedTasker.phone}
             onBack={() => setSelectedTasker(null)}
           />
         ) : (
