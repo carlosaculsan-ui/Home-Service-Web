@@ -3839,6 +3839,11 @@ function Dashboard() {
   const [interviewNotif, setInterviewNotif] = useState(null)
   const [welcomeNotif, setWelcomeNotif] = useState(null)
   const navigate = useNavigate()
+  const [globalIncomingCall, setGlobalIncomingCall] = useState(null)
+  const [globalCallActive, setGlobalCallActive] = useState(false)
+  const [globalCallRoomUrl, setGlobalCallRoomUrl] = useState(null)
+  const [globalCallType, setGlobalCallType] = useState(null)
+  const globalCallIdRef = useRef(null)
 
   useEffect(() => {
     if (!('Notification' in window)) return
@@ -4093,6 +4098,62 @@ function Dashboard() {
 
     return () => { supabase.removeChannel(channel) }
   }, [userId])
+
+  useEffect(() => {
+    if (!userId) return
+    const channel = supabase
+      .channel(`vcall-global-customer-${userId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, async (payload) => {
+        const c = payload.new
+        if (c.receiver_id !== userId || c.status !== 'ringing') return
+        const [{ data: profile }, { data: tasker }] = await Promise.all([
+          supabase.from('profiles').select('full_name').eq('id', c.caller_id).maybeSingle(),
+          supabase.from('taskers').select('name').eq('user_id', c.caller_id).maybeSingle(),
+        ])
+        const callerName = tasker?.name || profile?.full_name || 'Someone'
+        const callType = c.room_url?.includes('?video=0') ? 'voice' : 'video'
+        globalCallIdRef.current = c.id
+        setGlobalIncomingCall({ id: c.id, roomUrl: c.room_url, type: callType, callerName })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, (payload) => {
+        const c = payload.new
+        if (c.id !== globalCallIdRef.current) return
+        if (c.status === 'active') setGlobalIncomingCall(null)
+        if (c.status === 'ended' || c.status === 'declined') {
+          setGlobalIncomingCall(null)
+          setGlobalCallActive(false)
+          setGlobalCallRoomUrl(null)
+          setGlobalCallType(null)
+          globalCallIdRef.current = null
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [userId])
+
+  async function acceptGlobalCall() {
+    if (!globalIncomingCall) return
+    await supabase.from('calls').update({ status: 'active' }).eq('id', globalIncomingCall.id)
+    setGlobalCallRoomUrl(globalIncomingCall.roomUrl)
+    setGlobalCallType(globalIncomingCall.type)
+    setGlobalCallActive(true)
+    setGlobalIncomingCall(null)
+  }
+
+  async function declineGlobalCall() {
+    if (!globalIncomingCall) return
+    await supabase.from('calls').update({ status: 'declined' }).eq('id', globalIncomingCall.id)
+    setGlobalIncomingCall(null)
+    globalCallIdRef.current = null
+  }
+
+  async function endGlobalCall() {
+    if (globalCallIdRef.current) await supabase.from('calls').update({ status: 'ended' }).eq('id', globalCallIdRef.current)
+    setGlobalCallActive(false)
+    setGlobalCallRoomUrl(null)
+    setGlobalCallType(null)
+    globalCallIdRef.current = null
+  }
 
   // Centralised: check n.type when the DB column exists, else fall back to title matching
   function notifStaysOnPage(n) {
@@ -4663,6 +4724,30 @@ function Dashboard() {
             </div>
           )}
         </>
+      )}
+
+      {globalIncomingCall && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[90] bg-white rounded-2xl shadow-2xl border border-gray-200 px-5 py-3.5 flex items-center gap-3 min-w-[280px]">
+          {globalIncomingCall.type === 'voice'
+            ? <Phone size={18} className="text-blue-600 animate-pulse shrink-0" />
+            : <Video size={18} className="text-violet-600 animate-pulse shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-gray-900 text-sm">Incoming {globalIncomingCall.type} call</p>
+            <p className="text-xs text-gray-500 truncate">from {globalIncomingCall.callerName}</p>
+          </div>
+          <button onClick={acceptGlobalCall} className="px-3 py-1.5 bg-green-500 hover:bg-green-600 text-white rounded-lg text-xs font-medium">Accept</button>
+          <button onClick={declineGlobalCall} className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white rounded-lg text-xs font-medium">Decline</button>
+        </div>
+      )}
+
+      {globalCallActive && globalCallRoomUrl && (
+        <div className="fixed inset-0 z-[90] bg-black flex flex-col">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-900">
+            <span className="text-white text-sm font-medium">{globalCallType === 'voice' ? 'Voice' : 'Video'} Call</span>
+            <button onClick={endGlobalCall} className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium">End Call</button>
+          </div>
+          <iframe src={globalCallRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+        </div>
       )}
     </div>
   )

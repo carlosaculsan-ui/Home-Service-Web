@@ -13,7 +13,7 @@ function formatTime(iso) {
   })
 }
 
-export default function ChatModal({ bookingId, currentUserId, otherUserId, otherUserName, onClose }) {
+export default function ChatModal({ bookingId, currentUserId, otherUserId, otherUserName, onClose, onMount, onUnmount }) {
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
@@ -163,6 +163,11 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
   useEffect(() => { callIdRef.current = callId }, [callId])
 
   useEffect(() => {
+    onMount?.(otherUserId)
+    return () => onUnmount?.()
+  }, [])
+
+  useEffect(() => {
     return () => {
       if (callIdRef.current) supabase.from('calls').update({ status: 'ended' }).eq('id', callIdRef.current)
     }
@@ -183,6 +188,7 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
                        (c.caller_id === otherUserId && c.receiver_id === currentUserId)
         if (!isOurs) return
         if (c.status === 'active' && c.caller_id === currentUserId) setCallStatus('active')
+        if (c.status === 'active' && c.receiver_id === currentUserId) setIncomingCall(null)
         if (c.status === 'ended' || c.status === 'declined') {
           setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null); setIncomingCall(null)
         }
