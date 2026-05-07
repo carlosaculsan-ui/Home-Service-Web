@@ -8135,6 +8135,8 @@ function Admin() {
   const [eventInput, setEventInput] = useState('')
   const [eventDate, setEventDate] = useState('')
   const [blackoutDates, setBlackoutDates] = useState(new Set())
+  const [blackoutLoading, setBlackoutLoading] = useState(false)
+  const [blackoutConfirming, setBlackoutConfirming] = useState(false)
   const navigate = useNavigate()
 
   async function fetchReminders() {
@@ -8167,13 +8169,17 @@ function Admin() {
   }
 
   const toggleBlackout = async (dateStr) => {
+    if (blackoutLoading) return
+    setBlackoutLoading(true)
+    setBlackoutConfirming(false)
     if (blackoutDates.has(dateStr)) {
-      await supabase.from('admin_blackout_dates').delete().eq('date', dateStr)
-      setBlackoutDates(prev => { const s = new Set(prev); s.delete(dateStr); return s })
+      const { error } = await supabase.from('admin_blackout_dates').delete().eq('date', dateStr)
+      if (!error) setBlackoutDates(prev => { const s = new Set(prev); s.delete(dateStr); return s })
     } else {
-      await supabase.from('admin_blackout_dates').insert({ date: dateStr })
-      setBlackoutDates(prev => new Set([...prev, dateStr]))
+      const { error } = await supabase.from('admin_blackout_dates').insert({ date: dateStr })
+      if (!error) setBlackoutDates(prev => new Set([...prev, dateStr]))
     }
+    setBlackoutLoading(false)
   }
 
   useEffect(() => {
@@ -8434,9 +8440,9 @@ function Admin() {
                         return (
                           <div
                             key={i}
-                            onClick={() => setSelectedDate(dateStr)}
+                            onClick={() => { setSelectedDate(dateStr); setBlackoutConfirming(false) }}
                             className={`relative p-1.5 sm:p-3 rounded-lg cursor-pointer text-center transition
-                              ${isSelected ? 'bg-orange-500 text-white' : ''}
+                              ${isSelected && isBlackout ? 'bg-orange-500 text-white ring-2 ring-red-400' : isSelected ? 'bg-orange-500 text-white' : ''}
                               ${isToday && !isSelected ? 'border-2 border-orange-500 text-orange-500 font-bold' : ''}
                               ${isBlackout && !isSelected ? 'bg-red-50' : ''}
                               ${!isSelected && !isToday && !isBlackout ? 'hover:bg-gray-100' : ''}
@@ -8563,29 +8569,70 @@ function Admin() {
                 )}
 
                 {/* Blackout date toggle */}
-                {selectedDate && (
-                  <div className="mt-4">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Blackout Date</h4>
-                    <div className="flex items-center justify-between bg-red-50 rounded-lg px-3 py-2">
-                      <span className="text-sm text-red-700">
-                        {blackoutDates.has(selectedDate) ? 'No bookings allowed' : 'Bookings open'}
-                      </span>
-                      <button
-                        onClick={() => toggleBlackout(selectedDate)}
-                        className={`text-xs font-semibold px-3 py-1 rounded-full transition ${
-                          blackoutDates.has(selectedDate)
-                            ? 'bg-red-500 text-white hover:bg-red-600'
-                            : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
-                        }`}
-                      >
-                        {blackoutDates.has(selectedDate) ? 'Remove' : 'Mark Blackout'}
-                      </button>
+                {selectedDate && (() => {
+                  const hasBookings = calendarBookings.filter(b => b.scheduled_date === selectedDate).length > 0
+                  const isBlackout = blackoutDates.has(selectedDate)
+                  const isPastDate = selectedDate < new Date().toISOString().split('T')[0]
+                  const canMark = !hasBookings && !isPastDate && !isBlackout
+                  return (
+                    <div className="mt-4">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Blackout Date</h4>
+                      <div className={`rounded-lg px-3 py-2 ${isBlackout ? 'bg-red-50' : hasBookings || isPastDate ? 'bg-gray-50' : 'bg-red-50'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className={`text-sm ${isBlackout ? 'text-red-700' : hasBookings || isPastDate ? 'text-gray-400' : 'text-red-700'}`}>
+                            {isBlackout ? 'No bookings allowed' : 'Bookings open'}
+                          </span>
+                          {isBlackout ? (
+                            <button
+                              onClick={() => toggleBlackout(selectedDate)}
+                              disabled={blackoutLoading}
+                              className={`text-xs font-semibold px-3 py-1 rounded-full transition ${blackoutLoading ? 'bg-red-300 text-white cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                            >
+                              {blackoutLoading ? 'Saving…' : 'Remove'}
+                            </button>
+                          ) : blackoutConfirming ? (
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => toggleBlackout(selectedDate)}
+                                disabled={blackoutLoading}
+                                className={`text-xs font-semibold px-3 py-1 rounded-full transition ${blackoutLoading ? 'bg-red-300 text-white cursor-not-allowed' : 'bg-red-500 text-white hover:bg-red-600'}`}
+                              >
+                                {blackoutLoading ? 'Saving…' : 'Confirm'}
+                              </button>
+                              <button
+                                onClick={() => setBlackoutConfirming(false)}
+                                className="text-xs font-semibold px-3 py-1 rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => canMark && setBlackoutConfirming(true)}
+                              disabled={!canMark}
+                              className={`text-xs font-semibold px-3 py-1 rounded-full transition ${canMark ? 'bg-gray-200 text-gray-600 hover:bg-gray-300' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
+                            >
+                              Mark Blackout
+                            </button>
+                          )}
+                        </div>
+                        {!isBlackout && hasBookings && (
+                          <p className="text-xs text-gray-400 mt-1">Cannot mark blackout — this date has existing bookings.</p>
+                        )}
+                        {!isBlackout && !hasBookings && isPastDate && (
+                          <p className="text-xs text-gray-400 mt-1">Cannot mark blackout on a past date.</p>
+                        )}
+                        {!isBlackout && blackoutConfirming && (
+                          <p className="text-xs text-red-500 mt-1">This will block all new bookings on this date. Are you sure?</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )
+                })()}
               </div>
 
             </div>
+
           </div>
 
           {/* Add Event Modal */}
