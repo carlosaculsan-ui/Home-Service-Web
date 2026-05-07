@@ -287,7 +287,8 @@ export default function ChatModal({ bookingId, currentUserId, otherUserId, other
     setCallError('')
     try {
       const roomUrl = await createDailyRoom()
-      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0` : roomUrl
+      const jitsiConfig = '#config.prejoinPageEnabled=false&config.prejoinConfig.enabled=false'
+      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0${jitsiConfig}` : `${roomUrl}${jitsiConfig}`
       const { data, error } = await supabase.from('calls')
         .insert({ room_url: effectiveUrl, caller_id: currentUserId, receiver_id: otherUserId, status: 'ringing' })
         .select('id').single()
