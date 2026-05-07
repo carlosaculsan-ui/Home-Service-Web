@@ -17,6 +17,7 @@ import ChatModal from '../Components/ChatModal'
 import JitsiCall from '../Components/JitsiCall'
 import { toDisplayName } from '../utils/serviceNames'
 import { getPlatformFeeRate } from '../utils/platformSettings'
+import { createDailyRoom } from '../utils/dailyCall'
 import EmojiPicker from 'emoji-picker-react'
 import BreakRoom from '../Components/BreakRoom'
 import {
@@ -3385,6 +3386,12 @@ function ContactAdminChat({ taskerUserId }) {
   const imageInputRef = useRef(null)
   const videoInputRef = useRef(null)
   const recognitionRef = useRef(null)
+  const [callStatus, setCallStatus] = useState(null)
+  const [callRoomUrl, setCallRoomUrl] = useState(null)
+  const [callType, setCallType] = useState(null)
+  const [callId, setCallId] = useState(null)
+  const [callError, setCallError] = useState('')
+  const callIdRef = useRef(null)
   const isSpeechSupported = 'SpeechRecognition' in window || 'webkitSpeechRecognition' in window
   const shouldShowMic = isSpeechSupported && !(/iPad|iPhone|iPod/.test(navigator.userAgent) && /^((?!chrome|android).)*safari/i.test(navigator.userAgent))
 
@@ -3402,6 +3409,53 @@ function ContactAdminChat({ taskerUserId }) {
     }
     fetchAdmin()
   }, [])
+
+  useEffect(() => { callIdRef.current = callId }, [callId])
+
+  useEffect(() => {
+    return () => {
+      if (callIdRef.current) supabase.from('calls').update({ status: 'ended' }).eq('id', callIdRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!taskerUserId || !adminUserId) return
+    const channel = supabase
+      .channel(`vcall-tasker-admin-${taskerUserId}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, (payload) => {
+        const c = payload.new
+        const isOurs = (c.caller_id === taskerUserId && c.receiver_id === adminUserId) ||
+                       (c.caller_id === adminUserId && c.receiver_id === taskerUserId)
+        if (!isOurs) return
+        if (c.status === 'active' && c.caller_id === taskerUserId) setCallStatus('active')
+        if (c.status === 'ended' || c.status === 'declined') {
+          setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null)
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [taskerUserId, adminUserId])
+
+  async function startCall(type) {
+    setCallError('')
+    try {
+      const roomUrl = await createDailyRoom()
+      const effectiveUrl = type === 'voice' ? `${roomUrl}?video=0` : roomUrl
+      const { data, error } = await supabase.from('calls')
+        .insert({ room_url: effectiveUrl, caller_id: taskerUserId, receiver_id: adminUserId, status: 'ringing' })
+        .select('id').single()
+      if (error) throw error
+      setCallRoomUrl(effectiveUrl); setCallId(data.id); setCallType(type); setCallStatus('calling')
+    } catch {
+      setCallError('Could not start call. Try again.')
+      setTimeout(() => setCallError(''), 4000)
+    }
+  }
+
+  async function endCall() {
+    if (callIdRef.current) await supabase.from('calls').update({ status: 'ended' }).eq('id', callIdRef.current)
+    setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null)
+  }
 
   async function deleteMessage(msgId) {
     await supabase.from('messages').delete().eq('id', msgId)
@@ -3574,17 +3628,45 @@ function ContactAdminChat({ taskerUserId }) {
   }
 
   return (
+    <>
     <div className="bg-white rounded-2xl shadow-sm flex flex-col" style={{ height: '560px', maxHeight: '75vh' }}>
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-gray-100 flex-shrink-0">
         <div className="w-9 h-9 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
           <Headset size={17} className="text-orange-500" />
         </div>
-        <div>
+        <div className="flex-1">
           <p className="font-bold text-gray-800 text-sm">Admin Support</p>
           <p className="text-xs text-gray-400">Send a message to the Hanap.ph admin team</p>
         </div>
+        <button
+          onClick={() => startCall('voice')}
+          disabled={!!callStatus || !adminUserId}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <Phone size={13} />
+          Voice
+        </button>
+        <button
+          onClick={() => startCall('video')}
+          disabled={!!callStatus || !adminUserId}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
+        >
+          <Video size={13} />
+          Video
+        </button>
       </div>
+
+      {callStatus === 'calling' && (
+        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse inline-block" />
+            <p className="text-sm font-semibold text-blue-800">{callType === 'voice' ? 'Voice calling' : 'Video calling'} Admin…</p>
+          </div>
+          <button onClick={endCall} className="px-3 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold transition-colors">Cancel</button>
+        </div>
+      )}
+      {callError && <p className="text-xs text-red-500 px-4 py-2 bg-red-50 border-b border-red-100 flex-shrink-0">{callError}</p>}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3" onTouchStart={() => setHoveredMsgId(null)}>
@@ -3720,6 +3802,19 @@ function ContactAdminChat({ taskerUserId }) {
         </button>
       </div>
     </div>
+
+    {callStatus === 'active' && callRoomUrl && (
+      <div className="fixed inset-0 z-[80] bg-black/90 flex items-center justify-center p-4">
+        <div className="w-full max-w-3xl flex flex-col rounded-2xl overflow-hidden shadow-2xl" style={{ height: '80vh' }}>
+          <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900 flex-shrink-0">
+            <p className="text-white text-sm font-semibold">{callType === 'voice' ? 'Voice' : 'Video'} call with Admin</p>
+            <button onClick={endCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
+          </div>
+          <JitsiCall roomUrl={callRoomUrl} onEnd={endCall} />
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
