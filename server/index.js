@@ -1,10 +1,156 @@
 require('dotenv').config();
 const express = require("express");
 const cors = require("cors");
+const nodemailer = require('nodemailer');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// ─── Nodemailer ───────────────────────────────────────────────────────────────
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS },
+})
+
+async function getUserEmail(userId) {
+  try {
+    const base = process.env.SUPABASE_URL
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const r = await fetch(`${base}/auth/v1/admin/users/${userId}`, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    })
+    const d = await r.json()
+    return d.email ?? null
+  } catch { return null }
+}
+
+function emailShell(body) {
+  return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+<tr><td align="center">
+<table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">
+<tr><td style="background:#f97316;padding:24px 32px;">
+  <h1 style="margin:0;color:#fff;font-size:22px;font-weight:700;">Hanap.ph</h1>
+  <p style="margin:4px 0 0;color:#fed7aa;font-size:13px;">Your trusted home services platform</p>
+</td></tr>
+<tr><td style="padding:32px;">${body}</td></tr>
+<tr><td style="background:#f9fafb;padding:20px 32px;border-top:1px solid #e5e7eb;">
+  <p style="margin:0;color:#9ca3af;font-size:12px;text-align:center;">© 2025 Hanap.ph · Metro Manila, Philippines<br>This is an automated message. Please do not reply.</p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body></html>`
+}
+
+function row(label, value) {
+  return `<tr><td style="padding:5px 0;color:#6b7280;font-size:13px;width:130px;">${label}</td><td style="padding:5px 0;color:#111827;font-size:13px;font-weight:600;">${value}</td></tr>`
+}
+
+function getEmailTemplate(type, data) {
+  switch (type) {
+    case 'booking_confirmed':
+      return {
+        subject: 'Booking Confirmed — Hanap.ph',
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Your booking is confirmed! ✅</h2>
+          <p style="margin:0 0 20px;color:#6b7280;font-size:14px;line-height:1.6;">Thank you for booking with Hanap.ph. Here are your details:</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;background:#fff7ed;border-radius:10px;padding:16px 20px;">
+            <tbody>
+              ${row('Reference', `#${data.bookingRef || '—'}`)}
+              ${row('Service', data.service || '—')}
+              ${row('Tasker', data.taskerName || '—')}
+              ${row('Date', data.date || '—')}
+              ${row('Time', data.time || '—')}
+              ${row('Address', data.address || '—')}
+              ${row('Total', data.total ? `&#8369;${Number(data.total).toLocaleString()}` : '—')}
+            </tbody>
+          </table>
+          <p style="margin:20px 0 0;color:#6b7280;font-size:13px;">Your tasker will be in touch soon. Track your booking anytime from your dashboard.</p>`),
+      }
+    case 'booking_accepted':
+      return {
+        subject: 'Your Tasker Accepted Your Booking — Hanap.ph',
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Great news — your tasker is coming! 🎉</h2>
+          <p style="margin:0 0 20px;color:#6b7280;font-size:14px;line-height:1.6;">Your tasker has accepted your booking and will arrive as scheduled.</p>
+          <table cellpadding="0" cellspacing="0" style="width:100%;background:#f0fdf4;border-radius:10px;padding:16px 20px;">
+            <tbody>
+              ${row('Reference', `#${data.bookingRef || '—'}`)}
+              ${row('Tasker', data.taskerName || '—')}
+              ${row('Date', data.date || '—')}
+              ${row('Time', data.time || '—')}
+            </tbody>
+          </table>
+          <p style="margin:20px 0 0;color:#6b7280;font-size:13px;">Please be ready at your location at the scheduled time. You can message your tasker from your dashboard.</p>`),
+      }
+    case 'booking_pending_confirmation':
+      return {
+        subject: 'Your Tasker Has Finished — Please Confirm — Hanap.ph',
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Job completed — your action needed 👋</h2>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">Your tasker <strong>${data.taskerName || 'your tasker'}</strong> has marked Booking <strong>#${data.bookingRef || '—'}</strong> as complete.</p>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">Please open your dashboard and confirm the job is done — or file a dispute if there are any issues.</p>
+          <p style="margin:0;color:#9ca3af;font-size:12px;">If you do not respond within 24 hours, the booking will be automatically marked as completed.</p>`),
+      }
+    case 'booking_cancelled':
+      return {
+        subject: 'Booking Cancelled — Hanap.ph',
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Booking cancelled</h2>
+          <p style="margin:0 0 20px;color:#6b7280;font-size:14px;line-height:1.6;">Your booking <strong>#${data.bookingRef || '—'}</strong> has been cancelled.</p>
+          ${data.refundAmount > 0 ? `
+          <table cellpadding="0" cellspacing="0" style="width:100%;background:#eff6ff;border-radius:10px;padding:16px 20px;margin-bottom:16px;">
+            <tbody>${row('Refund', `&#8369;${Number(data.refundAmount).toLocaleString()} credited to your Hanap.ph Wallet`)}</tbody>
+          </table>
+          <p style="margin:0;color:#6b7280;font-size:13px;">Your refund is available in your E-Wallet and can be used for your next booking or cashed out anytime.</p>` : ''}`),
+      }
+    case 'tasker_approved':
+      return {
+        subject: "You're Approved as a Hanap.ph Tasker! 🎉",
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Welcome to the team, ${(data.taskerName || '').split(' ')[0] || 'Tasker'}! 🎉</h2>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">Congratulations! You've officially been approved as a <strong>Hanap.ph Tasker</strong>. Your profile is now live and customers can start booking you.</p>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">Log in to your Tasker Dashboard to manage your availability, accept bookings, and start earning.</p>
+          <p style="margin:0;color:#6b7280;font-size:13px;">We're excited to have you on the team!</p>`),
+      }
+    case 'tasker_rejected':
+      return {
+        subject: 'Hanap.ph Tasker Application Update',
+        html: emailShell(`
+          <h2 style="margin:0 0 8px;color:#111827;font-size:20px;">Application Update</h2>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">Hi ${(data.taskerName || '').split(' ')[0] || 'there'}, thank you for applying to become a Hanap.ph Tasker.</p>
+          <p style="margin:0 0 16px;color:#6b7280;font-size:14px;line-height:1.6;">After careful review, we regret to inform you that your application was not successful at this time.</p>
+          <p style="margin:0;color:#6b7280;font-size:13px;">You're welcome to reapply in the future. Thank you for your interest in Hanap.ph.</p>`),
+      }
+    default:
+      return null
+  }
+}
+
+app.post('/api/send-email', async (req, res) => {
+  const { type, userId, data } = req.body
+  if (!type || !userId) return res.status(400).json({ error: 'Missing type or userId' })
+  try {
+    const email = await getUserEmail(userId)
+    if (!email) return res.status(404).json({ error: 'User email not found' })
+    const template = getEmailTemplate(type, data || {})
+    if (!template) return res.status(400).json({ error: 'Unknown email type' })
+    await transporter.sendMail({
+      from: `"Hanap.ph" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: template.subject,
+      html: template.html,
+    })
+    res.json({ sent: true })
+  } catch (err) {
+    console.error('Email error:', err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
 
 app.get("/", (req, res) => {
   res.send("Backend Connected Successfully");

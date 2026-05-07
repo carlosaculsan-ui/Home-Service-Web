@@ -18,6 +18,7 @@ import JitsiCall from '../Components/JitsiCall'
 import { toDisplayName } from '../utils/serviceNames'
 import { getPlatformFeeRate } from '../utils/platformSettings'
 import { createDailyRoom } from '../utils/dailyCall'
+import { sendEmail } from '../utils/email'
 import EmojiPicker from 'emoji-picker-react'
 import BreakRoom from '../Components/BreakRoom'
 import {
@@ -640,7 +641,7 @@ function NavigationOverlay({ address, onClose, onStartJob, actionLoading }) {
   )
 }
 
-function TaskCard({ booking, onStatusChange, currentUserId }) {
+function TaskCard({ booking, onStatusChange, currentUserId, taskerName }) {
   const [feeRate, setFeeRate] = useState(0.10)
   const [actionLoading, setActionLoading] = useState(null)
   const [statusError, setStatusError] = useState('')
@@ -805,6 +806,20 @@ function TaskCard({ booking, onStatusChange, currentUserId }) {
       })
     }
 
+    if (newStatus === 'accepted' && booking.client_id) {
+      sendEmail('booking_accepted', booking.client_id, {
+        bookingRef: booking.reference_number,
+        taskerName,
+        date: booking.scheduled_date,
+        time: booking.scheduled_time,
+      })
+    }
+    if (newStatus === 'pending_confirmation' && booking.client_id) {
+      sendEmail('booking_pending_confirmation', booking.client_id, {
+        bookingRef: booking.reference_number,
+        taskerName,
+      })
+    }
     if (newStatus === 'on_the_way') startLocationSharing()
     if (newStatus === 'in_progress') stopLocationSharing()
     onStatusChange()
@@ -4902,7 +4917,7 @@ function TaskerDashboard() {
                     <>
                       <div className="space-y-4">
                         {paginated.map((booking) => (
-                          <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} />
+                          <TaskCard key={booking.id} booking={booking} onStatusChange={() => load(taskerId)} currentUserId={taskerUserId} taskerName={taskerName} />
                         ))}
                       </div>
                       {totalPages > 1 && (

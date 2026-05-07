@@ -4,6 +4,7 @@ import { supabase } from '../supabase'
 import ConfirmModal from '../Components/ConfirmModal'
 import { getServiceIcon, ICON_OPTIONS } from '../utils/serviceIcons'
 import { getPlatformFeeRate } from '../utils/platformSettings'
+import { sendEmail } from '../utils/email'
 import { createDailyRoom } from '../utils/dailyCall'
 import JitsiCall from '../Components/JitsiCall'
 import {
@@ -134,6 +135,7 @@ function TaskerApplications() {
       message: `Welcome aboard, ${firstName}! You've officially been approved as a Hanap.ph Tasker. Your profile is now live and you can start accepting bookings. We're excited to have you!`,
       is_read: false,
     })
+    sendEmail('tasker_approved', tasker.user_id, { taskerName: tasker.name })
 
     fetchTaskers()
   }
@@ -148,6 +150,7 @@ function TaskerApplications() {
       message: `Hi ${firstName}, thank you for applying to be a Hanap.ph Tasker. After careful review, we regret to inform you that your application was not successful at this time. You're welcome to reapply in the future.`,
       is_read: false,
     })
+    sendEmail('tasker_rejected', tasker.user_id, { taskerName: tasker.name })
     fetchTaskers()
   }
 

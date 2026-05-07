@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { CheckCircle2, Wallet } from 'lucide-react'
 import { toDisplayName } from '../utils/serviceNames'
+import { sendEmail } from '../utils/email'
 import { toPng } from 'html-to-image'
 
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December']
@@ -234,14 +235,26 @@ export default function BookingConfirmation() {
 
         await supabase.from('bookings').update({ status: 'confirmed', paymongo_payment_id: paymentId, confirmed_at: new Date().toISOString() }).eq('id', bookingRow.id)
 
+        let resolvedTaskerName = null
         if (bookingRow.tasker_id) {
           const { data: taskerData } = await supabase
             .from('taskers')
             .select('name')
             .eq('id', bookingRow.tasker_id)
             .single()
-          if (taskerData?.name) setTaskerName(taskerData.name)
+          resolvedTaskerName = taskerData?.name ?? null
+          if (resolvedTaskerName) setTaskerName(resolvedTaskerName)
         }
+
+        sendEmail('booking_confirmed', bookingRow.client_id, {
+          bookingRef: bookingRow.reference_number,
+          service: toDisplayName(bookingRow.service),
+          taskerName: resolvedTaskerName,
+          date: bookingRow.scheduled_date,
+          time: bookingRow.scheduled_time,
+          address: bookingRow.address,
+          total: bookingRow.estimated_total,
+        })
 
         window.history.replaceState({}, '', window.location.pathname)
         setBooking(bookingRow)

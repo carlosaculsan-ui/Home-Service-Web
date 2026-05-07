@@ -8,6 +8,7 @@ import gcashLogo from '../Assets/GCash_logo.png'
 import mayaLogo from '../Assets/Maya_logo.png'
 import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
+import { sendEmail } from '../utils/email'
 import { MapPin, Wrench, Camera, MessageSquare, CalendarCheck, Star, UserCog, Headset, LogOut, Menu, X, Home, Package, XCircle, CreditCard, RefreshCw, AlertTriangle, MessageCircle, Send, Bot, Bell, Wallet, Info, CheckCircle2, Smile, Trash2, Video, Mic, Phone } from 'lucide-react'
 import EmojiPicker from 'emoji-picker-react'
 import ChatModal from '../Components/ChatModal'
@@ -1301,6 +1302,11 @@ function BookingCard({ booking, userId, onCancel, onOpenAdminChat }) {
       supabase.from('bookings').update({ is_refunded: true }).eq('id', booking.id)
         .then(({ error: refundFlagErr }) => { if (refundFlagErr) console.error('is_refunded flag failed:', refundFlagErr) })
     }
+
+    sendEmail('booking_cancelled', userId, {
+      bookingRef: booking.reference_number,
+      refundAmount: Number(booking.estimated_total) || 0,
+    })
 
     setCancelling(false)
     setShowCancelModal(false)
