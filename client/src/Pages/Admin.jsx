@@ -4892,7 +4892,6 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
   const [callRoomUrl, setCallRoomUrl] = useState(null)
   const [callType, setCallType] = useState(null)
   const [callId, setCallId] = useState(null)
-  const [incomingCall, setIncomingCall] = useState(null)
   const [callError, setCallError] = useState('')
   const callIdRef = useRef(null)
   const bottomRef = useRef(null)
@@ -4983,11 +4982,6 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
     if (!adminUserId || !otherUserId) return
     const channel = supabase
       .channel(`vcall-admin-${adminUserId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, (payload) => {
-        const c = payload.new
-        if (c.receiver_id === adminUserId && c.caller_id === otherUserId && c.status === 'ringing')
-          setIncomingCall({ id: c.id, roomUrl: c.room_url, type: c.room_url?.includes('?video=0') ? 'voice' : 'video' })
-      })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, (payload) => {
         const c = payload.new
         const isOurs = (c.caller_id === adminUserId && c.receiver_id === otherUserId) ||
@@ -4995,7 +4989,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         if (!isOurs) return
         if (c.status === 'active' && c.caller_id === adminUserId) setCallStatus('active')
         if (c.status === 'ended' || c.status === 'declined') {
-          setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null); setIncomingCall(null)
+          setCallStatus(null); setCallRoomUrl(null); setCallId(null); setCallType(null)
         }
       })
       .subscribe()
@@ -5016,16 +5010,6 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
       setCallError('Could not start call. Try again.')
       setTimeout(() => setCallError(''), 4000)
     }
-  }
-
-  async function acceptCall() {
-    await supabase.from('calls').update({ status: 'active' }).eq('id', incomingCall.id)
-    setCallRoomUrl(incomingCall.roomUrl); setCallId(incomingCall.id); setCallType(incomingCall.type); setCallStatus('active'); setIncomingCall(null)
-  }
-
-  async function declineCall() {
-    await supabase.from('calls').update({ status: 'declined' }).eq('id', incomingCall.id)
-    setIncomingCall(null)
   }
 
   async function endCall() {
@@ -5148,7 +5132,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         <p className="font-semibold text-gray-800 text-sm flex-1">{otherUserName}</p>
         <button
           onClick={() => startCall('voice')}
-          disabled={!!callStatus || !!incomingCall}
+          disabled={!!callStatus}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
         >
           <Phone size={13} />
@@ -5156,7 +5140,7 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         </button>
         <button
           onClick={() => startCall('video')}
-          disabled={!!callStatus || !!incomingCall}
+          disabled={!!callStatus}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-violet-100 hover:bg-violet-200 text-violet-700 text-xs font-semibold transition-colors disabled:opacity-40 flex-shrink-0"
         >
           <Video size={13} />
@@ -5169,18 +5153,6 @@ function AdminInlineChat({ adminUserId, otherUserId, otherUserName, otherUserPho
         )}
       </div>
 
-      {incomingCall && (
-        <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
-          <div className="flex items-center gap-2">
-            {incomingCall?.type === 'voice' ? <Phone size={15} className="text-blue-600 animate-pulse" /> : <Video size={15} className="text-blue-600 animate-pulse" />}
-            <p className="text-sm font-semibold text-blue-800">Incoming {incomingCall?.type === 'voice' ? 'voice' : 'video'} call from {otherUserName}</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={acceptCall} className="px-3 py-1.5 rounded-full bg-green-500 hover:bg-green-600 text-white text-xs font-bold transition-colors">Accept</button>
-            <button onClick={declineCall} className="px-3 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold transition-colors">Decline</button>
-          </div>
-        </div>
-      )}
       {callStatus === 'calling' && (
         <div className="flex items-center justify-between px-4 py-3 bg-blue-50 border-b border-blue-100 flex-shrink-0">
           <div className="flex items-center gap-2">
@@ -8387,6 +8359,11 @@ function Admin() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [adminEmail, setAdminEmail] = useState('')
   const [adminUserId, setAdminUserId] = useState('')
+  const [globalIncomingCall, setGlobalIncomingCall] = useState(null)
+  const [globalCallActive, setGlobalCallActive] = useState(false)
+  const [globalCallRoomUrl, setGlobalCallRoomUrl] = useState(null)
+  const [globalCallType, setGlobalCallType] = useState(null)
+  const globalCallIdRef = useRef(null)
   const [inboxUnread, setInboxUnread] = useState(0)
   const [pendingCount, setPendingCount] = useState(0)
   const [disputeCount, setDisputeCount] = useState(0)
@@ -8484,6 +8461,61 @@ function Admin() {
       if (uid) fetchInboxUnread(uid)
     })
   }, [])
+
+  useEffect(() => {
+    if (!adminUserId) return
+    const channel = supabase
+      .channel(`vcall-global-admin-${adminUserId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'calls' }, async (payload) => {
+        const c = payload.new
+        if (c.receiver_id !== adminUserId || c.status !== 'ringing') return
+        const [{ data: profile }, { data: tasker }] = await Promise.all([
+          supabase.from('profiles').select('full_name').eq('id', c.caller_id).maybeSingle(),
+          supabase.from('taskers').select('name').eq('user_id', c.caller_id).maybeSingle(),
+        ])
+        const callerName = tasker?.name || profile?.full_name || 'Someone'
+        const callType = c.room_url?.includes('?video=0') ? 'voice' : 'video'
+        globalCallIdRef.current = c.id
+        setGlobalIncomingCall({ id: c.id, roomUrl: c.room_url, type: callType, callerName })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'calls' }, (payload) => {
+        const c = payload.new
+        if (c.id !== globalCallIdRef.current) return
+        if (c.status === 'ended' || c.status === 'declined') {
+          setGlobalIncomingCall(null)
+          setGlobalCallActive(false)
+          setGlobalCallRoomUrl(null)
+          setGlobalCallType(null)
+          globalCallIdRef.current = null
+        }
+      })
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [adminUserId])
+
+  async function acceptGlobalCall() {
+    if (!globalIncomingCall) return
+    await supabase.from('calls').update({ status: 'active' }).eq('id', globalIncomingCall.id)
+    setGlobalCallRoomUrl(globalIncomingCall.roomUrl)
+    setGlobalCallType(globalIncomingCall.type)
+    setGlobalCallActive(true)
+    setGlobalIncomingCall(null)
+  }
+
+  async function declineGlobalCall() {
+    if (!globalIncomingCall) return
+    await supabase.from('calls').update({ status: 'declined' }).eq('id', globalIncomingCall.id)
+    setGlobalIncomingCall(null)
+    globalCallIdRef.current = null
+  }
+
+  async function endGlobalCall() {
+    if (globalCallIdRef.current) await supabase.from('calls').update({ status: 'ended' }).eq('id', globalCallIdRef.current)
+    setGlobalCallActive(false)
+    setGlobalCallRoomUrl(null)
+    setGlobalCallType(null)
+    globalCallIdRef.current = null
+  }
 
   async function fetchInboxUnread(uid) {
     const id = uid || adminUserId
@@ -8993,6 +9025,31 @@ function Admin() {
         )}
 
       </div>
+
+      {globalIncomingCall && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[90] bg-white rounded-2xl shadow-2xl border border-blue-100 px-5 py-4 flex items-center gap-4" style={{ minWidth: 300 }}>
+          <div className="flex items-center gap-2 flex-1">
+            {globalIncomingCall.type === 'voice' ? <Phone size={18} className="text-blue-600 animate-pulse" /> : <Video size={18} className="text-blue-600 animate-pulse" />}
+            <div>
+              <p className="text-sm font-bold text-gray-800">Incoming {globalIncomingCall.type} call</p>
+              <p className="text-xs text-gray-500">from {globalIncomingCall.callerName}</p>
+            </div>
+          </div>
+          <button onClick={acceptGlobalCall} className="px-3 py-1.5 rounded-full bg-green-500 hover:bg-green-600 text-white text-xs font-bold transition-colors">Accept</button>
+          <button onClick={declineGlobalCall} className="px-3 py-1.5 rounded-full bg-red-100 hover:bg-red-200 text-red-600 text-xs font-bold transition-colors">Decline</button>
+        </div>
+      )}
+      {globalCallActive && globalCallRoomUrl && (
+        <div className="fixed inset-0 z-[90] bg-black/90 flex items-center justify-center p-4">
+          <div className="w-full max-w-3xl flex flex-col rounded-2xl overflow-hidden shadow-2xl" style={{ height: '80vh' }}>
+            <div className="flex items-center justify-between px-4 py-2.5 bg-gray-900 flex-shrink-0">
+              <p className="text-white text-sm font-semibold">{globalCallType === 'voice' ? 'Voice' : 'Video'} call</p>
+              <button onClick={endGlobalCall} className="px-4 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-colors">End Call</button>
+            </div>
+            <iframe src={globalCallRoomUrl} allow="camera; microphone; fullscreen; display-capture" className="flex-1 w-full border-0" />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
