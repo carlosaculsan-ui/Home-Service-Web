@@ -366,63 +366,6 @@ app.post('/api/moderate-review', async (req, res) => {
   }
 });
 
-const PAYMONGO_AUTH = () => 'Basic ' + Buffer.from(process.env.PAYMONGO_SECRET_KEY + ':').toString('base64')
-
-app.post('/api/paymongo/create-intent', async (req, res) => {
-  const { amount, payment_method_allowed } = req.body
-  if (!amount || !Array.isArray(payment_method_allowed)) return res.status(400).json({ error: 'Invalid request' })
-  try {
-    const r = await fetch('https://api.paymongo.com/v1/payment_intents', {
-      method: 'POST',
-      headers: { 'Authorization': PAYMONGO_AUTH(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        data: { attributes: { amount: Math.round(amount * 100), currency: 'PHP', payment_method_allowed, capture_type: 'automatic' } },
-      }),
-    })
-    const data = await r.json()
-    if (!r.ok) return res.status(r.status).json(data)
-    res.json({ id: data.data.id })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
-app.post('/api/paymongo/attach-method', async (req, res) => {
-  const { pi_id, pm_id, return_url } = req.body
-  if (!pi_id || !pm_id || !return_url) return res.status(400).json({ error: 'Invalid request' })
-  try {
-    const r = await fetch(`https://api.paymongo.com/v1/payment_intents/${pi_id}/attach`, {
-      method: 'POST',
-      headers: { 'Authorization': PAYMONGO_AUTH(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { attributes: { payment_method: pm_id, return_url } } }),
-    })
-    const data = await r.json()
-    if (!r.ok) return res.status(r.status).json(data)
-    const attrs = data.data.attributes
-    res.json({ status: attrs.status, next_action_url: attrs.next_action?.redirect?.url ?? null })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
-app.get('/api/paymongo/get-intent/:id', async (req, res) => {
-  try {
-    const r = await fetch(`https://api.paymongo.com/v1/payment_intents/${req.params.id}`, {
-      headers: { 'Authorization': PAYMONGO_AUTH() },
-    })
-    const data = await r.json()
-    if (!r.ok) return res.status(r.status).json(data)
-    const attrs = data.data.attributes
-    res.json({ status: attrs.status, payment_id: attrs.payments?.[0]?.id ?? req.params.id })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
-app.post('/api/paymongo-webhook', (req, res) => {
-  res.json({ received: true })
-})
-
 app.listen(5000, () => {
   console.log("Server running on port 5000");
 });
