@@ -1789,7 +1789,7 @@ function LeaveRequestSection({ taskerId }) {
 
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
-function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, taskerUserId, onLogout, onClose, unreadNotifCount = 0, setUnreadNotifCount, setNotifTabOpen }) {
+function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, taskerUserId, onLogout, onClose, unreadNotifCount = 0, setUnreadNotifCount, setNotifTabOpen, acceptsUrgent, urgentToggling, onToggleUrgent, profileRole }) {
   return (
     <div className="w-[260px] min-h-screen bg-orange-500 flex flex-col">
 
@@ -1826,6 +1826,23 @@ function TaskerSidebar({ tab, setTab, taskerName, taskerEmail, taskerUserId, onL
           </div>
         </div>
       </div>
+
+      {/* Urgent toggle */}
+      {profileRole === 'Plumbing' && (
+        <div className="mx-3 my-3 px-4 py-3 bg-orange-600 rounded-lg flex items-center justify-between gap-3">
+          <div>
+            <p className="text-white text-xs font-semibold leading-tight">🚨 Accept Urgent Bookings</p>
+            <p className="text-orange-200 text-[11px] mt-0.5 leading-tight">Appear in same-day urgent requests</p>
+          </div>
+          <button
+            onClick={onToggleUrgent}
+            disabled={urgentToggling}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${acceptsUrgent ? 'bg-white' : 'bg-orange-400'} ${urgentToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+          >
+            <span className={`inline-block h-4 w-4 transform rounded-full shadow transition-transform duration-200 ${acceptsUrgent ? 'bg-orange-500 translate-x-6' : 'bg-white translate-x-1'}`} />
+          </button>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
@@ -3235,22 +3252,6 @@ function ProfileManagement({ taskerId, taskerUserId, taskerName }) {
 
         </div>
 
-        {/* Urgent Bookings standalone toggle — Plumbing only */}
-        {profile.role === 'Plumbing' && (
-          <div className="mt-5 pt-5 border-t border-gray-100 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-semibold text-gray-800">🚨 Accept Urgent Bookings</p>
-              <p className="text-xs text-gray-400 mt-0.5">When enabled, you appear in urgent same-day booking requests.</p>
-            </div>
-            <button
-              onClick={handleToggleUrgent}
-              disabled={urgentToggling}
-              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none ${profile.accepts_urgent ? 'bg-orange-500' : 'bg-gray-200'} ${urgentToggling ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-            >
-              <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 ${profile.accepts_urgent ? 'translate-x-6' : 'translate-x-1'}`} />
-            </button>
-          </div>
-        )}
 
         {editingWork && (
           <div className="flex gap-2 mt-5 justify-end">
@@ -4373,6 +4374,9 @@ function TaskerDashboard() {
   const [globalCallRoomUrl, setGlobalCallRoomUrl] = useState(null)
   const [globalCallType, setGlobalCallType] = useState(null)
   const globalCallIdRef = useRef(null)
+  const [acceptsUrgent, setAcceptsUrgent] = useState(false)
+  const [profileRole, setProfileRole] = useState(null)
+  const [urgentToggling, setUrgentToggling] = useState(false)
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -4391,6 +4395,14 @@ function TaskerDashboard() {
       setNotifToast('Notifications blocked. You can enable them in browser settings.')
       setTimeout(() => setNotifToast(null), 4000)
     }
+  }
+
+  async function handleToggleUrgent() {
+    const newVal = !acceptsUrgent
+    setUrgentToggling(true)
+    const { error } = await supabase.from('taskers').update({ accepts_urgent: newVal }).eq('user_id', taskerUserId)
+    setUrgentToggling(false)
+    if (!error) setAcceptsUrgent(newVal)
   }
 
   async function load(tid) {
@@ -4417,7 +4429,7 @@ function TaskerDashboard() {
 
         const { data: tasker } = await supabase
           .from('taskers')
-          .select('id, name, user_id')
+          .select('id, name, user_id, accepts_urgent, role')
           .eq('user_id', session.user.id)
           .maybeSingle()
 
@@ -4426,6 +4438,8 @@ function TaskerDashboard() {
         setTaskerId(tasker.id)
         setTaskerUserId(tasker.user_id)
         setTaskerName(tasker.name || '')
+        setAcceptsUrgent(tasker.accepts_urgent ?? false)
+        setProfileRole(tasker.role ?? null)
         await load(tasker.id)
 
         const { data: welcomeNotifs } = await supabase
@@ -4753,6 +4767,10 @@ function TaskerDashboard() {
           unreadNotifCount={unreadNotifCount}
           setUnreadNotifCount={setUnreadNotifCount}
           setNotifTabOpen={setNotifTabOpen}
+          acceptsUrgent={acceptsUrgent}
+          urgentToggling={urgentToggling}
+          onToggleUrgent={handleToggleUrgent}
+          profileRole={profileRole}
         />
       </div>
 
@@ -4775,6 +4793,10 @@ function TaskerDashboard() {
               unreadNotifCount={unreadNotifCount}
               setUnreadNotifCount={setUnreadNotifCount}
               setNotifTabOpen={setNotifTabOpen}
+              acceptsUrgent={acceptsUrgent}
+              urgentToggling={urgentToggling}
+              onToggleUrgent={handleToggleUrgent}
+              profileRole={profileRole}
             />
           </div>
         </>

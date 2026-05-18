@@ -37,6 +37,7 @@ function Hero() {
         setStats({ bookings: 0, taskers: 0 })
       }
     }
+
     fetchStats()
   }, []);
 

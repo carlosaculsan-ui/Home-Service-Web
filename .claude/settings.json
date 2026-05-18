@@ -21,7 +21,17 @@
       "Bash(node index.js)",
       "Bash(ping -n 3 127.0.0.1)",
       "PowerShell(Invoke-RestMethod http://localhost:5000/api/stats)",
-      "PowerShell(curl.exe http://localhost:5000/api/stats)"
+      "PowerShell(curl.exe http://localhost:5000/api/stats)",
+      "Bash(npm list *)",
+      "Bash(node generate.js)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\CS3A_Group7_FinalProject\")",
+      "Bash(Out-Null)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\CS3A_Group7_FinalProject\\\\Source Code\")",
+      "Bash(Write-Host \"Folders created.\")"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\Admin\\Downloads\\pdf-gen",
+      "C:\\Users\\Admin\\Downloads"
     ]
   }
 }

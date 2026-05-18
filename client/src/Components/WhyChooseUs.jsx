@@ -70,6 +70,7 @@ function WhyChooseUs() {
         taskers: statsRes.taskers ?? 0,
       })
     }
+
     fetchStats()
   }, [])
 
