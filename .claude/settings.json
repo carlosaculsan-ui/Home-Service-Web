@@ -27,7 +27,8 @@
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\CS3A_Group7_FinalProject\")",
       "Bash(Out-Null)",
       "Bash(New-Item -ItemType Directory -Force \"C:\\\\Users\\\\Admin\\\\Downloads\\\\CS3A_Group7_FinalProject\\\\Source Code\")",
-      "Bash(Write-Host \"Folders created.\")"
+      "Bash(Write-Host \"Folders created.\")",
+      "Bash(git log *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\Admin\\Downloads\\pdf-gen",

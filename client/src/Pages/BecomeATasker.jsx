@@ -343,6 +343,7 @@ function BecomeATasker() {
       has_nbi_clearance: formData.hasNbiClearance,
       has_barangay_clearance: formData.hasBarangayClearance,
       has_certificates: formData.hasCertificates,
+      hourly_rate: 0,
       ...uploadedUrls,
     }
     const { error } = await supabase.from('taskers').insert(insertData)
